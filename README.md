@@ -224,10 +224,16 @@ python3 -m pytest -q
 
 | job | 검사 |
 |---|---|
-| `pytest (Python 3.10~3.13)` | 전체 테스트 |
+| `pytest (Python 3.10~3.13)` | 전체 테스트. 커밋된 `sample_output/report.html` 이 현재 출력과 같은지(날짜 제외)도 여기서 본다 |
 | `런타임 의존성 없음` | `pyproject.toml` 에 런타임 의존성이 조용히 추가됐는지 |
 | `합성 코퍼스 재현성` | 저장된 코퍼스가 생성기 출력과 같은지 |
 | `CLI 동작` | README 실행 예시 3개가 실제로 돌아가는지, 잘못된 입력이 종료코드 1 인지 |
+
+출력 양식을 바꿨다면 예시 리포트를 다시 만들어 함께 커밋해야 한다. 안 그러면 테스트가 막는다.
+
+```bash
+python3 -m abcheck.cli data/synthetic/sequences.json --html
+```
 
 ### 실패한 코드를 막으려면 (저장소 설정 — 한 번만)
 
