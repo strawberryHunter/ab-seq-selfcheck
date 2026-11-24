@@ -261,18 +261,36 @@ CI 는 실패를 **알려줄** 뿐이고, 실제로 **막는** 것은 GitHub 의
 `gh` CLI 로 하려면:
 
 ```bash
-gh api -X PUT repos/strawberryHunter/ab-seq-selfcheck/branches/main/protection \
-  -f 'required_status_checks[strict]=true' \
-  -f 'required_status_checks[checks][][context]=pytest (Python 3.10)' \
-  -f 'required_status_checks[checks][][context]=pytest (Python 3.11)' \
-  -f 'required_status_checks[checks][][context]=pytest (Python 3.12)' \
-  -f 'required_status_checks[checks][][context]=pytest (Python 3.13)' \
-  -f 'required_status_checks[checks][][context]=런타임 의존성 없음' \
-  -f 'required_status_checks[checks][][context]=합성 코퍼스 재현성' \
-  -f 'required_status_checks[checks][][context]=CLI 동작' \
-  -F enforce_admins=true \
-  -F required_pull_request_reviews=null \
-  -F restrictions=null
+gh api -X PUT repos/strawberryHunter/ab-seq-selfcheck/branches/main/protection --input - <<'JSON'
+{
+  "required_status_checks": {
+    "strict": true,
+    "checks": [
+      {"context": "pytest (Python 3.10)"},
+      {"context": "pytest (Python 3.11)"},
+      {"context": "pytest (Python 3.12)"},
+      {"context": "pytest (Python 3.13)"},
+      {"context": "런타임 의존성 없음"},
+      {"context": "합성 코퍼스 재현성"},
+      {"context": "CLI 동작"}
+    ]
+  },
+  "enforce_admins": true,
+  "required_pull_request_reviews": null,
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
+}
+JSON
+```
+
+`checks` 는 객체의 배열이라 `gh api -f key=value` 로는 못 만든다. 반드시 `--input` 으로
+JSON 을 통째로 넘겨야 한다.
+
+켜졌는지 확인:
+
+```bash
+gh api repos/strawberryHunter/ab-seq-selfcheck/branches/main --jq .protected
 ```
 
 > 비공개 저장소에서 브랜치 보호를 쓰려면 GitHub Pro/Team 이상이 필요하다.
