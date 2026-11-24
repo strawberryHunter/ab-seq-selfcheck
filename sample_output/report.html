@@ -52,6 +52,10 @@ td.num, td.right { text-align: right; white-space: nowrap; }
 .failed { border: 1px solid #000000; padding: 10px 12px; background: #f5f5f5; }
 .rationale { font-size: 12px; color: #333333; margin: 2px 0 10px; }
 .seq-section { margin-bottom: 36px; padding-bottom: 8px; border-bottom: 2px solid #000000; }
+.summary { margin-bottom: 40px; padding-bottom: 12px; border-bottom: 2px solid #000000; }
+.summary td:first-child { white-space: nowrap; }
+.summary a { color: #000000; }
+.summary tbody tr:last-child { border-top: 2px solid #000000; }
 .kv { font-size: 13px; margin: 2px 0; }
 .kv span { display: inline-block; min-width: 120px; color: #555555; }
 ul.reasons { margin: 6px 0; padding-left: 20px; }
@@ -62,7 +66,13 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <h1>항체 서열 셀프 점검 리포트</h1>
 <p class="meta">abcheck 0.1.0 · 생성 2026-11-24 · 서열 16건 · CDR 좌표는 1-based, 양끝 포함</p>
 <div class="notice"><strong>이 도구의 한계</strong><ul><li>이 도구는 보존 잔기 앵커 기반 스크리닝 휴리스틱이다. ANARCI/IMGT 같은 numbering 엔진이 아니다.</li><li>CDR 경계는 Kabat 을 근사한 것이며, 번호를 매기지 않는다. 삽입/결실이 있는 서열에서는 경계가 밀릴 수 있다.</li><li>liability 플래그는 서열 모티프만 본다. 구조적 노출도(용매 접근성)를 보지 않으므로 실제 위험도는 다를 수 있다.</li><li>pI/GRAVY/net charge 는 서열 기반 추정치다. 실측값과 다를 수 있다.</li><li>다음 경우에는 ANARCI/IMGT 로 반드시 재확인할 것: confident=False 인 서열, CDR 길이가 통상 범위를 벗어난 서열, 비(非)항체 또는 비정형 스캐폴드(나노바디·scFv·이중특이체 링커 포함)로 의심되는 서열, 그리고 이 결과를 근거로 후보를 탈락시키려는 모든 경우.</li></ul><p>이 도구는 &#x27;개발 가능성 높음/낮음&#x27; 같은 종합 판정을 내리지 않는다. 플래그와 그 근거만 제시한다. 판단은 사람이 한다.</p></div>
-<div class="seq-section">
+<div class="summary">
+<h2>CDR별 liability 집계</h2>
+<p class="rationale">아래는 건수 집계일 뿐이며 종합 판정이 아니다. 건수가 적다고 안전한 것도, 많다고 탈락시킬 근거도 되지 않는다. 각 서열의 상세 항목과 근거를 함께 볼 것.</p>
+<table><thead><tr><th>서열</th><th>체인</th><th>주석</th><th>CDR1</th><th>CDR2</th><th>CDR3</th><th>framework</th><th>도메인 플래그</th></tr></thead><tbody><tr><td><a href="#seq-SYN-VH-001">SYN-VH-001</a></td><td>VH</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-002">SYN-VH-002</a></td><td>VH</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-001">SYN-VL-001</a></td><td>VL</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-002">SYN-VL-002</a></td><td>VL</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-003">SYN-VH-003</a></td><td>VH</td><td>신뢰 가능</td><td>-</td><td>높음 1</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-004">SYN-VH-004</a></td><td>VH</td><td>신뢰 가능</td><td>높음 1</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-003">SYN-VL-003</a></td><td>VL</td><td>신뢰 가능</td><td>-</td><td>-</td><td>높음 1</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-005">SYN-VH-005</a></td><td>VH</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>비결합 Cys 가능성 (높음)</td></tr><tr><td><a href="#seq-SYN-VH-006">SYN-VH-006</a></td><td>VH</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>중간 1, 낮음 3</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-007">SYN-VH-007</a></td><td>VH</td><td>신뢰 가능</td><td>-</td><td>-</td><td>높음 1</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-008">SYN-VH-008</a></td><td>VH</td><td>신뢰 가능</td><td>-</td><td>-</td><td>중간 2</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-004">SYN-VL-004</a></td><td>VL</td><td>신뢰 가능</td><td>높음 1</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-005">SYN-VL-005</a></td><td>VL</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-901">SYN-VH-901</a></td><td>판별 실패</td><td>신뢰 불가</td><td>주석 실패</td><td>주석 실패</td><td>주석 실패</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-902">SYN-VH-902</a></td><td>VH</td><td>신뢰 불가</td><td>주석 실패</td><td>주석 실패</td><td>주석 실패</td><td>낮음 2</td><td>비결합 Cys 가능성 (중간)</td></tr><tr><td><a href="#seq-SYN-VH-903">SYN-VH-903</a></td><td>VH</td><td>신뢰 불가</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><b>합계</b></td><td></td><td></td><td><b>높음 2</b></td><td><b>높음 1</b></td><td><b>높음 2, 중간 2</b></td><td><b>중간 1, 낮음 27</b></td><td><b>2건</b></td></tr></tbody></table>
+<p class="rationale">&lsquo;주석 실패&rsquo; 로 표시된 서열은 CDR 구간을 가를 수 없어 모티프를 framework 칸에 모았다. 실제로는 CDR 안일 수 있으니 과소평가하지 말 것.</p>
+</div>
+<div class="seq-section" id="seq-SYN-VH-001">
 <h2>SYN-VH-001</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>115 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -78,7 +88,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">115</td><td class="right">9.07</td><td class="right">-0.209</td><td class="right">+3.34</td></tr><tr><td>CDR-H1</td><td class="right">5</td><td class="right">10.55</td><td class="right">-0.440</td><td class="right">+1.05</td></tr><tr><td>CDR-H2</td><td class="right">16</td><td class="right">4.11</td><td class="right">-1.369</td><td class="right">-2.06</td></tr><tr><td>CDR-H3</td><td class="right">10</td><td class="right">9.35</td><td class="right">-0.100</td><td class="right">+0.94</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VH-002">
 <h2>SYN-VH-002</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>123 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -94,7 +104,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">123</td><td class="right">9.06</td><td class="right">-0.291</td><td class="right">+3.34</td></tr><tr><td>CDR-H1</td><td class="right">5</td><td class="right">6.10</td><td class="right">+0.480</td><td class="right">-0.06</td></tr><tr><td>CDR-H2</td><td class="right">16</td><td class="right">9.15</td><td class="right">-1.488</td><td class="right">+1.05</td></tr><tr><td>CDR-H3</td><td class="right">18</td><td class="right">4.48</td><td class="right">-0.861</td><td class="right">-1.06</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VL-001">
 <h2>SYN-VL-001</h2>
 <p class="kv"><span>체인</span>경쇄 (VL)</p><p class="kv"><span>길이</span>108 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -110,7 +120,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">108</td><td class="right">10.64</td><td class="right">-0.167</td><td class="right">+12.89</td></tr><tr><td>CDR-L1</td><td class="right">11</td><td class="right">9.30</td><td class="right">+0.145</td><td class="right">+0.94</td></tr><tr><td>CDR-L2</td><td class="right">7</td><td class="right">6.09</td><td class="right">-0.914</td><td class="right">-0.06</td></tr><tr><td>CDR-L3</td><td class="right">9</td><td class="right">9.22</td><td class="right">-1.878</td><td class="right">+0.94</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VL-002">
 <h2>SYN-VL-002</h2>
 <p class="kv"><span>체인</span>경쇄 (VL)</p><p class="kv"><span>길이</span>105 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -126,7 +136,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">105</td><td class="right">10.46</td><td class="right">+0.063</td><td class="right">+9.89</td></tr><tr><td>CDR-L1</td><td class="right">8</td><td class="right">4.18</td><td class="right">+0.350</td><td class="right">-1.06</td></tr><tr><td>CDR-L2</td><td class="right">7</td><td class="right">6.10</td><td class="right">+0.357</td><td class="right">-0.06</td></tr><tr><td>CDR-L3</td><td class="right">9</td><td class="right">6.32</td><td class="right">-0.267</td><td class="right">-0.06</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VH-003">
 <h2>SYN-VH-003</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>115 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -143,7 +153,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">115</td><td class="right">9.44</td><td class="right">-0.250</td><td class="right">+4.23</td></tr><tr><td>CDR-H1</td><td class="right">5</td><td class="right">3.85</td><td class="right">-0.280</td><td class="right">-1.06</td></tr><tr><td>CDR-H2</td><td class="right">16</td><td class="right">6.34</td><td class="right">-0.669</td><td class="right">-0.06</td></tr><tr><td>CDR-H3</td><td class="right">10</td><td class="right">9.93</td><td class="right">-1.780</td><td class="right">+1.94</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VH-004">
 <h2>SYN-VH-004</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>116 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -160,7 +170,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">116</td><td class="right">9.59</td><td class="right">-0.134</td><td class="right">+4.23</td></tr><tr><td>CDR-H1</td><td class="right">6</td><td class="right">6.10</td><td class="right">+0.450</td><td class="right">-0.06</td></tr><tr><td>CDR-H2</td><td class="right">16</td><td class="right">11.31</td><td class="right">-2.050</td><td class="right">+1.94</td></tr><tr><td>CDR-H3</td><td class="right">10</td><td class="right">3.75</td><td class="right">+1.340</td><td class="right">-1.06</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VL-003">
 <h2>SYN-VL-003</h2>
 <p class="kv"><span>체인</span>경쇄 (VL)</p><p class="kv"><span>길이</span>108 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -177,7 +187,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">108</td><td class="right">10.55</td><td class="right">-0.016</td><td class="right">+9.89</td></tr><tr><td>CDR-L1</td><td class="right">11</td><td class="right">6.33</td><td class="right">-0.373</td><td class="right">-0.06</td></tr><tr><td>CDR-L2</td><td class="right">7</td><td class="right">6.10</td><td class="right">+1.014</td><td class="right">-0.06</td></tr><tr><td>CDR-L3</td><td class="right">9</td><td class="right">4.18</td><td class="right">-0.933</td><td class="right">-1.06</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VH-005">
 <h2>SYN-VH-005</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>117 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -194,7 +204,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">117</td><td class="right">8.47</td><td class="right">-0.039</td><td class="right">+2.38</td></tr><tr><td>CDR-H1</td><td class="right">5</td><td class="right">3.85</td><td class="right">+2.020</td><td class="right">-1.06</td></tr><tr><td>CDR-H2</td><td class="right">16</td><td class="right">9.30</td><td class="right">-0.500</td><td class="right">+1.16</td></tr><tr><td>CDR-H3</td><td class="right">12</td><td class="right">4.18</td><td class="right">-0.650</td><td class="right">-1.14</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VH-006">
 <h2>SYN-VH-006</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>115 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -212,7 +222,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">115</td><td class="right">9.90</td><td class="right">-0.107</td><td class="right">+6.34</td></tr><tr><td>CDR-H1</td><td class="right">5</td><td class="right">7.54</td><td class="right">-2.460</td><td class="right">+0.05</td></tr><tr><td>CDR-H2</td><td class="right">16</td><td class="right">10.90</td><td class="right">-0.306</td><td class="right">+2.94</td></tr><tr><td>CDR-H3</td><td class="right">10</td><td class="right">10.55</td><td class="right">+0.570</td><td class="right">+0.94</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VH-007">
 <h2>SYN-VH-007</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>116 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -229,7 +239,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">116</td><td class="right">9.13</td><td class="right">-0.378</td><td class="right">+3.23</td></tr><tr><td>CDR-H1</td><td class="right">5</td><td class="right">6.10</td><td class="right">-1.480</td><td class="right">-0.06</td></tr><tr><td>CDR-H2</td><td class="right">16</td><td class="right">4.31</td><td class="right">-1.275</td><td class="right">-1.06</td></tr><tr><td>CDR-H3</td><td class="right">11</td><td class="right">9.70</td><td class="right">-1.555</td><td class="right">+0.94</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VH-008">
 <h2>SYN-VH-008</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>117 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -246,7 +256,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">117</td><td class="right">8.69</td><td class="right">-0.262</td><td class="right">+2.34</td></tr><tr><td>CDR-H1</td><td class="right">5</td><td class="right">6.09</td><td class="right">-1.040</td><td class="right">-0.06</td></tr><tr><td>CDR-H2</td><td class="right">16</td><td class="right">7.54</td><td class="right">-1.575</td><td class="right">+0.05</td></tr><tr><td>CDR-H3</td><td class="right">12</td><td class="right">3.85</td><td class="right">-0.117</td><td class="right">-1.06</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VL-004">
 <h2>SYN-VL-004</h2>
 <p class="kv"><span>체인</span>경쇄 (VL)</p><p class="kv"><span>길이</span>108 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -263,7 +273,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">108</td><td class="right">10.96</td><td class="right">-0.131</td><td class="right">+12.12</td></tr><tr><td>CDR-L1</td><td class="right">11</td><td class="right">3.49</td><td class="right">-0.155</td><td class="right">-2.06</td></tr><tr><td>CDR-L2</td><td class="right">7</td><td class="right">12.52</td><td class="right">-2.314</td><td class="right">+3.05</td></tr><tr><td>CDR-L3</td><td class="right">9</td><td class="right">7.55</td><td class="right">-0.000</td><td class="right">+0.05</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VL-005">
 <h2>SYN-VL-005</h2>
 <p class="kv"><span>체인</span>경쇄 (VL)</p><p class="kv"><span>길이</span>108 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
 <h3>CDR 주석</h3>
@@ -279,7 +289,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">108</td><td class="right">11.59</td><td class="right">-0.456</td><td class="right">+20.89</td></tr><tr><td>CDR-L1</td><td class="right">11</td><td class="right">11.67</td><td class="right">-2.836</td><td class="right">+4.94</td></tr><tr><td>CDR-L2</td><td class="right">7</td><td class="right">9.54</td><td class="right">-1.371</td><td class="right">+0.94</td></tr><tr><td>CDR-L3</td><td class="right">9</td><td class="right">12.53</td><td class="right">-1.344</td><td class="right">+3.94</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VH-901">
 <h2>SYN-VH-901</h2>
 <p class="kv"><span>체인</span>판별 실패</p><p class="kv"><span>길이</span>115 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 불가 (confident=False)</p>
 <h3>주석을 신뢰할 수 없는 이유</h3><ul class="reasons">
@@ -301,7 +311,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">115</td><td class="right">9.83</td><td class="right">-0.250</td><td class="right">+6.23</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VH-902">
 <h2>SYN-VH-902</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>115 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 불가 (confident=False)</p>
 <h3>주석을 신뢰할 수 없는 이유</h3><ul class="reasons">
@@ -324,7 +334,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>
 <table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH 7.4)</th></tr></thead><tbody><tr><td>도메인 전체</td><td class="right">115</td><td class="right">9.98</td><td class="right">-0.075</td><td class="right">+6.30</td></tr></tbody></table>
 </div>
-<div class="seq-section">
+<div class="seq-section" id="seq-SYN-VH-903">
 <h2>SYN-VH-903</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>119 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 불가 (confident=False)</p>
 <h3>주석을 신뢰할 수 없는 이유</h3><ul class="reasons">

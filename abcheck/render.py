@@ -18,10 +18,49 @@ import unicodedata
 from datetime import date
 
 from . import LIMITATION_NOTICE, NO_VERDICT_NOTICE, __version__
-from .report import SequenceReport
+from .report import SUMMARY_REGIONS, SequenceReport, summarize
 
 #: 서열을 보여줄 때 한 줄에 넣을 잔기 수
 SEQUENCE_LINE_WIDTH = 60
+
+#: 집계 표에서 건수가 0 인 칸에 쓸 표시
+EMPTY_CELL = "-"
+
+#: 집계 표 열 제목
+SUMMARY_HEADERS: dict[str, str] = {
+    "CDR1": "CDR1",
+    "CDR2": "CDR2",
+    "CDR3": "CDR3",
+    "framework": "framework",
+}
+
+
+def _counts_cell(counts: dict[str, int]) -> str:
+    """{'높음': 1, '중간': 0, '낮음': 2} → '높음 1, 낮음 2'."""
+    parts = [f"{level} {n}" for level, n in counts.items() if n]
+    return ", ".join(parts) if parts else EMPTY_CELL
+
+
+def _summary_row_cells(row: dict) -> tuple[str, str, str, list[str], str]:
+    """집계 표 한 행에 들어갈 칸들을 만든다."""
+    if not row["input_ok"]:
+        return row["id"], "-", "입력 오류", [EMPTY_CELL] * len(SUMMARY_REGIONS), EMPTY_CELL
+
+    chain = {"H": "VH", "L": "VL", None: "판별 실패"}[row["chain"]]
+    confidence = "신뢰 가능" if row["confident"] else "신뢰 불가"
+
+    cells: list[str] = []
+    for region in SUMMARY_REGIONS:
+        if region.startswith("CDR") and not row["annotated"]:
+            cells.append("주석 실패")
+        else:
+            cells.append(_counts_cell(row["regions"][region]))
+
+    flags = row["domain_flags"]
+    flag_cell = (
+        ", ".join(f"{f['label']} ({f['risk']})" for f in flags) if flags else EMPTY_CELL
+    )
+    return row["id"], chain, confidence, cells, flag_cell
 
 
 # --------------------------------------------------------------------------
@@ -177,6 +216,9 @@ def as_text(reports: list[SequenceReport], *, width: int = 100) -> str:
     out.extend(_wrap(NO_VERDICT_NOTICE, width - 4, first="  "))
     out.append("")
 
+    out.extend(_summary_text(reports, width))
+    out.append("")
+
     for report in reports:
         out.extend(_render_one_text(report, width))
         out.append("")
@@ -184,6 +226,40 @@ def as_text(reports: list[SequenceReport], *, width: int = 100) -> str:
     out.append("=" * width)
     out.append(f"서열 {len(reports)}건 처리. 생성 {date.today().isoformat()}")
     return "\n".join(out)
+
+
+def _summary_text(reports: list[SequenceReport], width: int) -> list[str]:
+    """CDR별 liability 집계 표 (터미널용)."""
+    summary = summarize(reports)
+    out: list[str] = ["-" * width, "[CDR별 liability 집계]", "-" * width]
+    out.extend(_wrap(summary["note"], width - 4, first="  "))
+    out.append("")
+
+    headers = ["서열", "체인", "주석"] + [SUMMARY_HEADERS[r] for r in SUMMARY_REGIONS] \
+        + ["도메인 플래그"]
+    rows: list[list[str]] = []
+
+    for row in summary["rows"]:
+        seq_id, chain, confidence, cells, flag_cell = _summary_row_cells(row)
+        rows.append([seq_id, chain, confidence] + cells + [flag_cell])
+
+    totals = summary["totals"]
+    rows.append(
+        ["합계", "", ""]
+        + [_counts_cell(totals[r]) for r in SUMMARY_REGIONS]
+        + [f"{summary['domain_flag_total']}건" if summary["domain_flag_total"] else EMPTY_CELL]
+    )
+
+    out.extend("  " + line for line in _table(headers, rows))
+
+    if any(r["regions_unassigned"] for r in summary["rows"]):
+        out.append("")
+        out.extend(_wrap(
+            "'주석 실패' 로 표시된 서열은 CDR 구간을 가를 수 없어 모티프를 framework 칸에 "
+            "모았다. 실제로는 CDR 안일 수 있으니 과소평가하지 말 것.",
+            width - 4, first="  ",
+        ))
+    return out
 
 
 def _render_one_text(report: SequenceReport, width: int) -> list[str]:
@@ -315,6 +391,7 @@ def as_json(reports: list[SequenceReport], *, indent: int = 2) -> str:
         "limitations": list(LIMITATION_NOTICE),
         "no_verdict": NO_VERDICT_NOTICE,
         "count": len(reports),
+        "summary": summarize(reports),
         "sequences": [r.as_dict() for r in reports],
     }
     return json.dumps(payload, ensure_ascii=False, indent=indent) + "\n"
@@ -374,6 +451,10 @@ td.num, td.right { text-align: right; white-space: nowrap; }
 .failed { border: 1px solid #000000; padding: 10px 12px; background: #f5f5f5; }
 .rationale { font-size: 12px; color: #333333; margin: 2px 0 10px; }
 .seq-section { margin-bottom: 36px; padding-bottom: 8px; border-bottom: 2px solid #000000; }
+.summary { margin-bottom: 40px; padding-bottom: 12px; border-bottom: 2px solid #000000; }
+.summary td:first-child { white-space: nowrap; }
+.summary a { color: #000000; }
+.summary tbody tr:last-child { border-top: 2px solid #000000; }
 .kv { font-size: 13px; margin: 2px 0; }
 .kv span { display: inline-block; min-width: 120px; color: #555555; }
 ul.reasons { margin: 6px 0; padding-left: 20px; }
@@ -412,6 +493,7 @@ def as_html(reports: list[SequenceReport], *, title: str = "항체 서열 셀프
         '<div class="notice"><strong>이 도구의 한계</strong><ul>'
         + "".join(f"<li>{html.escape(n)}</li>" for n in LIMITATION_NOTICE)
         + f"</ul><p>{html.escape(NO_VERDICT_NOTICE)}</p></div>",
+        _summary_html(reports),
     ]
 
     for report in reports:
@@ -425,8 +507,57 @@ def as_html(reports: list[SequenceReport], *, title: str = "항체 서열 셀프
     return "\n".join(parts)
 
 
+def _summary_html(reports: list[SequenceReport]) -> str:
+    """CDR별 liability 집계 표 (HTML용). 리포트 맨 앞에 놓는다."""
+    summary = summarize(reports)
+
+    headers = ["서열", "체인", "주석"] + [SUMMARY_HEADERS[r] for r in SUMMARY_REGIONS] \
+        + ["도메인 플래그"]
+    rows: list[list[str]] = []
+
+    for row in summary["rows"]:
+        seq_id, chain, confidence, cells, flag_cell = _summary_row_cells(row)
+        link = f'<a href="#{html.escape(_anchor(seq_id))}">{html.escape(seq_id)}</a>'
+        rows.append(
+            [link, html.escape(chain), html.escape(confidence)]
+            + [html.escape(c) for c in cells]
+            + [html.escape(flag_cell)]
+        )
+
+    totals = summary["totals"]
+    rows.append(
+        ["<b>합계</b>", "", ""]
+        + [f"<b>{html.escape(_counts_cell(totals[r]))}</b>" for r in SUMMARY_REGIONS]
+        + [f"<b>{summary['domain_flag_total']}건</b>" if summary["domain_flag_total"]
+           else EMPTY_CELL]
+    )
+
+    out = [
+        '<div class="summary">',
+        "<h2>CDR별 liability 집계</h2>",
+        f'<p class="rationale">{html.escape(summary["note"])}</p>',
+        _html_table(headers, rows),
+    ]
+    if any(r["regions_unassigned"] for r in summary["rows"]):
+        out.append(
+            '<p class="rationale">&lsquo;주석 실패&rsquo; 로 표시된 서열은 CDR 구간을 '
+            "가를 수 없어 모티프를 framework 칸에 모았다. 실제로는 CDR 안일 수 있으니 "
+            "과소평가하지 말 것.</p>"
+        )
+    out.append("</div>")
+    return "\n".join(out)
+
+
+def _anchor(seq_id: str) -> str:
+    """서열 ID 를 HTML 앵커로 쓸 수 있게 다듬는다."""
+    return "seq-" + "".join(ch if ch.isalnum() else "-" for ch in seq_id)
+
+
 def _render_one_html(report: SequenceReport) -> str:
-    out: list[str] = ['<div class="seq-section">', f"<h2>{html.escape(report.seq_id)}</h2>"]
+    out: list[str] = [
+        f'<div class="seq-section" id="{html.escape(_anchor(report.seq_id))}">',
+        f"<h2>{html.escape(report.seq_id)}</h2>",
+    ]
 
     if not report.ok:
         out.append('<div class="failed"><strong>입력을 쓸 수 없다</strong><ul class="reasons">')

@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from . import LIMITATION_NOTICE, NO_VERDICT_NOTICE, __version__
 from .annotate import Annotation, annotate
-from .liabilities import LiabilityReport, find_liabilities
+from .liabilities import RISK_LEVELS, LiabilityReport, find_liabilities
 from .properties import DEFAULT_PH, Properties, compute_all
 from .validate import SequenceError, validate
 
@@ -138,4 +138,94 @@ def build_many(items: list[tuple[str, str]], ph: float = DEFAULT_PH) -> list[Seq
     return [build(seq_id, seq, ph) for seq_id, seq in items]
 
 
-__all__ = ["SequenceReport", "build", "build_many", "SequenceError"]
+# --------------------------------------------------------------------------
+# 집계
+# --------------------------------------------------------------------------
+
+#: 집계 표의 구간 칸. 중쇄(CDR-H1)와 경쇄(CDR-L1)를 같은 칸에 모으기 위해 번호만 쓴다.
+SUMMARY_REGIONS: tuple[str, ...] = ("CDR1", "CDR2", "CDR3", "framework")
+
+SUMMARY_NOTE: str = (
+    "아래는 건수 집계일 뿐이며 종합 판정이 아니다. 건수가 적다고 안전한 것도, "
+    "많다고 탈락시킬 근거도 되지 않는다. 각 서열의 상세 항목과 근거를 함께 볼 것."
+)
+
+#: 주석이 실패해 구간을 가를 수 없는 서열의 모티프가 들어가는 칸
+UNASSIGNED_REGION = "framework"
+
+
+def _slot_of(region: str) -> str:
+    """liability hit 의 구간 이름을 집계 칸으로 바꾼다.
+
+    "CDR-H2" → "CDR2", "CDR-L1" → "CDR1", "framework" → "framework".
+    "구간 미확정"(주석 실패)은 framework 칸으로 모으고, 행에 별도 표시를 단다.
+    """
+    if region.startswith("CDR-") and region[-1].isdigit():
+        return f"CDR{region[-1]}"
+    if region == "구간 미확정":
+        return UNASSIGNED_REGION
+    return "framework"
+
+
+def _empty_counts() -> dict[str, int]:
+    return {level: 0 for level in reversed(RISK_LEVELS)}
+
+
+def summarize(reports: list[SequenceReport]) -> dict:
+    """서열 × 구간 × 위험도 건수를 교차 집계한다.
+
+    후보 여러 건을 나란히 비교할 때 쓴다. 점수를 매기거나 순위를 내지 않는다 —
+    건수만 센다.
+    """
+    rows: list[dict] = []
+    totals: dict[str, dict[str, int]] = {r: _empty_counts() for r in SUMMARY_REGIONS}
+    flag_total = 0
+
+    for report in reports:
+        regions: dict[str, dict[str, int]] = {r: _empty_counts() for r in SUMMARY_REGIONS}
+        unassigned = False
+
+        if report.ok and report.liabilities is not None:
+            for hit in report.liabilities.hits:
+                if hit.region == "구간 미확정":
+                    unassigned = True
+                slot = _slot_of(hit.region)
+                regions[slot][hit.risk] += 1
+                totals[slot][hit.risk] += 1
+
+        flags = [
+            {"label": f["label"], "risk": f["risk"]}
+            for f in (report.liabilities.domain_flags if report.ok and report.liabilities else [])
+        ]
+        flag_total += len(flags)
+
+        rows.append({
+            "id": report.seq_id,
+            "input_ok": report.ok,
+            "chain": report.chain,
+            "confident": report.confident,
+            "annotated": bool(report.annotation and report.annotation.cdrs),
+            "regions_unassigned": unassigned,
+            "regions": regions,
+            "domain_flags": flags,
+        })
+
+    return {
+        "note": SUMMARY_NOTE,
+        "regions": list(SUMMARY_REGIONS),
+        "risk_levels": list(reversed(RISK_LEVELS)),
+        "rows": rows,
+        "totals": totals,
+        "domain_flag_total": flag_total,
+    }
+
+
+__all__ = [
+    "SequenceReport",
+    "build",
+    "build_many",
+    "summarize",
+    "SUMMARY_REGIONS",
+    "SUMMARY_NOTE",
+    "SequenceError",
+]

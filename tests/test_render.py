@@ -8,7 +8,7 @@ import re
 
 from abcheck import LIMITATION_NOTICE, NO_VERDICT_NOTICE
 from abcheck.render import as_html, as_json, as_text
-from abcheck.report import build, build_many
+from abcheck.report import SUMMARY_NOTE, build, build_many
 
 from .conftest import by_id
 
@@ -53,14 +53,18 @@ def test_no_output_contains_overall_verdict_wording(records):
     고지문을 떼어내고 나서 검사한다 — 터미널 출력은 고지문을 줄바꿈하기 때문이다.
     """
     reports = build_many([(r["id"], r["sequence"]) for r in records])
-    notice = re.sub(r"\s+", " ", NO_VERDICT_NOTICE)
+    # 판정을 "하지 않는다"고 선언하는 고지문 두 개는 예외로 떼어낸다
+    notices = [re.sub(r"\s+", " ", n) for n in (NO_VERDICT_NOTICE, SUMMARY_NOTE)]
 
     for text in [as_text(reports), as_html(reports), as_json(reports)]:
         flat = re.sub(r"\s+", " ", text)
-        flat = flat.replace(notice, "").replace(html_module.escape(notice), "")
+        for notice in notices:
+            flat = flat.replace(notice, "").replace(html_module.escape(notice), "")
         assert "개발 가능성" not in flat
         assert "developable" not in flat.lower()
         assert "종합 판정" not in flat
+        assert "점수" not in flat
+        assert "순위" not in flat
 
 
 # --------------------------------------------------------------------------
