@@ -85,11 +85,20 @@ def test_corpus_html_example_runs(tmp_path):
 # --------------------------------------------------------------------------
 
 def test_documented_cdr_lengths_match_code():
+    """통상 CDR 길이 표가 코드의 TYPICAL_LENGTHS 와 같은 값을 말하는지.
+
+    집계 표에도 CDR-H1 같은 문자열이 열 제목으로 나오므로, 검색 범위를
+    '통상 길이' 표로 좁힌다.
+    """
     text = _readme()
+    marker = "| CDR | 통상 길이 |"
+    assert marker in text, "README 에 통상 CDR 길이 표가 없다"
+    table = text.split(marker)[1].split("\n\n")[0]
+
     for name, (lo, hi) in TYPICAL_LENGTHS.items():
         expected = str(lo) if lo == hi else f"{lo}-{hi}"
-        row = re.search(rf"\|\s*{re.escape(name)}\s*\|\s*([^|]+?)\s*\|", text)
-        assert row, f"README 에 {name} 길이 행이 없다"
+        row = re.search(rf"\|\s*{re.escape(name)}\s*\|\s*([^|]+?)\s*\|", table)
+        assert row, f"통상 길이 표에 {name} 행이 없다"
         assert row.group(1) == expected, (
             f"{name}: README 는 {row.group(1)}, 코드는 {expected}"
         )
