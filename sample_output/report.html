@@ -57,6 +57,9 @@ td.num, td.right { text-align: right; white-space: nowrap; }
 .summary a { color: #000000; }
 .summary tbody tr:last-child { border-top: 2px solid #000000; }
 .summary h3 { margin-top: 20px; }
+.rules { border: 1px solid #000000; padding: 10px 12px; margin: 12px 0 16px; background: #f5f5f5; }
+.rules ul { margin: 6px 0; padding-left: 20px; }
+.rules li { margin: 3px 0; }
 .summary h3 .count { font-weight: normal; color: #555555; }
 .kv { font-size: 13px; margin: 2px 0; }
 .kv span { display: inline-block; min-width: 120px; color: #555555; }
@@ -71,17 +74,19 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="summary">
 <h2>CDR별 liability 집계</h2>
 <p class="rationale">아래는 건수 집계일 뿐이며 종합 판정이 아니다. 건수가 적다고 안전한 것도, 많다고 탈락시킬 근거도 되지 않는다. 각 서열의 상세 항목과 근거를 함께 볼 것.</p>
+<div class="rules"><strong>적용한 선별 규칙 — 검토 필요 6건 / 전체 16건</strong><ul><li>CDR 안에 위험도 &#x27;높음&#x27; liability 가 1건 이상 있으면 검토 필요</li><li>비결합 Cys 등 도메인 플래그가 위험도 &#x27;높음&#x27;이면 검토 필요</li></ul><p class="rationale">&#x27;검토 필요&#x27;는 아래 선별 규칙에 걸렸다는 뜻이지, 이 항체가 나쁘다는 뜻이 아니다. &#x27;기준 해당 없음&#x27;도 안전하다는 뜻이 아니라 이 규칙에 걸리지 않았다는 뜻일 뿐이다. 규칙은 연구자가 정한 것이고, 도구는 그대로 적용만 한다.</p></div>
 <h3>중쇄 (VH) <span class="count">— 10건</span></h3>
-<table><thead><tr><th>서열</th><th>주석</th><th>CDR-H1</th><th>CDR-H2</th><th>CDR-H3</th><th>framework</th><th>도메인 플래그</th></tr></thead><tbody><tr><td><a href="#seq-SYN-VH-001">SYN-VH-001</a></td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-002">SYN-VH-002</a></td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-003">SYN-VH-003</a></td><td>신뢰 가능</td><td>-</td><td>높음 1</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-004">SYN-VH-004</a></td><td>신뢰 가능</td><td>높음 1</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-005">SYN-VH-005</a></td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>비결합 Cys 가능성 (높음)</td></tr><tr><td><a href="#seq-SYN-VH-006">SYN-VH-006</a></td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>중간 1, 낮음 3</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-007">SYN-VH-007</a></td><td>신뢰 가능</td><td>-</td><td>-</td><td>높음 1</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-008">SYN-VH-008</a></td><td>신뢰 가능</td><td>-</td><td>-</td><td>중간 2</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-902">SYN-VH-902</a></td><td>신뢰 불가</td><td>주석 실패</td><td>주석 실패</td><td>주석 실패</td><td>낮음 2</td><td>비결합 Cys 가능성 (중간)</td></tr><tr><td><a href="#seq-SYN-VH-903">SYN-VH-903</a></td><td>신뢰 불가</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><b>합계</b></td><td></td><td><b>높음 1</b></td><td><b>높음 1</b></td><td><b>높음 1, 중간 2</b></td><td><b>중간 1, 낮음 21</b></td><td><b>2건</b></td></tr></tbody></table>
+<table><thead><tr><th>서열</th><th>분류</th><th>주석</th><th>CDR-H1</th><th>CDR-H2</th><th>CDR-H3</th><th>framework</th><th>도메인 플래그</th></tr></thead><tbody><tr><td><a href="#seq-SYN-VH-001">SYN-VH-001</a></td><td>기준 해당 없음</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-002">SYN-VH-002</a></td><td>기준 해당 없음</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-003">SYN-VH-003</a></td><td>검토 필요</td><td>신뢰 가능</td><td>-</td><td>높음 1</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-004">SYN-VH-004</a></td><td>검토 필요</td><td>신뢰 가능</td><td>높음 1</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-005">SYN-VH-005</a></td><td>검토 필요</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>비결합 Cys 가능성 (높음)</td></tr><tr><td><a href="#seq-SYN-VH-006">SYN-VH-006</a></td><td>기준 해당 없음</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>중간 1, 낮음 3</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-007">SYN-VH-007</a></td><td>검토 필요</td><td>신뢰 가능</td><td>-</td><td>-</td><td>높음 1</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-008">SYN-VH-008</a></td><td>기준 해당 없음</td><td>신뢰 가능</td><td>-</td><td>-</td><td>중간 2</td><td>낮음 2</td><td>-</td></tr><tr><td><a href="#seq-SYN-VH-902">SYN-VH-902</a></td><td>판정 불가</td><td>신뢰 불가</td><td>주석 실패</td><td>주석 실패</td><td>주석 실패</td><td>낮음 2</td><td>비결합 Cys 가능성 (중간)</td></tr><tr><td><a href="#seq-SYN-VH-903">SYN-VH-903</a></td><td>기준 해당 없음</td><td>신뢰 불가</td><td>-</td><td>-</td><td>-</td><td>낮음 2</td><td>-</td></tr><tr><td><b>합계</b></td><td></td><td></td><td><b>높음 1</b></td><td><b>높음 1</b></td><td><b>높음 1, 중간 2</b></td><td><b>중간 1, 낮음 21</b></td><td><b>2건</b></td></tr></tbody></table>
 <h3>경쇄 (VL) <span class="count">— 5건</span></h3>
-<table><thead><tr><th>서열</th><th>주석</th><th>CDR-L1</th><th>CDR-L2</th><th>CDR-L3</th><th>framework</th><th>도메인 플래그</th></tr></thead><tbody><tr><td><a href="#seq-SYN-VL-001">SYN-VL-001</a></td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-002">SYN-VL-002</a></td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-003">SYN-VL-003</a></td><td>신뢰 가능</td><td>-</td><td>-</td><td>높음 1</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-004">SYN-VL-004</a></td><td>신뢰 가능</td><td>높음 1</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-005">SYN-VL-005</a></td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><b>합계</b></td><td></td><td><b>높음 1</b></td><td><b>-</b></td><td><b>높음 1</b></td><td><b>낮음 5</b></td><td>-</td></tr></tbody></table>
+<table><thead><tr><th>서열</th><th>분류</th><th>주석</th><th>CDR-L1</th><th>CDR-L2</th><th>CDR-L3</th><th>framework</th><th>도메인 플래그</th></tr></thead><tbody><tr><td><a href="#seq-SYN-VL-001">SYN-VL-001</a></td><td>기준 해당 없음</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-002">SYN-VL-002</a></td><td>기준 해당 없음</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-003">SYN-VL-003</a></td><td>검토 필요</td><td>신뢰 가능</td><td>-</td><td>-</td><td>높음 1</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-004">SYN-VL-004</a></td><td>검토 필요</td><td>신뢰 가능</td><td>높음 1</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><a href="#seq-SYN-VL-005">SYN-VL-005</a></td><td>기준 해당 없음</td><td>신뢰 가능</td><td>-</td><td>-</td><td>-</td><td>낮음 1</td><td>-</td></tr><tr><td><b>합계</b></td><td></td><td></td><td><b>높음 1</b></td><td><b>-</b></td><td><b>높음 1</b></td><td><b>낮음 5</b></td><td>-</td></tr></tbody></table>
 <h3>체인 판별 실패 · 입력 오류 <span class="count">— 1건</span></h3>
-<table><thead><tr><th>서열</th><th>상태</th><th>검출 모티프</th><th>도메인 플래그</th></tr></thead><tbody><tr><td><a href="#seq-SYN-VH-901">SYN-VH-901</a></td><td>체인 판별 실패</td><td>낮음 1</td><td>-</td></tr></tbody></table>
+<table><thead><tr><th>서열</th><th>분류</th><th>상태</th><th>검출 모티프</th><th>도메인 플래그</th></tr></thead><tbody><tr><td><a href="#seq-SYN-VH-901">SYN-VH-901</a></td><td>판정 불가</td><td>체인 판별 실패</td><td>낮음 1</td><td>-</td></tr></tbody></table>
 <p class="rationale">&lsquo;주석 실패&rsquo; 또는 &lsquo;체인 판별 실패&rsquo; 로 표시된 서열은 CDR 구간을 가를 수 없어 모티프를 framework 쪽으로 모았다. 실제로는 CDR 안일 수 있으니 과소평가하지 말 것.</p>
 </div>
 <div class="seq-section" id="seq-SYN-VH-001">
 <h2>SYN-VH-001</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>115 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>기준 해당 없음</b></p>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-H1</td><td class="right">31-35</td><td class="right">5</td><td><b>RAHSI</b></td></tr><tr><td>CDR-H2</td><td class="right">50-65</td><td class="right">16</td><td><b>KDNREFVYFQEVGQYD</b></td></tr><tr><td>CDR-H3</td><td class="right">95-104</td><td class="right">10</td><td><b>APSGSYFGRV</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -98,6 +103,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VH-002">
 <h2>SYN-VH-002</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>123 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>기준 해당 없음</b></p>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-H1</td><td class="right">31-35</td><td class="right">5</td><td><b>LNPIS</b></td></tr><tr><td>CDR-H2</td><td class="right">50-65</td><td class="right">16</td><td><b>ELPHQYKGREYPRVAS</b></td></tr><tr><td>CDR-H3</td><td class="right">95-112</td><td class="right">18</td><td><b>STILTAEFEATTYKKQNE</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -114,6 +120,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VL-001">
 <h2>SYN-VL-001</h2>
 <p class="kv"><span>체인</span>경쇄 (VL)</p><p class="kv"><span>길이</span>108 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>기준 해당 없음</b></p>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-L1</td><td class="right">24-34</td><td class="right">11</td><td><b>YNIGGIKGPIG</b></td></tr><tr><td>CDR-L2</td><td class="right">50-56</td><td class="right">7</td><td><b>TYNQLGS</b></td></tr><tr><td>CDR-L3</td><td class="right">89-97</td><td class="right">9</td><td><b>KTDIDKKYT</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -130,6 +137,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VL-002">
 <h2>SYN-VL-002</h2>
 <p class="kv"><span>체인</span>경쇄 (VL)</p><p class="kv"><span>길이</span>105 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>기준 해당 없음</b></p>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-L1</td><td class="right">24-31</td><td class="right">8</td><td><b>IDAAAKLE</b></td></tr><tr><td>CDR-L2</td><td class="right">47-53</td><td class="right">7</td><td><b>TLTTGPF</b></td></tr><tr><td>CDR-L3</td><td class="right">86-94</td><td class="right">9</td><td><b>YTYKFQDII</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -146,6 +154,10 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VH-003">
 <h2>SYN-VH-003</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>115 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>검토 필요</b></p>
+<ul class="reasons">
+<li>CDR-H2 56번에 deamidation (NG) (NG) — 위험도 높음</li>
+</ul>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-H1</td><td class="right">31-35</td><td class="right">5</td><td><b>ATNIE</b></td></tr><tr><td>CDR-H2</td><td class="right">50-65</td><td class="right">16</td><td><b>LSTAARNGGQQQGFDL</b></td></tr><tr><td>CDR-H3</td><td class="right">95-104</td><td class="right">10</td><td><b>YNKQQQFYLK</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -163,6 +175,10 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VH-004">
 <h2>SYN-VH-004</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>116 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>검토 필요</b></p>
+<ul class="reasons">
+<li>CDR-H1 32번에 N-결합 당화 서열 (NLS) — 위험도 높음</li>
+</ul>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-H1</td><td class="right">31-36</td><td class="right">6</td><td><b>GNLSAA</b></td></tr><tr><td>CDR-H2</td><td class="right">51-66</td><td class="right">16</td><td><b>RGRVETRTKTGNARDE</b></td></tr><tr><td>CDR-H3</td><td class="right">96-105</td><td class="right">10</td><td><b>TLSVGVDFIT</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -180,6 +196,10 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VL-003">
 <h2>SYN-VL-003</h2>
 <p class="kv"><span>체인</span>경쇄 (VL)</p><p class="kv"><span>길이</span>108 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>검토 필요</b></p>
+<ul class="reasons">
+<li>CDR-L3 92번에 deamidation (NG) (NG) — 위험도 높음</li>
+</ul>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-L1</td><td class="right">24-34</td><td class="right">11</td><td><b>GSLPNYDIRIY</b></td></tr><tr><td>CDR-L2</td><td class="right">50-56</td><td class="right">7</td><td><b>TSLAGVS</b></td></tr><tr><td>CDR-L3</td><td class="right">89-97</td><td class="right">9</td><td><b>LRANGEGAD</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -197,6 +217,10 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VH-005">
 <h2>SYN-VH-005</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>117 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>검토 필요</b></p>
+<ul class="reasons">
+<li>비결합 Cys 가능성 — 위험도 높음 (Cys 3개, 홀수)</li>
+</ul>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-H1</td><td class="right">31-35</td><td class="right">5</td><td><b>FIEAI</b></td></tr><tr><td>CDR-H2</td><td class="right">50-65</td><td class="right">16</td><td><b>RVGPKILAHASEHYNA</b></td></tr><tr><td>CDR-H3</td><td class="right">95-106</td><td class="right">12</td><td><b>YAYITCTGERTD</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -214,6 +238,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VH-006">
 <h2>SYN-VH-006</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>115 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>기준 해당 없음</b></p>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-H1</td><td class="right">31-35</td><td class="right">5</td><td><b>KYGDH</b></td></tr><tr><td>CDR-H2</td><td class="right">50-65</td><td class="right">16</td><td><b>KRPALTTSSIYKPASL</b></td></tr><tr><td>CDR-H3</td><td class="right">95-104</td><td class="right">10</td><td><b>SVGIAFGRTS</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -232,6 +257,10 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VH-007">
 <h2>SYN-VH-007</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>116 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>검토 필요</b></p>
+<ul class="reasons">
+<li>CDR-H3 99번에 isomerization (DG) (DG) — 위험도 높음</li>
+</ul>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-H1</td><td class="right">31-35</td><td class="right">5</td><td><b>SQPST</b></td></tr><tr><td>CDR-H2</td><td class="right">50-65</td><td class="right">16</td><td><b>QQKADLISDRYGGDNA</b></td></tr><tr><td>CDR-H3</td><td class="right">95-105</td><td class="right">11</td><td><b>AQGPDGRGNKF</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -249,6 +278,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VH-008">
 <h2>SYN-VH-008</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>117 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>기준 해당 없음</b></p>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-H1</td><td class="right">31-35</td><td class="right">5</td><td><b>YTSSP</b></td></tr><tr><td>CDR-H2</td><td class="right">50-65</td><td class="right">16</td><td><b>GNVKGPYHGNDRTSEA</b></td></tr><tr><td>CDR-H3</td><td class="right">95-106</td><td class="right">12</td><td><b>GTFMGESWPSSL</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -266,6 +296,10 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VL-004">
 <h2>SYN-VL-004</h2>
 <p class="kv"><span>체인</span>경쇄 (VL)</p><p class="kv"><span>길이</span>108 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>검토 필요</b></p>
+<ul class="reasons">
+<li>CDR-L1 28번에 fragmentation (DP) (DP) — 위험도 높음</li>
+</ul>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-L1</td><td class="right">24-34</td><td class="right">11</td><td><b>TINVDPSADAG</b></td></tr><tr><td>CDR-L2</td><td class="right">50-56</td><td class="right">7</td><td><b>KQLRGHR</b></td></tr><tr><td>CDR-L3</td><td class="right">89-97</td><td class="right">9</td><td><b>GGTLIEHKL</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -283,6 +317,7 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VL-005">
 <h2>SYN-VL-005</h2>
 <p class="kv"><span>체인</span>경쇄 (VL)</p><p class="kv"><span>길이</span>108 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 가능</p>
+<p class="kv"><span>선별 분류</span><b>기준 해당 없음</b></p>
 <h3>CDR 주석</h3>
 <table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody><tr><td>CDR-L1</td><td class="right">24-34</td><td class="right">11</td><td><b>DYKRKRKGRGG</b></td></tr><tr><td>CDR-L2</td><td class="right">50-56</td><td class="right">7</td><td><b>GEFNKKF</b></td></tr><tr><td>CDR-L3</td><td class="right">89-97</td><td class="right">9</td><td><b>IRKRKAGSG</b></td></tr></tbody></table>
 <h3>서열 (CDR 구간은 굵게)</h3>
@@ -299,6 +334,8 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VH-901">
 <h2>SYN-VH-901</h2>
 <p class="kv"><span>체인</span>판별 실패</p><p class="kv"><span>길이</span>115 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 불가 (confident=False)</p>
+<p class="kv"><span>선별 분류</span><b>판정 불가</b></p>
+<p class="rationale">CDR 주석이 실패해 CDR 과 framework 를 가를 수 없다. &#x27;CDR 안의 높음&#x27; 규칙을 적용할 수 없으므로 사람이 직접 확인해야 한다.</p>
 <h3>주석을 신뢰할 수 없는 이유</h3><ul class="reasons">
 <li>말단 모티프를 찾지 못했다. 중쇄의 WGxG 또는 경쇄의 FGxG 가 없어서 체인 종류(H/L)조차 판별할 수 없다. 서열이 중간에서 잘렸거나, 가변도메인이 아니거나, 해당 보존 모티프가 치환된 경우다. CDR 위치는 추측하지 않는다.</li>
 </ul>
@@ -321,6 +358,8 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VH-902">
 <h2>SYN-VH-902</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>115 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 불가 (confident=False)</p>
+<p class="kv"><span>선별 분류</span><b>판정 불가</b></p>
+<p class="rationale">CDR 주석이 실패해 CDR 과 framework 를 가를 수 없다. &#x27;CDR 안의 높음&#x27; 규칙을 적용할 수 없으므로 사람이 직접 확인해야 한다.</p>
 <h3>주석을 신뢰할 수 없는 이유</h3><ul class="reasons">
 <li>보존 Cys22 를 찾지 못했다. 15-30번 구간에 Cys 가 없다. 이 Cys 는 도메인 내부 이황화결합의 한쪽이라 거의 항상 보존된다. N-말단이 잘렸거나 Cys 가 치환된 경우다. CDR-H1 위치는 추측하지 않는다.</li>
 </ul>
@@ -344,6 +383,8 @@ footer { margin-top: 32px; font-size: 12px; color: #555555; }
 <div class="seq-section" id="seq-SYN-VH-903">
 <h2>SYN-VH-903</h2>
 <p class="kv"><span>체인</span>중쇄 (VH)</p><p class="kv"><span>길이</span>119 잔기</p><p class="kv"><span>주석 신뢰도</span>신뢰 불가 (confident=False)</p>
+<p class="kv"><span>선별 분류</span><b>기준 해당 없음</b></p>
+<p class="rationale">규칙에는 걸리지 않았지만 주석 신뢰도가 낮다(confident=False). CDR 경계가 밀렸을 수 있으므로 ANARCI/IMGT 로 재확인할 것.</p>
 <h3>주석을 신뢰할 수 없는 이유</h3><ul class="reasons">
 <li>CDR-H1 길이가 9 잔기로 통상 범위(5-7)보다 길다. 앵커 자체는 찾았지만 경계가 밀렸을 수 있다. ANARCI/IMGT 로 경계를 재확인할 것.</li>
 </ul>

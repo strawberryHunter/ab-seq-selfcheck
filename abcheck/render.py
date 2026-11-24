@@ -19,6 +19,7 @@ from datetime import date
 
 from . import LIMITATION_NOTICE, NO_VERDICT_NOTICE, __version__
 from .report import SUMMARY_REGIONS, SequenceReport, summarize
+from .triage import STATUS_REVIEW, TRIAGE_NOTICE
 
 #: 서열을 보여줄 때 한 줄에 넣을 잔기 수
 SEQUENCE_LINE_WIDTH = 60
@@ -41,7 +42,12 @@ def _flag_cell(row: dict) -> str:
 
 def _chain_group_headers(group: dict) -> list[str]:
     """체인이 확정된 묶음의 열 제목. 표를 나눴으므로 CDR-H1 처럼 정확히 쓴다."""
-    return ["서열", "주석"] + group["cdr_labels"] + ["framework", "도메인 플래그"]
+    return ["서열", "분류", "주석"] + group["cdr_labels"] + ["framework", "도메인 플래그"]
+
+
+def _triage_cell(row: dict) -> str:
+    triage = row.get("triage")
+    return triage["status"] if triage else "-"
 
 
 def _chain_group_row(row: dict) -> list[str]:
@@ -52,18 +58,19 @@ def _chain_group_row(row: dict) -> list[str]:
         else:
             cells.append(_counts_cell(row["regions"][region]))
     confidence = "신뢰 가능" if row["confident"] else "신뢰 불가"
-    return [row["id"], confidence] + cells + [_flag_cell(row)]
+    return [row["id"], _triage_cell(row), confidence] + cells + [_flag_cell(row)]
 
 
 #: 체인을 판별하지 못한 묶음의 열 제목. CDR 칸이 의미가 없으므로 열 자체를 두지 않는다.
-UNKNOWN_GROUP_HEADERS: list[str] = ["서열", "상태", "검출 모티프", "도메인 플래그"]
+UNKNOWN_GROUP_HEADERS: list[str] = ["서열", "분류", "상태", "검출 모티프", "도메인 플래그"]
 
 
 def _unknown_group_row(row: dict) -> list[str]:
     if not row["input_ok"]:
-        return [row["id"], "입력 오류", EMPTY_CELL, EMPTY_CELL]
+        return [row["id"], _triage_cell(row), "입력 오류", EMPTY_CELL, EMPTY_CELL]
     return [
         row["id"],
+        _triage_cell(row),
         "체인 판별 실패",
         _counts_cell(row["regions"]["framework"]),
         _flag_cell(row),
@@ -240,6 +247,11 @@ def _summary_text(reports: list[SequenceReport], width: int) -> list[str]:
     summary = summarize(reports)
     out: list[str] = ["-" * width, "[CDR별 liability 집계]", "-" * width]
     out.extend(_wrap(summary["note"], width - 4, first="  "))
+    out.append("")
+    out.append(f"  적용한 선별 규칙 — 검토 필요 {summary['review_count']}건 / 전체 {len(summary['rows'])}건")
+    for desc in summary["triage_rules"]:
+        out.extend(_wrap(desc, width - 6, first="    - "))
+    out.extend(_wrap(summary["triage_notice"], width - 4, first="  "))
 
     for group in summary["groups"]:
         out.append("")
@@ -254,7 +266,7 @@ def _summary_text(reports: list[SequenceReport], width: int) -> list[str]:
         rows = [_chain_group_row(r) for r in group["rows"]]
         totals = group["totals"]
         rows.append(
-            ["합계", ""]
+            ["합계", "", ""]
             + [_counts_cell(totals[r]) for r in SUMMARY_REGIONS]
             + [f"{group['domain_flag_total']}건" if group["domain_flag_total"] else EMPTY_CELL]
         )
@@ -285,6 +297,12 @@ def _render_one_text(report: SequenceReport, width: int) -> list[str]:
     chain_label = {"H": "중쇄 (VH)", "L": "경쇄 (VL)", None: "판별 실패"}[ann.chain]
     verdict = "신뢰 가능" if ann.confident else "신뢰 불가 (confident=False)"
     out.append(f"  체인: {chain_label}    길이: {len(report.sequence)} 잔기    주석 신뢰도: {verdict}")
+    if report.triage is not None:
+        out.append(f"  선별 분류: {report.triage.status}")
+        for reason in report.triage.reasons:
+            out.extend(_wrap(reason, width - 6, first="    → "))
+        if report.triage.note:
+            out.extend(_wrap(report.triage.note, width - 6, first="    "))
     out.append("")
 
     if ann.reasons:
@@ -464,6 +482,9 @@ td.num, td.right { text-align: right; white-space: nowrap; }
 .summary a { color: #000000; }
 .summary tbody tr:last-child { border-top: 2px solid #000000; }
 .summary h3 { margin-top: 20px; }
+.rules { border: 1px solid #000000; padding: 10px 12px; margin: 12px 0 16px; background: #f5f5f5; }
+.rules ul { margin: 6px 0; padding-left: 20px; }
+.rules li { margin: 3px 0; }
 .summary h3 .count { font-weight: normal; color: #555555; }
 .kv { font-size: 13px; margin: 2px 0; }
 .kv span { display: inline-block; min-width: 120px; color: #555555; }
@@ -525,6 +546,10 @@ def _summary_html(reports: list[SequenceReport]) -> str:
         '<div class="summary">',
         "<h2>CDR별 liability 집계</h2>",
         f'<p class="rationale">{html.escape(summary["note"])}</p>',
+        '<div class="rules"><strong>적용한 선별 규칙 — 검토 필요 '
+        f'{summary["review_count"]}건 / 전체 {len(summary["rows"])}건</strong><ul>'
+        + "".join(f"<li>{html.escape(d)}</li>" for d in summary["triage_rules"])
+        + f'</ul><p class="rationale">{html.escape(summary["triage_notice"])}</p></div>',
     ]
 
     def _link(seq_id: str) -> str:
@@ -550,7 +575,7 @@ def _summary_html(reports: list[SequenceReport]) -> str:
         ]
         totals = group["totals"]
         rows.append(
-            ["<b>합계</b>", ""]
+            ["<b>합계</b>", "", ""]
             + [f"<b>{html.escape(_counts_cell(totals[r]))}</b>" for r in SUMMARY_REGIONS]
             + [f"<b>{group['domain_flag_total']}건</b>" if group["domain_flag_total"]
                else EMPTY_CELL]
@@ -596,6 +621,16 @@ def _render_one_html(report: SequenceReport) -> str:
         f'<p class="kv"><span>길이</span>{len(report.sequence)} 잔기</p>'
         f'<p class="kv"><span>주석 신뢰도</span>{html.escape(verdict)}</p>'
     )
+    if report.triage is not None:
+        out.append(
+            f'<p class="kv"><span>선별 분류</span><b>{html.escape(report.triage.status)}</b></p>'
+        )
+        if report.triage.reasons:
+            out.append('<ul class="reasons">')
+            out.extend(f"<li>{html.escape(r)}</li>" for r in report.triage.reasons)
+            out.append("</ul>")
+        if report.triage.note:
+            out.append(f'<p class="rationale">{html.escape(report.triage.note)}</p>')
 
     if ann.reasons:
         out.append("<h3>주석을 신뢰할 수 없는 이유</h3><ul class=\"reasons\">")

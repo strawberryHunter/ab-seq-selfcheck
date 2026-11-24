@@ -13,6 +13,7 @@ from . import LIMITATION_NOTICE, NO_VERDICT_NOTICE, __version__
 from .annotate import Annotation, annotate
 from .liabilities import RISK_LEVELS, LiabilityReport, find_liabilities
 from .properties import DEFAULT_PH, Properties, compute_all
+from .triage import TRIAGE_NOTICE, TriageResult, evaluate, rule_descriptions
 from .validate import SequenceError, validate
 
 
@@ -28,6 +29,7 @@ class SequenceReport:
     annotation: Annotation | None = None
     liabilities: LiabilityReport | None = None
     properties: dict[str, Properties] = field(default_factory=dict)
+    triage: TriageResult | None = None
 
     # ---- 편의 접근자 ----
 
@@ -50,6 +52,8 @@ class SequenceReport:
             "limitations": list(LIMITATION_NOTICE),
             "no_verdict": NO_VERDICT_NOTICE,
         }
+        if self.triage is not None:
+            payload["triage"] = self.triage.as_dict()
         if not self.ok:
             return payload
 
@@ -109,20 +113,22 @@ def build(seq_id: str, sequence: str, ph: float = DEFAULT_PH) -> SequenceReport:
     """서열 하나를 점검한다. 입력이 잘못돼도 예외를 올리지 않는다."""
     validation = validate(sequence)
     if not validation.ok:
-        return SequenceReport(
+        failed = SequenceReport(
             seq_id=seq_id,
             sequence=validation.cleaned,
             ok=False,
             errors=list(validation.errors),
             warnings=list(validation.warnings),
         )
+        failed.triage = evaluate(failed)
+        return failed
 
     cleaned = validation.cleaned
     ann = annotate(cleaned, validate_input=False)
     lia = find_liabilities(ann)
     props = compute_all(cleaned, ann.cdrs, ph)
 
-    return SequenceReport(
+    report = SequenceReport(
         seq_id=seq_id,
         sequence=cleaned,
         ok=True,
@@ -131,6 +137,8 @@ def build(seq_id: str, sequence: str, ph: float = DEFAULT_PH) -> SequenceReport:
         liabilities=lia,
         properties=props,
     )
+    report.triage = evaluate(report)
+    return report
 
 
 def build_many(items: list[tuple[str, str]], ph: float = DEFAULT_PH) -> list[SequenceReport]:
@@ -222,6 +230,7 @@ def summarize(reports: list[SequenceReport]) -> dict:
             "regions_unassigned": unassigned,
             "regions": regions,
             "domain_flags": flags,
+            "triage": report.triage.as_dict() if report.triage else None,
         })
 
     return {
@@ -231,6 +240,12 @@ def summarize(reports: list[SequenceReport]) -> dict:
         "rows": rows,
         "totals": totals,
         "domain_flag_total": flag_total,
+        "triage_rules": rule_descriptions(),
+        "triage_notice": TRIAGE_NOTICE,
+        "review_count": sum(
+            1 for r in rows
+            if r["triage"] and r["triage"]["status"] == "검토 필요"
+        ),
         "groups": _group_by_chain(rows),
     }
 
