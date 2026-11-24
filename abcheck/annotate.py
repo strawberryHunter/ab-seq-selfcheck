@@ -11,8 +11,8 @@
 
 VH
     Cys22      15..30 창에서 22번에 가장 가까운 Cys
-    CDR-H1     Cys22 + 9 에서 시작, 그 뒤 첫 Trp 직전까지
-    Trp36      CDR-H1 시작 이후 첫 Trp
+    CDR-H1     Cys22 + 9 에서 시작, Trp36 직전까지
+    Trp36      CDR-H1 시작 + 5 이후 첫 Trp (CDR-H1 안의 Trp 을 피하려고 최소 길이만큼 건너뛴다)
     CDR-H2     Trp36 + 14 에서 시작, FR3 모티프 직전까지
     FR3 모티프  CDR-H2 시작 + 9 이후 첫 `[RK].[TSAV][IMLFV][STA]` 매치
     Cys92      FR3 모티프 이후 첫 Cys
@@ -20,8 +20,8 @@ VH
 
 VL
     Cys23      16..30 창에서 23번에 가장 가까운 Cys
-    CDR-L1     Cys23 + 1 에서 시작, 그 뒤 첫 Trp 직전까지
-    Trp35      CDR-L1 시작 이후 첫 Trp
+    CDR-L1     Cys23 + 1 에서 시작, Trp35 직전까지
+    Trp35      CDR-L1 시작 + 7 이후 첫 Trp (같은 이유로 최소 길이만큼 건너뛴다)
     CDR-L2     Trp35 + 15 에서 시작, 7 잔기 고정
     Cys88      CDR-L2 이후 첫 Cys
     CDR-L3     Cys88 + 1 에서 시작, 말단 `FGxG` 직전까지
@@ -65,6 +65,14 @@ CDR3_OFFSET_L = 1      # Cys88 + 1 → 89
 
 #: CDR-L2 는 Kabat 에서 길이가 고정이다.
 CDR_L2_LENGTH = 7
+
+#: 보존 Trp 앵커를 찾기 시작할 위치 = CDR1 시작 + 이 값.
+#: 실제 항체의 CDR-H1 에는 Trp 이 흔히 들어간다(예: ...GYTFT**SYWMQ**W VKQ...).
+#: 그냥 "CDR1 시작 이후 첫 Trp"를 쓰면 CDR 안의 Trp 을 앵커로 잘못 집어 CDR-H1 이
+#: 2-4 잔기로 잘린다. Kabat CDR-H1 은 최소 5 잔기(31-35)이므로 그 뒤부터 찾는다.
+#: CDR-L1 도 같은 이유로 최소 길이 뒤부터 찾는다.
+MIN_CDR1_LENGTH_H = 5
+MIN_CDR1_LENGTH_L = 7
 
 #: FR3 모티프 탐색을 시작하기 전에 CDR-H2 에 최소한 보장할 길이.
 #: 이보다 짧은 CDR-H2 는 모티프가 CDR 안에서 먼저 걸린 것으로 본다.
@@ -264,7 +272,7 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
         )
         return
 
-    trp = _first_residue_from(seq, "W", h1_start)
+    trp = _first_residue_from(seq, "W", h1_start + MIN_CDR1_LENGTH_H)
     if trp is None or trp >= motif_pos:
         ann.confident = False
         ann.reasons.append(
@@ -350,7 +358,7 @@ def _annotate_light(seq: str, ann: Annotation) -> None:
 
     # --- 앵커 2: Trp35, CDR-L1 ---
     l1_start = cys1 + CDR1_OFFSET_L
-    trp = _first_residue_from(seq, "W", l1_start)
+    trp = _first_residue_from(seq, "W", l1_start + MIN_CDR1_LENGTH_L)
     if trp is None or trp >= motif_pos:
         ann.confident = False
         ann.reasons.append(

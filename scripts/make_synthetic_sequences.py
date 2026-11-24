@@ -92,6 +92,10 @@ CDR_LIABILITY_PATTERNS: list[tuple[str, str]] = [
 ]
 
 FR3_MOTIF_RE = re.compile(r"[RK].[TSAV][IMLFV][STA]")
+
+#: 보존 Trp 앵커를 찾기 시작할 오프셋. abcheck.annotate 와 같은 값을 쓴다.
+MIN_CDR1_LENGTH_H = 5
+MIN_CDR1_LENGTH_L = 7
 WGXG_RE = re.compile(r"WG.G")
 FGXG_RE = re.compile(r"FG.G")
 
@@ -356,11 +360,12 @@ def verify_heavy(seq: str, cdrs: dict, anchors: dict) -> list[str]:
     if window != [anchors["cys1"]]:
         problems.append(f"15..30 창의 Cys 가 유일하지 않다: {window}")
 
-    # Trp36: CDR-H1 시작 이후 첫 W
+    # Trp36: CDR-H1 시작 + 최소 길이 이후 첫 W
+    # (CDR-H1 안에 Trp 이 있는 실제 항체를 흉내내려면 이 규칙이 주석기와 같아야 한다)
     h1_start = cdrs["CDR-H1"][0]
-    first_w = seq.find("W", h1_start - 1) + 1
+    first_w = seq.find("W", h1_start - 1 + MIN_CDR1_LENGTH_H) + 1
     if first_w != anchors["trp"]:
-        problems.append(f"CDR-H1 시작 이후 첫 Trp 위치가 다르다: {first_w} != {anchors['trp']}")
+        problems.append(f"CDR-H1 최소 길이 이후 첫 Trp 위치가 다르다: {first_w} != {anchors['trp']}")
 
     # FR3 모티프: CDR-H2 시작 + 9 이후 첫 매치
     h2_start = cdrs["CDR-H2"][0]
@@ -390,9 +395,9 @@ def verify_light(seq: str, cdrs: dict, anchors: dict) -> list[str]:
         problems.append(f"16..30 창의 Cys 가 유일하지 않다: {window}")
 
     l1_start = cdrs["CDR-L1"][0]
-    first_w = seq.find("W", l1_start - 1) + 1
+    first_w = seq.find("W", l1_start - 1 + MIN_CDR1_LENGTH_L) + 1
     if first_w != anchors["trp"]:
-        problems.append(f"CDR-L1 시작 이후 첫 Trp 위치가 다르다: {first_w} != {anchors['trp']}")
+        problems.append(f"CDR-L1 최소 길이 이후 첫 Trp 위치가 다르다: {first_w} != {anchors['trp']}")
 
     l2_end = cdrs["CDR-L2"][1]
     first_c = seq.find("C", l2_end) + 1
@@ -475,6 +480,22 @@ def make_cases() -> list[Case]:
             (11, 7, 9),
             cdr_inserts={"L1": [(2, "KRKRK")], "L3": [(1, "RKRK")]},
             notes=["염기성 CDR → 높은 pI"],
+        ),
+
+        Case(
+            "SYN-VH-009", "H",
+            "CDR-H1 안에 Trp 이 있는 VH — 실제 항체에서 흔하다(예: SYWMQ). "
+            "'CDR1 이후 첫 Trp'를 앵커로 쓰면 CDR-H1 이 잘려 나간다",
+            (5, 16, 10),
+            cdr_inserts={"H1": [(2, "W")]},
+            notes=["CDR-H1 내 Trp"],
+        ),
+        Case(
+            "SYN-VL-006", "L",
+            "CDR-L1 안에 Trp 이 있는 VL — 중쇄와 같은 함정",
+            (11, 7, 9),
+            cdr_inserts={"L1": [(3, "W")]},
+            notes=["CDR-L1 내 Trp"],
         ),
 
         # --- 앵커가 깨져 주석이 실패해야 하는 케이스 ---

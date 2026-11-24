@@ -29,7 +29,7 @@
       13
     ]
   },
-  "count": 16,
+  "count": 18,
   "sequences": [
     {
       "id": "SYN-VH-001",
@@ -539,6 +539,87 @@
             "start": 89,
             "end": 97,
             "seq": "IRKRKAGSG"
+          }
+        },
+        "chain": "L",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 23,
+        "trp": 35,
+        "cys2": 88,
+        "terminal_motif": 98
+      }
+    },
+    {
+      "id": "SYN-VH-009",
+      "chain": "H",
+      "description": "CDR-H1 안에 Trp 이 있는 VH — 실제 항체에서 흔하다(예: SYWMQ). 'CDR1 이후 첫 Trp'를 앵커로 쓰면 CDR-H1 이 잘려 나간다",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSGAWSGWALKLPYITVTHQSESRLRTFGGHISTAQGKATLSVSESLQHSLQSSLPVVRVVKLCLGAIGKHPTSSDWGQGSSGGFQY",
+      "length": 115,
+      "synthetic": true,
+      "notes": [
+        "CDR-H1 내 Trp"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "GAWSG"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "ESRLRTFGGHISTAQG"
+          },
+          "CDR-H3": {
+            "start": 95,
+            "end": 104,
+            "seq": "AIGKHPTSSD"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 92,
+        "terminal_motif": 105
+      }
+    },
+    {
+      "id": "SYN-VL-006",
+      "chain": "L",
+      "description": "CDR-L1 안에 Trp 이 있는 VL — 중쇄와 같은 함정",
+      "sequence": "AIIYYVTQTGKKSFTSTETQLVCLPPWKPNEYQGWFVTITAVYQKSTTVPRPARDRSLHLITALARTSYRTLTQAALIRTRKTSSILCEYFGDKKEEFGQGRKSKLKT",
+      "length": 108,
+      "synthetic": true,
+      "notes": [
+        "CDR-L1 내 Trp"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-L1": {
+            "start": 24,
+            "end": 34,
+            "seq": "LPPWKPNEYQG"
+          },
+          "CDR-L2": {
+            "start": 50,
+            "end": 56,
+            "seq": "PRPARDR"
+          },
+          "CDR-L3": {
+            "start": 89,
+            "end": 97,
+            "seq": "EYFGDKKEE"
           }
         },
         "chain": "L",
