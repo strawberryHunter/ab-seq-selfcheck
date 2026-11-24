@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# push 전에 테스트를 돌리고, 실패하면 push 를 막는다.
+#
+# 설치:
+#   git config core.hooksPath .githooks
+#
+# 한 번만 건너뛰려면:
+#   git push --no-verify
+#
+# 이건 로컬 안전장치일 뿐이다. 진짜 차단은 GitHub 쪽 브랜치 보호(필수 상태 검사)가 한다.
+# README 의 "CI 와 차단" 절 참고.
+
+set -u
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root" || exit 1
+
+python_bin="${PYTHON:-python3}"
+if ! command -v "$python_bin" > /dev/null 2>&1; then
+    echo "pre-push: $python_bin 을 찾을 수 없다. PYTHON 환경변수로 지정하거나 --no-verify 로 건너뛴다." >&2
+    exit 1
+fi
+
+fail() {
+    echo "" >&2
+    echo "pre-push: $1 — push 를 막았다." >&2
+    echo "          고친 뒤 다시 push 하거나, 의도한 것이면 git push --no-verify 를 쓴다." >&2
+    exit 1
+}
+
+echo "pre-push: 테스트 실행 중..."
+"$python_bin" -m pytest -q || fail "테스트 실패"
+
+echo "pre-push: 합성 코퍼스 재현성 확인 중..."
+"$python_bin" scripts/make_synthetic_sequences.py --check > /dev/null \
+    || fail "저장된 코퍼스가 생성기 출력과 다르다 (scripts/make_synthetic_sequences.py 를 다시 돌릴 것)"
+
+echo "pre-push: 통과."
+exit 0

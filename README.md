@@ -218,6 +218,74 @@ python3 -m pytest -q
 
 ---
 
+## CI 와 차단
+
+`.github/workflows/ci.yml` 이 `main` 으로 가는 PR 과 `main` 에 들어온 커밋을 검사한다.
+
+| job | 검사 |
+|---|---|
+| `pytest (Python 3.10~3.13)` | 전체 테스트 |
+| `런타임 의존성 없음` | `pyproject.toml` 에 런타임 의존성이 조용히 추가됐는지 |
+| `합성 코퍼스 재현성` | 저장된 코퍼스가 생성기 출력과 같은지 |
+| `CLI 동작` | README 실행 예시 3개가 실제로 돌아가는지, 잘못된 입력이 종료코드 1 인지 |
+
+### 실패한 코드를 막으려면 (저장소 설정 — 한 번만)
+
+CI 는 실패를 **알려줄** 뿐이고, 실제로 **막는** 것은 GitHub 의 브랜치 보호다.
+저장소 관리자가 한 번 켜야 한다.
+
+`Settings → Branches → Add branch ruleset` (또는 `Add rule`) 에서:
+
+1. 대상 브랜치: `main`
+2. **Require status checks to pass** 체크
+3. 아래 7개를 필수 검사로 추가
+
+   ```
+   pytest (Python 3.10)
+   pytest (Python 3.11)
+   pytest (Python 3.12)
+   pytest (Python 3.13)
+   런타임 의존성 없음
+   합성 코퍼스 재현성
+   CLI 동작
+   ```
+4. **Require branches to be up to date before merging** 체크
+5. 관리자에게도 적용하려면 **Do not allow bypassing the above settings** 체크
+
+`gh` CLI 로 하려면:
+
+```bash
+gh api -X PUT repos/strawberryHunter/ab-seq-selfcheck/branches/main/protection \
+  -f 'required_status_checks[strict]=true' \
+  -f 'required_status_checks[checks][][context]=pytest (Python 3.10)' \
+  -f 'required_status_checks[checks][][context]=pytest (Python 3.11)' \
+  -f 'required_status_checks[checks][][context]=pytest (Python 3.12)' \
+  -f 'required_status_checks[checks][][context]=pytest (Python 3.13)' \
+  -f 'required_status_checks[checks][][context]=런타임 의존성 없음' \
+  -f 'required_status_checks[checks][][context]=합성 코퍼스 재현성' \
+  -f 'required_status_checks[checks][][context]=CLI 동작' \
+  -F enforce_admins=true \
+  -F required_pull_request_reviews=null \
+  -F restrictions=null
+```
+
+> 비공개 저장소에서 브랜치 보호를 쓰려면 GitHub Pro/Team 이상이 필요하다.
+> 무료 플랜이면 저장소를 공개로 바꾸거나, 아래 pre-push 훅으로 대신한다.
+
+### push 전에 로컬에서 막기 (선택)
+
+브랜치 보호와 별개로, 각자 클론에서 한 번 설정하면 테스트가 깨진 상태로 push 하는 것을
+로컬에서 먼저 막는다.
+
+```bash
+git config core.hooksPath .githooks
+```
+
+`.githooks/pre-push` 가 `pytest` 와 코퍼스 재현성 검사를 돌리고, 실패하면 push 를 중단한다.
+의도적으로 건너뛰려면 `git push --no-verify`.
+
+---
+
 ## 구조
 
 ```
