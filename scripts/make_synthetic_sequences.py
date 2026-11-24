@@ -216,21 +216,37 @@ def _cdr_liability_hits(cdr: str) -> list[tuple[int, int, str]]:
     return hits
 
 
-def unintended_cdr_liabilities(
-    cdr: str, inserts: list[tuple[int, str]]
-) -> list[tuple[int, int, str]]:
-    """주입한 조각 안에 완전히 들어가지 않는 liability 모티프 목록.
+#: liability 모티프 최대 길이(N[^P][ST] = 3)에서 1을 뺀 값.
+#: CDR 경계를 걸치는 모티프를 보려면 양옆으로 이만큼 넓게 봐야 한다.
+_MOTIF_PAD = 2
 
-    각 케이스가 "의도한 liability 만" 갖도록 강제하기 위한 검사다. 조각 경계에 걸쳐
-    생겨난 덤 모티프(예: NG 를 넣었는데 앞 잔기가 D 라 DN·DG 까지 생기는 경우)도
-    의도 밖으로 보고 재추첨한다. 그래야 "케이스 X 의 CDR liability 는 정확히 이것뿐"
-    이라는 단정을 테스트에서 쓸 수 있다.
+
+def unintended_cdr_liabilities_in_context(
+    seq: str, cdr_start: int, cdr_end: int, inserts: list[tuple[int, str]]
+) -> list[tuple[int, int, str]]:
+    """CDR 에 **걸치는** liability 중 주입 조각 안에 들어가지 않는 것들.
+
+    CDR 문자열만 보면 경계를 걸친 모티프를 놓친다. 예를 들어 CDR 이 ...SNA 로 끝나고
+    바로 뒤 framework 가 S 로 시작하면 NAS 가 당화 수용 서열이 되는데, CDR 안쪽만
+    훑으면 이걸 못 본다. 그래서 양옆 2 잔기까지 넓혀 훑고, CDR 과 겹치는 hit 만 본다.
+
+    좌표는 모두 1-based 이고 양끝을 포함한다.
     """
-    spans = [(off, off + len(frag)) for off, frag in inserts]
-    out = []
-    for start, end, label in _cdr_liability_hits(cdr):
-        if any(s_start <= start and end <= s_end for s_start, s_end in spans):
-            continue
+    lo = max(1, cdr_start - _MOTIF_PAD)
+    hi = min(len(seq), cdr_end + _MOTIF_PAD)
+    window = seq[lo - 1:hi]
+
+    #: 주입 조각의 전역 좌표 구간
+    spans = [(cdr_start + off, cdr_start + off + len(frag) - 1) for off, frag in inserts]
+
+    out: list[tuple[int, int, str]] = []
+    for w_start, w_end, label in _cdr_liability_hits(window):
+        start = lo + w_start           # 1-based 시작
+        end = lo + w_end - 1           # 1-based 끝(포함)
+        if end < cdr_start or start > cdr_end:
+            continue                   # CDR 과 겹치지 않으면 framework 쪽 일이다
+        if any(s_lo <= start and end <= s_hi for s_lo, s_hi in spans):
+            continue                   # 의도적으로 주입한 것
         out.append((start, end, label))
     return out
 
@@ -517,13 +533,13 @@ def build_record(case: Case, heavy: HeavyScaffold, light: LightScaffold) -> dict
         # 이렇게 하면 각 케이스의 CDR liability 는 case.cdr_inserts 로 주입한 것만 남는다.
         for name, (start, end) in cdrs.items():
             short = name.split("-")[1]          # "CDR-H1" → "H1"
-            stray = unintended_cdr_liabilities(
-                seq[start - 1:end], case.cdr_inserts.get(short, [])
+            stray = unintended_cdr_liabilities_in_context(
+                seq, start, end, case.cdr_inserts.get(short, [])
             )
             if stray:
                 problems.append(
                     f"{name} 에 의도하지 않은 liability: "
-                    + ", ".join(f"{lab}@{s + 1}" for s, _, lab in stray)
+                    + ", ".join(f"{lab}@{s}" for s, _, lab in stray)
                 )
 
         if problems:

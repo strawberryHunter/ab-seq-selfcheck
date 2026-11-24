@@ -151,7 +151,7 @@
       "id": "SYN-VL-002",
       "chain": "L",
       "description": "정상 VL — CDR-L1 이 짧은 편(8 잔기)",
-      "sequence": "AIIYYVTQTGKKSFTSTETQLVCKATYASLRWFVTITAVYQKSTTVSGSGSNASLHLITALARTSYRTLTQAALIRTRKTSSILCDEQTPTVYKFGQGRKSKLKT",
+      "sequence": "AIIYYVTQTGKKSFTSTETQLVCIDAAAKLEWFVTITAVYQKSTTVTLTTGPFSLHLITALARTSYRTLTQAALIRTRKTSSILCYTYKFQDIIFGQGRKSKLKT",
       "length": 105,
       "synthetic": true,
       "notes": [],
@@ -160,17 +160,17 @@
           "CDR-L1": {
             "start": 24,
             "end": 31,
-            "seq": "KATYASLR"
+            "seq": "IDAAAKLE"
           },
           "CDR-L2": {
             "start": 47,
             "end": 53,
-            "seq": "SGSGSNA"
+            "seq": "TLTTGPF"
           },
           "CDR-L3": {
             "start": 86,
             "end": 94,
-            "seq": "DEQTPTVYK"
+            "seq": "YTYKFQDII"
           }
         },
         "chain": "L",
