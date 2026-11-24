@@ -1,0 +1,109 @@
+name: CI
+
+# main 으로 가는 PR 과 main 에 직접 들어온 커밋을 검사한다.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  # 같은 브랜치에서 새 커밋이 오면 진행 중인 검사를 취소한다.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # pyproject.toml 의 requires-python = ">=3.10" 전 구간을 돌린다.
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 파이썬 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 개발 의존성 설치
+        # 런타임 의존성은 없다. 표준 라이브러리만 쓴다.
+        run: python -m pip install --upgrade pip pytest
+
+      - name: 런타임 의존성이 없는지 확인
+        # 새 의존성이 조용히 들어오는 것을 막는다.
+        run: |
+          python - <<'PY'
+          import tomllib, sys
+          with open("pyproject.toml", "rb") as f:
+              deps = tomllib.load(f)["project"].get("dependencies", [])
+          if deps:
+              sys.exit(f"런타임 의존성이 추가됐다: {deps}. 표준 라이브러리만 쓰기로 했다.")
+          print("런타임 의존성 없음 — 확인")
+          PY
+
+      - name: 테스트
+        run: python -m pytest -q
+
+  corpus:
+    name: 합성 코퍼스 재현성
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 파이썬 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: 저장된 코퍼스가 생성기 출력과 같은지 확인
+        # 생성기를 고치고 데이터를 다시 만들지 않은 채 커밋하는 것을 막는다.
+        run: python scripts/make_synthetic_sequences.py --check
+
+  cli:
+    name: CLI 동작
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 파이썬 설치
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: README 예시 1 — 서열 하나 붙여넣기
+        run: |
+          SEQ=$(python -c "import json; print(json.load(open('data/synthetic/sequences.json'))['sequences'][0]['sequence'])")
+          python -m abcheck.cli "$SEQ" > /dev/null
+
+      - name: README 예시 2 — 코퍼스를 HTML 로
+        run: |
+          python -m abcheck.cli data/synthetic/sequences.json --html --out-dir ci_output
+          test -s ci_output/report.html
+
+      - name: README 예시 3 — JSON 출력
+        run: |
+          mkdir -p ci_output
+          python -m abcheck.cli data/synthetic/sequences.json --json > ci_output/report.json
+          python -c "
+          import json
+          payload = json.load(open('ci_output/report.json'))
+          assert payload['count'] == 16, payload['count']
+          assert payload['limitations'], '한계 고지가 빠졌다'
+          assert payload['summary']['groups'], '집계가 빠졌다'
+          print('JSON 출력 확인')
+          "
+
+      - name: 잘못된 입력은 종료코드 1
+        run: |
+          if python -m abcheck.cli ACDEF > /dev/null 2>&1; then
+            echo "잘못된 입력인데 성공으로 끝났다"
+            exit 1
+          fi
