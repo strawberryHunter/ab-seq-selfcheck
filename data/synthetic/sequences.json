@@ -1,0 +1,636 @@
+{
+  "schema": "ab-seq-selfcheck/synthetic-corpus/v1",
+  "generator": "scripts/make_synthetic_sequences.py",
+  "warning": "전부 합성 서열이다. 실제 치료용 항체나 germline DB 레코드를 복사하지 않았으며, 주석 로직 회귀 테스트 용도로만 쓴다. 생물학적 해석 대상이 아니다.",
+  "coordinates": "CDR 위치는 1-based, 양끝 포함(start/end inclusive)",
+  "typical_cdr_lengths": {
+    "H1": [
+      5,
+      7
+    ],
+    "H2": [
+      16,
+      19
+    ],
+    "H3": [
+      3,
+      25
+    ],
+    "L1": [
+      7,
+      17
+    ],
+    "L2": [
+      7,
+      7
+    ],
+    "L3": [
+      5,
+      13
+    ]
+  },
+  "count": 16,
+  "sequences": [
+    {
+      "id": "SYN-VH-001",
+      "chain": "H",
+      "description": "정상 VH — 통상 길이 CDR, 주입한 liability 없음",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSRAHSIWALKLPYITVTHQSKDNREFVYFQEVGQYDKATLSVSESLQHSLQSSLPVVRVVKLCLGAPSGSYFGRVWGQGSSGGFQY",
+      "length": 115,
+      "synthetic": true,
+      "notes": [],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "RAHSI"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "KDNREFVYFQEVGQYD"
+          },
+          "CDR-H3": {
+            "start": 95,
+            "end": 104,
+            "seq": "APSGSYFGRV"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 92,
+        "terminal_motif": 105
+      }
+    },
+    {
+      "id": "SYN-VH-002",
+      "chain": "H",
+      "description": "정상 VH — CDR-H3 가 긴 편(18 잔기)",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSLNPISWALKLPYITVTHQSELPHQYKGREYPRVASKATLSVSESLQHSLQSSLPVVRVVKLCLGSTILTAEFEATTYKKQNEWGQGSSGGFQY",
+      "length": 123,
+      "synthetic": true,
+      "notes": [],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "LNPIS"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "ELPHQYKGREYPRVAS"
+          },
+          "CDR-H3": {
+            "start": 95,
+            "end": 112,
+            "seq": "STILTAEFEATTYKKQNE"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 92,
+        "terminal_motif": 113
+      }
+    },
+    {
+      "id": "SYN-VL-001",
+      "chain": "L",
+      "description": "정상 VL — kappa 유사 길이 (L1 11, L3 9)",
+      "sequence": "AIIYYVTQTGKKSFTSTETQLVCYNIGGIKGPIGWFVTITAVYQKSTTVTYNQLGSSLHLITALARTSYRTLTQAALIRTRKTSSILCKTDIDKKYTFGQGRKSKLKT",
+      "length": 108,
+      "synthetic": true,
+      "notes": [],
+      "expected": {
+        "cdrs": {
+          "CDR-L1": {
+            "start": 24,
+            "end": 34,
+            "seq": "YNIGGIKGPIG"
+          },
+          "CDR-L2": {
+            "start": 50,
+            "end": 56,
+            "seq": "TYNQLGS"
+          },
+          "CDR-L3": {
+            "start": 89,
+            "end": 97,
+            "seq": "KTDIDKKYT"
+          }
+        },
+        "chain": "L",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 23,
+        "trp": 35,
+        "cys2": 88,
+        "terminal_motif": 98
+      }
+    },
+    {
+      "id": "SYN-VL-002",
+      "chain": "L",
+      "description": "정상 VL — CDR-L1 이 짧은 편(8 잔기)",
+      "sequence": "AIIYYVTQTGKKSFTSTETQLVCKATYASLRWFVTITAVYQKSTTVSGSGSNASLHLITALARTSYRTLTQAALIRTRKTSSILCDEQTPTVYKFGQGRKSKLKT",
+      "length": 105,
+      "synthetic": true,
+      "notes": [],
+      "expected": {
+        "cdrs": {
+          "CDR-L1": {
+            "start": 24,
+            "end": 31,
+            "seq": "KATYASLR"
+          },
+          "CDR-L2": {
+            "start": 47,
+            "end": 53,
+            "seq": "SGSGSNA"
+          },
+          "CDR-L3": {
+            "start": 86,
+            "end": 94,
+            "seq": "DEQTPTVYK"
+          }
+        },
+        "chain": "L",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 23,
+        "trp": 32,
+        "cys2": 85,
+        "terminal_motif": 95
+      }
+    },
+    {
+      "id": "SYN-VH-003",
+      "chain": "H",
+      "description": "CDR-H2 에 NG — deamidation 최고 위험, CDR 내부라 위험도 상향",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSATNIEWALKLPYITVTHQSLSTAARNGGQQQGFDLKATLSVSESLQHSLQSSLPVVRVVKLCLGYNKQQQFYLKWGQGSSGGFQY",
+      "length": 115,
+      "synthetic": true,
+      "notes": [
+        "CDR-H2 내 NG"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "ATNIE"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "LSTAARNGGQQQGFDL"
+          },
+          "CDR-H3": {
+            "start": 95,
+            "end": 104,
+            "seq": "YNKQQQFYLK"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 92,
+        "terminal_motif": 105
+      }
+    },
+    {
+      "id": "SYN-VH-004",
+      "chain": "H",
+      "description": "CDR-H1 에 N-glycosylation 서열(NLS) — CDR 내부 당화 위험",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSGNLSAAWALKLPYITVTHQSRGRVETRTKTGNARDEKATLSVSESLQHSLQSSLPVVRVVKLCLGTLSVGVDFITWGQGSSGGFQY",
+      "length": 116,
+      "synthetic": true,
+      "notes": [
+        "CDR-H1 내 N[^P][ST]"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 36,
+            "seq": "GNLSAA"
+          },
+          "CDR-H2": {
+            "start": 51,
+            "end": 66,
+            "seq": "RGRVETRTKTGNARDE"
+          },
+          "CDR-H3": {
+            "start": 96,
+            "end": 105,
+            "seq": "TLSVGVDFIT"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 37,
+        "fr3_motif": 67,
+        "cys2": 93,
+        "terminal_motif": 106
+      }
+    },
+    {
+      "id": "SYN-VL-003",
+      "chain": "L",
+      "description": "CDR-L3 에 NG — 경쇄 CDR 내 deamidation",
+      "sequence": "AIIYYVTQTGKKSFTSTETQLVCGSLPNYDIRIYWFVTITAVYQKSTTVTSLAGVSSLHLITALARTSYRTLTQAALIRTRKTSSILCLRANGEGADFGQGRKSKLKT",
+      "length": 108,
+      "synthetic": true,
+      "notes": [
+        "CDR-L3 내 NG"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-L1": {
+            "start": 24,
+            "end": 34,
+            "seq": "GSLPNYDIRIY"
+          },
+          "CDR-L2": {
+            "start": 50,
+            "end": 56,
+            "seq": "TSLAGVS"
+          },
+          "CDR-L3": {
+            "start": 89,
+            "end": 97,
+            "seq": "LRANGEGAD"
+          }
+        },
+        "chain": "L",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 23,
+        "trp": 35,
+        "cys2": 88,
+        "terminal_motif": 98
+      }
+    },
+    {
+      "id": "SYN-VH-005",
+      "chain": "H",
+      "description": "비결합 Cys — CDR-H3 에 Cys 를 하나 더 넣어 도메인 내 Cys 가 3개(홀수)",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSFIEAIWALKLPYITVTHQSRVGPKILAHASEHYNAKATLSVSESLQHSLQSSLPVVRVVKLCLGYAYITCTGERTDWGQGSSGGFQY",
+      "length": 117,
+      "synthetic": true,
+      "notes": [
+        "도메인 내 Cys 3개 → 홀수"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "FIEAI"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "RVGPKILAHASEHYNA"
+          },
+          "CDR-H3": {
+            "start": 95,
+            "end": 106,
+            "seq": "YAYITCTGERTD"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 92,
+        "terminal_motif": 107
+      }
+    },
+    {
+      "id": "SYN-VH-006",
+      "chain": "H",
+      "description": "framework 에만 liability — FR3 에 DG, FR1 에 Met. CDR 내부 건과 위험도 비교용",
+      "sequence": "YITTIETSSFHYMRVRHEIEQCALLKGGLSKYGDHWALKLPYITVTHQSKRPALTTSSIYKPASLKATLSVSESLQHSDGSSLPVVRVVKLCLGSVGIAFGRTSWGQGSSGGFQY",
+      "length": 115,
+      "synthetic": true,
+      "notes": [
+        "framework 내 DG",
+        "framework 내 Met"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "KYGDH"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "KRPALTTSSIYKPASL"
+          },
+          "CDR-H3": {
+            "start": 95,
+            "end": 104,
+            "seq": "SVGIAFGRTS"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 92,
+        "terminal_motif": 105
+      }
+    },
+    {
+      "id": "SYN-VH-007",
+      "chain": "H",
+      "description": "CDR-H3 에 DG — isomerization 최고 위험",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSSQPSTWALKLPYITVTHQSQQKADLISDRYGGDNAKATLSVSESLQHSLQSSLPVVRVVKLCLGAQGPDGRGNKFWGQGSSGGFQY",
+      "length": 116,
+      "synthetic": true,
+      "notes": [
+        "CDR-H3 내 DG"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "SQPST"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "QQKADLISDRYGGDNA"
+          },
+          "CDR-H3": {
+            "start": 95,
+            "end": 105,
+            "seq": "AQGPDGRGNKF"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 92,
+        "terminal_motif": 106
+      }
+    },
+    {
+      "id": "SYN-VH-008",
+      "chain": "H",
+      "description": "CDR-H3 에 Met 과 Trp — CDR 내 산화 위험",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSYTSSPWALKLPYITVTHQSGNVKGPYHGNDRTSEAKATLSVSESLQHSLQSSLPVVRVVKLCLGGTFMGESWPSSLWGQGSSGGFQY",
+      "length": 117,
+      "synthetic": true,
+      "notes": [
+        "CDR-H3 내 Met",
+        "CDR-H3 내 Trp"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "YTSSP"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "GNVKGPYHGNDRTSEA"
+          },
+          "CDR-H3": {
+            "start": 95,
+            "end": 106,
+            "seq": "GTFMGESWPSSL"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 92,
+        "terminal_motif": 107
+      }
+    },
+    {
+      "id": "SYN-VL-004",
+      "chain": "L",
+      "description": "CDR-L1 에 DP — fragmentation 위험",
+      "sequence": "AIIYYVTQTGKKSFTSTETQLVCTINVDPSADAGWFVTITAVYQKSTTVKQLRGHRSLHLITALARTSYRTLTQAALIRTRKTSSILCGGTLIEHKLFGQGRKSKLKT",
+      "length": 108,
+      "synthetic": true,
+      "notes": [
+        "CDR-L1 내 DP"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-L1": {
+            "start": 24,
+            "end": 34,
+            "seq": "TINVDPSADAG"
+          },
+          "CDR-L2": {
+            "start": 50,
+            "end": 56,
+            "seq": "KQLRGHR"
+          },
+          "CDR-L3": {
+            "start": 89,
+            "end": 97,
+            "seq": "GGTLIEHKL"
+          }
+        },
+        "chain": "L",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 23,
+        "trp": 35,
+        "cys2": 88,
+        "terminal_motif": 98
+      }
+    },
+    {
+      "id": "SYN-VL-005",
+      "chain": "L",
+      "description": "CDR 에 Lys/Arg 를 몰아넣은 염기성 서열 — pI/net charge 계산 검증용",
+      "sequence": "AIIYYVTQTGKKSFTSTETQLVCDYKRKRKGRGGWFVTITAVYQKSTTVGEFNKKFSLHLITALARTSYRTLTQAALIRTRKTSSILCIRKRKAGSGFGQGRKSKLKT",
+      "length": 108,
+      "synthetic": true,
+      "notes": [
+        "염기성 CDR → 높은 pI"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-L1": {
+            "start": 24,
+            "end": 34,
+            "seq": "DYKRKRKGRGG"
+          },
+          "CDR-L2": {
+            "start": 50,
+            "end": 56,
+            "seq": "GEFNKKF"
+          },
+          "CDR-L3": {
+            "start": 89,
+            "end": 97,
+            "seq": "IRKRKAGSG"
+          }
+        },
+        "chain": "L",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 23,
+        "trp": 35,
+        "cys2": 88,
+        "terminal_motif": 98
+      }
+    },
+    {
+      "id": "SYN-VH-901",
+      "chain": "H",
+      "description": "말단 WGxG 가 깨진 VH — 체인 판별부터 실패해야 한다 (confident=False)",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSYPSKSWALKLPYITVTHQSYRNINIPGPEPGGARGKATLSVSESLQHSLQSSLPVVRVVKLCLGGAVTKYPEKVSGQGSSGGFQY",
+      "length": 115,
+      "synthetic": true,
+      "notes": [
+        "말단 WGxG 의 Trp → Ser"
+      ],
+      "expected": {
+        "cdrs": null,
+        "chain": null,
+        "confident": false,
+        "anchors_broken": true,
+        "length_outlier": false
+      },
+      "anchors_intended": null
+    },
+    {
+      "id": "SYN-VH-902",
+      "chain": "H",
+      "description": "보존 Cys22 가 Ser 로 치환된 VH — CDR-H1 앵커를 못 찾아야 한다 (confident=False)",
+      "sequence": "YITTIETSSFHYGRVRHEIEQSALLKGGLSAISPAWALKLPYITVTHQSIANYKKRKVDVAYKTYKATLSVSESLQHSLQSSLPVVRVVKLCLGLSIPTEVVNQWGQGSSGGFQY",
+      "length": 115,
+      "synthetic": true,
+      "notes": [
+        "Cys22 → Ser"
+      ],
+      "expected": {
+        "cdrs": null,
+        "chain": null,
+        "confident": false,
+        "anchors_broken": true,
+        "length_outlier": false
+      },
+      "anchors_intended": null
+    },
+    {
+      "id": "SYN-VH-903",
+      "chain": "H",
+      "description": "CDR-H1 이 9 잔기 — 앵커는 찾히지만 통상 범위(5-7) 밖이라 confident=False",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSPFFLKNEHTWALKLPYITVTHQSANDLHFNVNVDYIKTVKATLSVSESLQHSLQSSLPVVRVVKLCLGSAITTLSQTFWGQGSSGGFQY",
+      "length": 119,
+      "synthetic": true,
+      "notes": [
+        "CDR-H1 길이 9 (통상 5-7)"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 39,
+            "seq": "PFFLKNEHT"
+          },
+          "CDR-H2": {
+            "start": 54,
+            "end": 69,
+            "seq": "ANDLHFNVNVDYIKTV"
+          },
+          "CDR-H3": {
+            "start": 99,
+            "end": 108,
+            "seq": "SAITTLSQTF"
+          }
+        },
+        "chain": "H",
+        "confident": false,
+        "anchors_broken": false,
+        "length_outlier": true
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 40,
+        "fr3_motif": 70,
+        "cys2": 96,
+        "terminal_motif": 109
+      }
+    }
+  ]
+}
