@@ -162,3 +162,63 @@ def test_readme_states_out_of_scope():
     assert "구조 예측" in text
     assert "도킹" in text
     assert "결합력 예측" in text
+
+
+# --------------------------------------------------------------------------
+# TUTORIAL.md
+# --------------------------------------------------------------------------
+
+TUTORIAL = REPO_ROOT / "TUTORIAL.md"
+
+
+def test_tutorial_exists_and_is_linked_from_readme():
+    assert TUTORIAL.exists()
+    assert "TUTORIAL.md" in _readme(), "README 에서 튜토리얼로 가는 링크가 없다"
+
+
+def test_tutorial_example_sequence_is_in_corpus(records):
+    """튜토리얼의 붙여넣기 예시가 현재 코퍼스와 어긋나지 않는지."""
+    text = TUTORIAL.read_text(encoding="utf-8")
+    matches = re.findall(r'abcheck\.cli "([ACDEFGHIKLMNPQRSTVWY]+)"', text)
+    assert matches, "TUTORIAL 에 붙여넣기용 서열 예시가 없다"
+
+    corpus = {r["sequence"] for r in records}
+    for seq in matches:
+        assert seq in corpus, (
+            "TUTORIAL 예시 서열이 코퍼스에 없다 — 코퍼스를 다시 만든 뒤 "
+            "TUTORIAL 을 갱신하지 않은 것으로 보인다."
+        )
+
+
+def test_tutorial_quoted_output_matches_real_output(records):
+    """튜토리얼에 붙여 둔 CDR 표가 실제 출력과 같은지.
+
+    문서의 숫자가 낡는 것을 막는다. 출력 양식이나 주석 규칙을 바꾸면 여기서 걸린다.
+    """
+    from abcheck.annotate import annotate
+
+    text = TUTORIAL.read_text(encoding="utf-8")
+    seq = re.findall(r'abcheck\.cli "([ACDEFGHIKLMNPQRSTVWY]+)"', text)[0]
+    ann = annotate(seq)
+
+    for name, cdr in ann.cdrs.items():
+        row = re.search(
+            rf"{re.escape(name)}\s*\|\s*(\d+)-(\d+)\s*\|\s*(\d+)\s*\|\s*(\w+)", text
+        )
+        assert row, f"TUTORIAL 에 {name} 행이 없다"
+        start, end, length, seq_text = row.groups()
+        assert (int(start), int(end), int(length), seq_text) == (
+            cdr.start, cdr.end, cdr.length, cdr.seq
+        ), f"{name}: 문서 {row.groups()} vs 실제 {(cdr.start, cdr.end, cdr.length, cdr.seq)}"
+
+
+def test_tutorial_covers_the_common_errors():
+    text = TUTORIAL.read_text(encoding="utf-8")
+    for topic in ["보존 Cys22 를 찾지 못했다", "너무 길다", "DNA/RNA", "모호한 아미노산"]:
+        assert topic in text, f"TUTORIAL 에 '{topic}' 안내가 없다"
+
+
+def test_tutorial_states_no_network_and_no_scoring():
+    text = TUTORIAL.read_text(encoding="utf-8")
+    assert "외부 API 를 호출하지 않는다" in text
+    assert "점수를 매기지 않는" in text
