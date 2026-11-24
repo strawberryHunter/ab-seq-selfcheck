@@ -26,41 +26,48 @@ SEQUENCE_LINE_WIDTH = 60
 #: 집계 표에서 건수가 0 인 칸에 쓸 표시
 EMPTY_CELL = "-"
 
-#: 집계 표 열 제목
-SUMMARY_HEADERS: dict[str, str] = {
-    "CDR1": "CDR1",
-    "CDR2": "CDR2",
-    "CDR3": "CDR3",
-    "framework": "framework",
-}
-
-
 def _counts_cell(counts: dict[str, int]) -> str:
     """{'높음': 1, '중간': 0, '낮음': 2} → '높음 1, 낮음 2'."""
     parts = [f"{level} {n}" for level, n in counts.items() if n]
     return ", ".join(parts) if parts else EMPTY_CELL
 
 
-def _summary_row_cells(row: dict) -> tuple[str, str, str, list[str], str]:
-    """집계 표 한 행에 들어갈 칸들을 만든다."""
-    if not row["input_ok"]:
-        return row["id"], "-", "입력 오류", [EMPTY_CELL] * len(SUMMARY_REGIONS), EMPTY_CELL
+def _flag_cell(row: dict) -> str:
+    flags = row["domain_flags"]
+    if not flags:
+        return EMPTY_CELL
+    return ", ".join(f"{f['label']} ({f['risk']})" for f in flags)
 
-    chain = {"H": "VH", "L": "VL", None: "판별 실패"}[row["chain"]]
-    confidence = "신뢰 가능" if row["confident"] else "신뢰 불가"
 
+def _chain_group_headers(group: dict) -> list[str]:
+    """체인이 확정된 묶음의 열 제목. 표를 나눴으므로 CDR-H1 처럼 정확히 쓴다."""
+    return ["서열", "주석"] + group["cdr_labels"] + ["framework", "도메인 플래그"]
+
+
+def _chain_group_row(row: dict) -> list[str]:
     cells: list[str] = []
     for region in SUMMARY_REGIONS:
         if region.startswith("CDR") and not row["annotated"]:
             cells.append("주석 실패")
         else:
             cells.append(_counts_cell(row["regions"][region]))
+    confidence = "신뢰 가능" if row["confident"] else "신뢰 불가"
+    return [row["id"], confidence] + cells + [_flag_cell(row)]
 
-    flags = row["domain_flags"]
-    flag_cell = (
-        ", ".join(f"{f['label']} ({f['risk']})" for f in flags) if flags else EMPTY_CELL
-    )
-    return row["id"], chain, confidence, cells, flag_cell
+
+#: 체인을 판별하지 못한 묶음의 열 제목. CDR 칸이 의미가 없으므로 열 자체를 두지 않는다.
+UNKNOWN_GROUP_HEADERS: list[str] = ["서열", "상태", "검출 모티프", "도메인 플래그"]
+
+
+def _unknown_group_row(row: dict) -> list[str]:
+    if not row["input_ok"]:
+        return [row["id"], "입력 오류", EMPTY_CELL, EMPTY_CELL]
+    return [
+        row["id"],
+        "체인 판별 실패",
+        _counts_cell(row["regions"]["framework"]),
+        _flag_cell(row),
+    ]
 
 
 # --------------------------------------------------------------------------
@@ -229,34 +236,35 @@ def as_text(reports: list[SequenceReport], *, width: int = 100) -> str:
 
 
 def _summary_text(reports: list[SequenceReport], width: int) -> list[str]:
-    """CDR별 liability 집계 표 (터미널용)."""
+    """CDR별 liability 집계 표 (터미널용). 중쇄·경쇄를 따로 낸다."""
     summary = summarize(reports)
     out: list[str] = ["-" * width, "[CDR별 liability 집계]", "-" * width]
     out.extend(_wrap(summary["note"], width - 4, first="  "))
-    out.append("")
 
-    headers = ["서열", "체인", "주석"] + [SUMMARY_HEADERS[r] for r in SUMMARY_REGIONS] \
-        + ["도메인 플래그"]
-    rows: list[list[str]] = []
+    for group in summary["groups"]:
+        out.append("")
+        out.append(f"  ■ {group['title']} — {len(group['rows'])}건")
+        out.append("")
 
-    for row in summary["rows"]:
-        seq_id, chain, confidence, cells, flag_cell = _summary_row_cells(row)
-        rows.append([seq_id, chain, confidence] + cells + [flag_cell])
+        if group["chain"] is None:
+            rows = [_unknown_group_row(r) for r in group["rows"]]
+            out.extend("    " + line for line in _table(UNKNOWN_GROUP_HEADERS, rows))
+            continue
 
-    totals = summary["totals"]
-    rows.append(
-        ["합계", "", ""]
-        + [_counts_cell(totals[r]) for r in SUMMARY_REGIONS]
-        + [f"{summary['domain_flag_total']}건" if summary["domain_flag_total"] else EMPTY_CELL]
-    )
-
-    out.extend("  " + line for line in _table(headers, rows))
+        rows = [_chain_group_row(r) for r in group["rows"]]
+        totals = group["totals"]
+        rows.append(
+            ["합계", ""]
+            + [_counts_cell(totals[r]) for r in SUMMARY_REGIONS]
+            + [f"{group['domain_flag_total']}건" if group["domain_flag_total"] else EMPTY_CELL]
+        )
+        out.extend("    " + line for line in _table(_chain_group_headers(group), rows))
 
     if any(r["regions_unassigned"] for r in summary["rows"]):
         out.append("")
         out.extend(_wrap(
-            "'주석 실패' 로 표시된 서열은 CDR 구간을 가를 수 없어 모티프를 framework 칸에 "
-            "모았다. 실제로는 CDR 안일 수 있으니 과소평가하지 말 것.",
+            "'주석 실패' 또는 '체인 판별 실패' 로 표시된 서열은 CDR 구간을 가를 수 없어 "
+            "모티프를 framework 쪽으로 모았다. 실제로는 CDR 안일 수 있으니 과소평가하지 말 것.",
             width - 4, first="  ",
         ))
     return out
@@ -455,6 +463,8 @@ td.num, td.right { text-align: right; white-space: nowrap; }
 .summary td:first-child { white-space: nowrap; }
 .summary a { color: #000000; }
 .summary tbody tr:last-child { border-top: 2px solid #000000; }
+.summary h3 { margin-top: 20px; }
+.summary h3 .count { font-weight: normal; color: #555555; }
 .kv { font-size: 13px; margin: 2px 0; }
 .kv span { display: inline-block; min-width: 120px; color: #555555; }
 ul.reasons { margin: 6px 0; padding-left: 20px; }
@@ -508,41 +518,50 @@ def as_html(reports: list[SequenceReport], *, title: str = "항체 서열 셀프
 
 
 def _summary_html(reports: list[SequenceReport]) -> str:
-    """CDR별 liability 집계 표 (HTML용). 리포트 맨 앞에 놓는다."""
+    """CDR별 liability 집계 표 (HTML용). 중쇄·경쇄를 따로 내고 리포트 맨 앞에 놓는다."""
     summary = summarize(reports)
-
-    headers = ["서열", "체인", "주석"] + [SUMMARY_HEADERS[r] for r in SUMMARY_REGIONS] \
-        + ["도메인 플래그"]
-    rows: list[list[str]] = []
-
-    for row in summary["rows"]:
-        seq_id, chain, confidence, cells, flag_cell = _summary_row_cells(row)
-        link = f'<a href="#{html.escape(_anchor(seq_id))}">{html.escape(seq_id)}</a>'
-        rows.append(
-            [link, html.escape(chain), html.escape(confidence)]
-            + [html.escape(c) for c in cells]
-            + [html.escape(flag_cell)]
-        )
-
-    totals = summary["totals"]
-    rows.append(
-        ["<b>합계</b>", "", ""]
-        + [f"<b>{html.escape(_counts_cell(totals[r]))}</b>" for r in SUMMARY_REGIONS]
-        + [f"<b>{summary['domain_flag_total']}건</b>" if summary["domain_flag_total"]
-           else EMPTY_CELL]
-    )
 
     out = [
         '<div class="summary">',
         "<h2>CDR별 liability 집계</h2>",
         f'<p class="rationale">{html.escape(summary["note"])}</p>',
-        _html_table(headers, rows),
     ]
+
+    def _link(seq_id: str) -> str:
+        return f'<a href="#{html.escape(_anchor(seq_id))}">{html.escape(seq_id)}</a>'
+
+    for group in summary["groups"]:
+        out.append(
+            f"<h3>{html.escape(group['title'])} "
+            f"<span class=\"count\">— {len(group['rows'])}건</span></h3>"
+        )
+
+        if group["chain"] is None:
+            rows = [
+                [_link(r["id"])] + [html.escape(c) for c in _unknown_group_row(r)[1:]]
+                for r in group["rows"]
+            ]
+            out.append(_html_table(UNKNOWN_GROUP_HEADERS, rows))
+            continue
+
+        rows = [
+            [_link(r["id"])] + [html.escape(c) for c in _chain_group_row(r)[1:]]
+            for r in group["rows"]
+        ]
+        totals = group["totals"]
+        rows.append(
+            ["<b>합계</b>", ""]
+            + [f"<b>{html.escape(_counts_cell(totals[r]))}</b>" for r in SUMMARY_REGIONS]
+            + [f"<b>{group['domain_flag_total']}건</b>" if group["domain_flag_total"]
+               else EMPTY_CELL]
+        )
+        out.append(_html_table(_chain_group_headers(group), rows))
+
     if any(r["regions_unassigned"] for r in summary["rows"]):
         out.append(
-            '<p class="rationale">&lsquo;주석 실패&rsquo; 로 표시된 서열은 CDR 구간을 '
-            "가를 수 없어 모티프를 framework 칸에 모았다. 실제로는 CDR 안일 수 있으니 "
-            "과소평가하지 말 것.</p>"
+            '<p class="rationale">&lsquo;주석 실패&rsquo; 또는 &lsquo;체인 판별 실패&rsquo; 로 '
+            "표시된 서열은 CDR 구간을 가를 수 없어 모티프를 framework 쪽으로 모았다. "
+            "실제로는 CDR 안일 수 있으니 과소평가하지 말 것.</p>"
         )
     out.append("</div>")
     return "\n".join(out)

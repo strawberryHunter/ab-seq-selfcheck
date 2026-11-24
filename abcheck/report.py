@@ -153,6 +153,20 @@ SUMMARY_NOTE: str = (
 #: 주석이 실패해 구간을 가를 수 없는 서열의 모티프가 들어가는 칸
 UNASSIGNED_REGION = "framework"
 
+#: 집계 표를 체인별로 나눌 때 쓰는 제목. None 은 체인을 판별하지 못했거나 입력이 잘못된 서열.
+CHAIN_GROUP_TITLES: dict[str | None, str] = {
+    "H": "중쇄 (VH)",
+    "L": "경쇄 (VL)",
+    None: "체인 판별 실패 · 입력 오류",
+}
+
+
+def cdr_labels(chain: str | None) -> list[str]:
+    """체인별 CDR 열 이름. 표를 나누면 CDR-H1 / CDR-L1 로 정확히 쓸 수 있다."""
+    if chain in ("H", "L"):
+        return [f"CDR-{chain}{i}" for i in (1, 2, 3)]
+    return ["CDR1", "CDR2", "CDR3"]
+
 
 def _slot_of(region: str) -> str:
     """liability hit 의 구간 이름을 집계 칸으로 바꾼다.
@@ -217,7 +231,38 @@ def summarize(reports: list[SequenceReport]) -> dict:
         "rows": rows,
         "totals": totals,
         "domain_flag_total": flag_total,
+        "groups": _group_by_chain(rows),
     }
+
+
+def _group_by_chain(rows: list[dict]) -> list[dict]:
+    """집계 행을 중쇄 / 경쇄 / 판별 실패로 나눈다.
+
+    표를 나누면 열 이름을 CDR-H1, CDR-L1 처럼 정확히 쓸 수 있고, 중쇄에만 있는
+    CDR-H3 길이 특성 같은 것을 경쇄와 섞어 보지 않게 된다. 빈 묶음은 돌려주지 않는다.
+    """
+    groups: list[dict] = []
+
+    for chain in ("H", "L", None):
+        members = [r for r in rows if (r["chain"] if r["input_ok"] else None) == chain]
+        if not members:
+            continue
+
+        totals = {region: _empty_counts() for region in SUMMARY_REGIONS}
+        for row in members:
+            for region in SUMMARY_REGIONS:
+                for level, n in row["regions"][region].items():
+                    totals[region][level] += n
+
+        groups.append({
+            "chain": chain,
+            "title": CHAIN_GROUP_TITLES[chain],
+            "cdr_labels": cdr_labels(chain),
+            "rows": members,
+            "totals": totals,
+            "domain_flag_total": sum(len(r["domain_flags"]) for r in members),
+        })
+    return groups
 
 
 __all__ = [
@@ -225,7 +270,9 @@ __all__ = [
     "build",
     "build_many",
     "summarize",
+    "cdr_labels",
     "SUMMARY_REGIONS",
     "SUMMARY_NOTE",
+    "CHAIN_GROUP_TITLES",
     "SequenceError",
 ]

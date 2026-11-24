@@ -169,18 +169,27 @@ def test_html_summary_links_to_each_sequence_section(records):
         assert f'id="{anchor}"' in out
 
 
-def test_text_summary_table_is_aligned(records):
+def test_text_summary_tables_are_aligned(records):
+    """표가 체인별로 나뉘므로 표마다 따로 정렬을 확인한다."""
     out = as_text(build_many([(r["id"], r["sequence"]) for r in records]))
     section = out.split("CDR별 liability 집계")[1].split("[SYN-VH-001]")[0]
-    rows = [ln for ln in section.splitlines() if ln.strip().startswith("SYN-")]
 
-    assert len(rows) == len(records)
-    # 한글은 표시 폭이 2칸이므로 문자열 인덱스가 아니라 표시 폭으로 비교해야 한다
-    positions = {
-        tuple(_display_width(row[:i]) for i, ch in enumerate(row) if ch == "|")
-        for row in rows
-    }
-    assert len(positions) == 1, f"집계 표 열 정렬이 틀어졌다: {positions}"
+    tables = section.split("■")[1:]
+    assert len(tables) == 3, "중쇄 / 경쇄 / 판별 실패 세 표가 나와야 한다"
+
+    total_rows = 0
+    for table in tables:
+        rows = [ln for ln in table.splitlines() if ln.strip().startswith("SYN-")]
+        assert rows
+        total_rows += len(rows)
+        # 한글은 표시 폭이 2칸이므로 문자열 인덱스가 아니라 표시 폭으로 비교해야 한다
+        positions = {
+            tuple(_display_width(row[:i]) for i, ch in enumerate(row) if ch == "|")
+            for row in rows
+        }
+        assert len(positions) == 1, f"집계 표 열 정렬이 틀어졌다: {positions}"
+
+    assert total_rows == len(records), "모든 서열이 어느 한 표에는 들어가야 한다"
 
 
 def test_text_summary_has_totals_row(records):
@@ -212,3 +221,107 @@ def test_summary_does_not_rank_or_score(records):
     summary = summarize(build_many([(r["id"], r["sequence"]) for r in records]))
     assert [r["id"] for r in summary["rows"]] == records_order
     assert not any(k in summary for k in ["score", "rank", "ranking", "점수", "순위"])
+
+
+# --------------------------------------------------------------------------
+# 중쇄 / 경쇄 표 분리
+# --------------------------------------------------------------------------
+
+def test_groups_split_heavy_light_and_unknown(records):
+    summary = summarize(build_many([(r["id"], r["sequence"]) for r in records]))
+    groups = {g["chain"]: g for g in summary["groups"]}
+
+    assert set(groups) == {"H", "L", None}
+    assert [g["chain"] for g in summary["groups"]] == ["H", "L", None], "중쇄 → 경쇄 → 실패 순서"
+
+    assert len(groups["H"]["rows"]) == 10
+    assert len(groups["L"]["rows"]) == 5
+    assert [r["id"] for r in groups[None]["rows"]] == ["SYN-VH-901"]
+
+
+def test_every_sequence_lands_in_exactly_one_group(records):
+    summary = summarize(build_many([(r["id"], r["sequence"]) for r in records]))
+    seen = [r["id"] for g in summary["groups"] for r in g["rows"]]
+    assert sorted(seen) == sorted(r["id"] for r in records)
+    assert len(seen) == len(set(seen)), "같은 서열이 두 표에 들어갔다"
+
+
+def test_group_columns_use_chain_specific_cdr_names(records):
+    summary = summarize(build_many([(r["id"], r["sequence"]) for r in records]))
+    groups = {g["chain"]: g for g in summary["groups"]}
+
+    assert groups["H"]["cdr_labels"] == ["CDR-H1", "CDR-H2", "CDR-H3"]
+    assert groups["L"]["cdr_labels"] == ["CDR-L1", "CDR-L2", "CDR-L3"]
+
+
+def test_unannotated_but_chain_known_stays_in_its_chain_group(records):
+    """SYN-VH-902 는 체인은 H 로 판별되므로 중쇄 표에 남는다."""
+    summary = summarize(_reports(records, "SYN-VH-902", "SYN-VH-901"))
+    groups = {g["chain"]: g for g in summary["groups"]}
+
+    assert [r["id"] for r in groups["H"]["rows"]] == ["SYN-VH-902"]
+    assert [r["id"] for r in groups[None]["rows"]] == ["SYN-VH-901"]
+
+
+def test_invalid_input_goes_to_unknown_group():
+    summary = summarize([build("bad", "ACDEF")])
+    assert [g["chain"] for g in summary["groups"]] == [None]
+    assert summary["groups"][0]["rows"][0]["input_ok"] is False
+
+
+def test_empty_groups_are_omitted(records):
+    """경쇄만 넣으면 중쇄 표를 만들지 않는다."""
+    summary = summarize(_reports(records, "SYN-VL-001", "SYN-VL-003"))
+    assert [g["chain"] for g in summary["groups"]] == ["L"]
+
+
+def test_group_totals_match_their_own_rows(records):
+    summary = summarize(build_many([(r["id"], r["sequence"]) for r in records]))
+    for group in summary["groups"]:
+        for region in SUMMARY_REGIONS:
+            for level in summary["risk_levels"]:
+                expected = sum(r["regions"][region][level] for r in group["rows"])
+                assert group["totals"][region][level] == expected, (
+                    group["chain"], region, level
+                )
+
+
+def test_group_totals_add_up_to_overall_totals(records):
+    summary = summarize(build_many([(r["id"], r["sequence"]) for r in records]))
+    for region in SUMMARY_REGIONS:
+        for level in summary["risk_levels"]:
+            per_group = sum(g["totals"][region][level] for g in summary["groups"])
+            assert per_group == summary["totals"][region][level], (region, level)
+
+    assert sum(g["domain_flag_total"] for g in summary["groups"]) == summary["domain_flag_total"]
+
+
+def test_html_renders_one_table_per_chain(records):
+    out = as_html(build_many([(r["id"], r["sequence"]) for r in records]))
+
+    assert "중쇄 (VH)" in out
+    assert "경쇄 (VL)" in out
+    assert "체인 판별 실패" in out
+    # 중쇄 표는 CDR-H 열, 경쇄 표는 CDR-L 열을 쓴다
+    assert "<th>CDR-H2</th>" in out
+    assert "<th>CDR-L2</th>" in out
+    assert "<th>CDR2</th>" not in out
+
+
+def test_text_renders_one_table_per_chain(records):
+    out = as_text(build_many([(r["id"], r["sequence"]) for r in records]))
+    section = out.split("CDR별 liability 집계")[1].split("[SYN-VH-001]")[0]
+
+    assert "중쇄 (VH) — 10건" in section
+    assert "경쇄 (VL) — 5건" in section
+    assert "CDR-H2" in section and "CDR-L2" in section
+
+
+def test_unknown_group_has_no_cdr_columns(records):
+    """체인을 모르면 CDR 칸 자체를 두지 않는다 — 0으로 적으면 '깨끗함'으로 오독된다."""
+    out = as_text(_reports(records, "SYN-VH-901"))
+    section = out.split("CDR별 liability 집계")[1].split("[SYN-VH-901]")[0]
+
+    assert "검출 모티프" in section
+    assert "CDR-H1" not in section
+    assert "CDR1" not in section
