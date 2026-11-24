@@ -88,6 +88,36 @@ def test_framework_high_risk_is_not_flagged(records):
     assert any(h.match == "DG" and not h.in_cdr for h in report.liabilities.hits)
 
 
+def test_weak_class_high_risk_in_cdr_is_not_flagged(records):
+    """CDR 안에서 '높음'으로 **표시**되더라도, 약한 등급 모티프면 선별에는 걸리지 않는다.
+
+    CDR 상향 때문에 NS/NT/NN/NH 와 DS/DT/DD 까지 '높음'이 되는데, 실제 레퍼토리에서는
+    이것들이 대다수라 전부 걸면 변별력이 없다. 그래서 선별은 각 분류의 최고 위험
+    모티프(N-결합 당화, NG, DG, DP)만 본다. 표시는 그대로 두므로 정보는 사라지지 않는다.
+    """
+    report = _report(records, "SYN-VH-010")          # CDR-H2 에 NT
+
+    cdr_high = [h for h in report.liabilities.cdr_hits if h.risk == "높음"]
+    assert cdr_high, "CDR 안에 '높음'으로 표시된 항목이 있어야 한다"
+    assert all(not h.top_within_kind for h in cdr_high)
+
+    assert report.triage.status == STATUS_CLEAR, "약한 등급은 선별에 걸리면 안 된다"
+    assert report.triage.reasons == []
+
+
+def test_top_class_motifs_are_the_ones_that_trigger(records):
+    """선별을 유발한 항목은 전부 최고 위험 모티프여야 한다."""
+    for seq_id in ["SYN-VH-003", "SYN-VH-004", "SYN-VH-007", "SYN-VL-003", "SYN-VL-004"]:
+        report = _report(records, seq_id)
+        assert report.triage.status == STATUS_REVIEW, seq_id
+        triggering = [
+            h for h in report.liabilities.cdr_hits
+            if h.risk == "높음" and h.top_within_kind
+        ]
+        assert triggering, seq_id
+        assert len(report.triage.reasons) >= len(triggering)
+
+
 def test_medium_risk_in_cdr_is_not_flagged(records):
     """CDR 안이어도 '중간'이면 이 규칙에는 걸리지 않는다."""
     report = _report(records, "SYN-VH-008")      # CDR-H3 의 Met/Trp → 중간

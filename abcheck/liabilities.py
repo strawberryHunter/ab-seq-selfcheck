@@ -157,6 +157,9 @@ class Hit:
     base_risk: str
     rationale: str
     note: str                 # 등급 조정 근거 (한글)
+    #: 같은 분류 안에서 최고 위험인 모티프인지 (NG, DG, 당화, DP).
+    #: 선별 규칙이 약한 등급까지 끌어올려 과도하게 걸리는 것을 막는 데 쓴다.
+    top_within_kind: bool = False
 
 
 @dataclass
@@ -260,6 +263,7 @@ def find_liabilities(ann: Annotation) -> LiabilityReport:
                     base_risk=spec.base_risk,
                     rationale=spec.rationale,
                     note=note,
+                    top_within_kind=spec.top_within_kind,
                 )
             )
 

@@ -29,7 +29,7 @@
       13
     ]
   },
-  "count": 18,
+  "count": 19,
   "sequences": [
     {
       "id": "SYN-VH-001",
@@ -551,6 +551,47 @@
         "trp": 35,
         "cys2": 88,
         "terminal_motif": 98
+      }
+    },
+    {
+      "id": "SYN-VH-010",
+      "chain": "H",
+      "description": "CDR-H2 에 NT — 약한 deamidation 등급. CDR 상향으로 '높음'이 되지만 최고 위험 모티프가 아니라 선별 규칙에는 걸리지 않아야 한다",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSSEGTKWALKLPYITVTHQSASFSDNTADIGKPGSLKATLSVSESLQHSLQSSLPVVRVVKLCLGFNFQGHPPVDWGQGSSGGFQY",
+      "length": 115,
+      "synthetic": true,
+      "notes": [
+        "CDR-H2 내 NT (약한 등급)"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "SEGTK"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "ASFSDNTADIGKPGSL"
+          },
+          "CDR-H3": {
+            "start": 95,
+            "end": 104,
+            "seq": "FNFQGHPPVD"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 92,
+        "terminal_motif": 105
       }
     },
     {

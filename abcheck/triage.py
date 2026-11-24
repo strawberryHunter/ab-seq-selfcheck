@@ -74,12 +74,23 @@ class TriageResult:
 # --------------------------------------------------------------------------
 
 def _cdr_high_risk(report: "SequenceReport") -> list[str]:
-    """CDR 안에 위험도 '높음' liability 가 있으면 걸린다."""
+    """CDR 안에 위험도 '높음'이면서 **같은 분류의 최고 위험** 모티프가 있으면 걸린다.
+
+    최고 위험 모티프로 한정하는 이유
+    ------------------------------
+    CDR 안이면 위험도를 한 단계 올리므로, 기본 '중간'인 약한 모티프(NS/NT/NN/NH,
+    DS/DT/DD)까지 '높음'이 된다. 실제 레퍼토리 서열로 돌려 보니 CDR 안 '높음' 25건 중
+    13건이 NS/NT/NN/NH 였고, 16건 중 12건이 검토 대상으로 걸렸다. 그 정도로 많이 걸리면
+    "먼저 볼 것을 고른다"는 목적을 못 한다.
+
+    그래서 선별은 각 분류에서 가장 빠른 것 — N-결합 당화, NG, DG, DP — 만 본다.
+    약한 모티프도 표와 상세에는 '높음'으로 그대로 나오므로 정보가 사라지지는 않는다.
+    """
     if report.liabilities is None:
         return []
     reasons = []
     for hit in report.liabilities.cdr_hits:
-        if hit.risk == "높음":
+        if hit.risk == "높음" and hit.top_within_kind:
             reasons.append(
                 f"{hit.region} {hit.start}번에 {hit.label} ({hit.match}) — 위험도 높음"
             )
@@ -106,7 +117,10 @@ def _domain_flag_high_risk(report: "SequenceReport") -> list[str]:
 DEFAULT_RULES: tuple[Rule, ...] = (
     Rule(
         key="cdr-high",
-        description="CDR 안에 위험도 '높음' liability 가 1건 이상 있으면 검토 필요",
+        description=(
+            "CDR 안에 위험도 '높음'이면서 각 분류의 최고 위험 모티프"
+            "(N-결합 당화, NG, DG, DP)가 1건 이상 있으면 검토 필요"
+        ),
         check=_cdr_high_risk,
     ),
     Rule(

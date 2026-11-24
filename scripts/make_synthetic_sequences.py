@@ -483,6 +483,14 @@ def make_cases() -> list[Case]:
         ),
 
         Case(
+            "SYN-VH-010", "H",
+            "CDR-H2 에 NT — 약한 deamidation 등급. CDR 상향으로 '높음'이 되지만 "
+            "최고 위험 모티프가 아니라 선별 규칙에는 걸리지 않아야 한다",
+            (5, 16, 10),
+            cdr_inserts={"H2": [(5, "NT")]},
+            notes=["CDR-H2 내 NT (약한 등급)"],
+        ),
+        Case(
             "SYN-VH-009", "H",
             "CDR-H1 안에 Trp 이 있는 VH — 실제 항체에서 흔하다(예: SYWMQ). "
             "'CDR1 이후 첫 Trp'를 앵커로 쓰면 CDR-H1 이 잘려 나간다",
