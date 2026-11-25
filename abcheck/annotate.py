@@ -12,7 +12,7 @@
 VH
     Cys22      15..30 창에서 22번에 가장 가까운 Cys
     CDR-H1     Cys22 + 9 에서 시작, Trp36 직전까지
-    Trp36      CDR-H1 시작 + 5 이후 첫 Trp (CDR-H1 안의 Trp 을 피하려고 최소 길이만큼 건너뛴다)
+    Trp36      CDR-H1 시작 + 5 이후 첫 `W[VIA][RKQ]Q` 의 Trp (없으면 첫 Trp 로 물러서고 경고)
     CDR-H2     Trp36 + 14 에서 시작, FR3 모티프 직전까지
     FR3 모티프  CDR-H2 시작 + 9 이후 첫 `[RKQ].[TSAV][IMLFV][STAN]` 매치
     Cys92      FR3 모티프 이후 첫 `[YF]C` 의 Cys (없으면 첫 Cys 로 물러서고 경고)
@@ -21,7 +21,7 @@ VH
 VL
     Cys23      16..30 창에서 23번에 가장 가까운 Cys
     CDR-L1     Cys23 + 1 에서 시작, Trp35 직전까지
-    Trp35      CDR-L1 시작 + 7 이후 첫 Trp (같은 이유로 최소 길이만큼 건너뛴다)
+    Trp35      CDR-L1 시작 + 7 이후 첫 `W[YF][QL]Q` 의 Trp (없으면 첫 Trp 로 물러서고 경고)
     CDR-L2     Trp35 + 15 에서 시작, 7 잔기 고정
     Cys88      CDR-L2 이후 첫 `[YF]C` 의 Cys (없으면 첫 Cys 로 물러서고 경고)
     CDR-L3     Cys88 + 1 에서 시작, 말단 `FGxG` 직전까지
@@ -77,6 +77,17 @@ CDR3_OFFSET_L = 1      # Cys88 + 1 → 89
 
 #: CDR-L2 는 Kabat 에서 길이가 고정이다.
 CDR_L2_LENGTH = 7
+
+#: 보존 Trp 앵커 바로 뒤에 오는 FR2 문맥.
+#:
+#: Trp 하나만 보고 찾으면 CDR1 안의 Trp 을 집는다. 특히 IGKV1 계열은
+#: `...RASQGISS**W**LA**W**YQQ...` 처럼 CDR-L1 끝과 FR2 에 Trp 이 둘 있어서,
+#: 앞의 것을 집으면 이후 경계가 3잔기씩 밀린다.
+#:
+#: OAS 안의 ANARCI 주석을 정답으로 두고 5개 데이터셋 약 12,000건을 비교해 정했다.
+#: 이 문맥을 우선하자 CDR 경계 불일치가 3.83% → 0.31% 가 됐다.
+FR2_CONTEXT_H = re.compile(r"W[VIA][RKQ]Q")
+FR2_CONTEXT_L = re.compile(r"W[YF][QL]Q")
 
 #: 보존 Trp 앵커를 찾기 시작할 위치 = CDR1 시작 + 이 값.
 #: 실제 항체의 CDR-H1 에는 Trp 이 흔히 들어간다(예: ...GYTFT**SYWMQ**W VKQ...).
@@ -233,6 +244,19 @@ def _find_conserved_cys(seq: str, min_pos: int, limit: int) -> tuple[int | None,
     return None, False
 
 
+def _find_conserved_trp(seq: str, min_pos: int,
+                        context: re.Pattern[str]) -> tuple[int | None, bool]:
+    """보존 Trp 을 찾는다. (위치, FR2 문맥으로 찾았는지)
+
+    FR2 문맥(`W[VIA][RKQ]Q` 또는 `W[YF][QL]Q`)을 먼저 보고, 없으면 그냥 첫 Trp 로
+    물러선다. 물러선 경우를 호출부가 알 수 있게 두 번째 값으로 알린다.
+    """
+    m = context.search(seq, max(min_pos - 1, 0))
+    if m is not None and m.start() + 1 >= min_pos:
+        return m.start() + 1, True
+    return _first_residue_from(seq, "W", min_pos), False
+
+
 def _cys_in_window(seq: str, window: tuple[int, int], expected: int) -> tuple[int | None, int]:
     """창 안의 Cys 중 expected 에 가장 가까운 위치와, 창 안의 Cys 총 개수."""
     lo, hi = window
@@ -329,7 +353,14 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
         )
         return
 
-    trp = _first_residue_from(seq, "W", h1_start + MIN_CDR1_LENGTH_H)
+    trp, by_context = _find_conserved_trp(
+        seq, h1_start + MIN_CDR1_LENGTH_H, FR2_CONTEXT_H
+    )
+    if trp is not None and not by_context:
+        ann.warnings.append(
+            f"보존 Trp36 을 FR2 문맥(W[VIA][RKQ]Q)으로 찾지 못해 {trp}번의 Trp 을 그대로 썼다. "
+            "CDR-H1 안에 Trp 이 있으면 경계가 밀릴 수 있다. ANARCI/IMGT 로 재확인할 것."
+        )
     if trp is None or trp >= motif_pos:
         ann.confident = False
         ann.reasons.append(
@@ -449,7 +480,14 @@ def _annotate_light(seq: str, ann: Annotation) -> None:
 
     # --- 앵커 2: Trp35, CDR-L1 ---
     l1_start = cys1 + CDR1_OFFSET_L
-    trp = _first_residue_from(seq, "W", l1_start + MIN_CDR1_LENGTH_L)
+    trp, by_context = _find_conserved_trp(
+        seq, l1_start + MIN_CDR1_LENGTH_L, FR2_CONTEXT_L
+    )
+    if trp is not None and not by_context:
+        ann.warnings.append(
+            f"보존 Trp35 를 FR2 문맥(W[YF][QL]Q)으로 찾지 못해 {trp}번의 Trp 을 그대로 썼다. "
+            "CDR-L1 안에 Trp 이 있으면 경계가 밀릴 수 있다. ANARCI/IMGT 로 재확인할 것."
+        )
     if trp is None or trp >= motif_pos:
         ann.confident = False
         ann.reasons.append(

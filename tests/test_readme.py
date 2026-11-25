@@ -249,7 +249,8 @@ def test_validation_doc_records_known_limitations():
     text = VALIDATION.read_text(encoding="utf-8")
     assert "알려진 한계" in text
     assert "기각" in text
-    assert "IGHV4" in text, "기각 근거(IGHV4 정상 FR2)가 빠졌다"
+    assert "번복" in text, "기각했다가 번복한 기록이 빠졌다 — 판단 과정이 남아야 한다"
+    assert "보존 Trp 자체가 다른 잔기로 치환" in text, "남은 한계가 빠졌다"
 
 
 def test_validation_script_runs_on_the_synthetic_fasta():

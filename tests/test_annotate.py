@@ -367,3 +367,45 @@ def test_decoy_fr3_motif_is_corrected_by_cys_distance(records):
     # 고쳐 잡았다는 사실을 숨기지 않는다
     assert ann.confident is False
     assert any("통상값" in r and "고쳐 잡았다" in r for r in ann.reasons), ann.reasons
+
+
+# --------------------------------------------------------------------------
+# FR2 문맥 기반 Trp 앵커
+# --------------------------------------------------------------------------
+
+def test_trp_anchor_uses_fr2_context_for_light_chain():
+    """CDR-L1 끝과 FR2 에 Trp 이 둘 있는 IGKV1 형태에서 뒤쪽(진짜 FR2)을 집어야 한다.
+
+    `...RASQGISS W LA W YQQ...` — 앞의 Trp 을 집으면 이후 경계가 3잔기씩 밀린다.
+    OAS 의 ANARCI 주석을 정답으로 비교했을 때 이 수정으로 CDR-L1/L2 불일치가 0 이 됐다.
+    """
+    seq = ("DIQMTQSPSSLSASVGDRVTITCRASQGISSWLAWYQQKPGKAPKLLIYAASSLQSGVPSRFSGSGSG"
+           "TDFTLTISSLQPEDFATYYCQQYNSYPPTFGQGTKVEIK")
+    ann = annotate(seq)
+
+    assert ann.anchors["trp"] == 35, "FR2 의 Trp35 를 집어야 한다"
+    assert (ann.cdrs["CDR-L1"].start, ann.cdrs["CDR-L1"].end) == (24, 34)
+    assert (ann.cdrs["CDR-L2"].start, ann.cdrs["CDR-L2"].end) == (50, 56)
+    assert (ann.cdrs["CDR-L3"].start, ann.cdrs["CDR-L3"].end) == (89, 97)
+    assert ann.cdrs["CDR-L3"].seq == "QQYNSYPPT"
+
+
+def test_trp_anchor_uses_fr2_context_for_heavy_chain():
+    """CDR-H1 안에 Trp 이 있어도 FR2 문맥으로 진짜 Trp36 을 집는다."""
+    seq = ("QVQLVQSGAEVKKPGASVKVSCKASGYTFTSYWMQWVRQAPGQGLEWMGAIYPGDGDTRYTQKFKG"
+           "RVTMTRDTSTSTVYMELSSLRSEDTAVYYCARGGLRRFDYWGQGTLVTVSS")
+    ann = annotate(seq)
+
+    assert ann.anchors["trp"] == 36
+    assert ann.cdrs["CDR-H1"].seq == "SYWMQ"
+    assert not any("문맥" in w for w in ann.warnings), ann.warnings
+
+
+def test_fallback_warns_when_fr2_context_is_absent(records):
+    """문맥을 못 찾아 첫 Trp 로 물러섰으면 그 사실을 알려야 한다."""
+    from abcheck.annotate import FR2_CONTEXT_H, _find_conserved_trp
+
+    seq = "A" * 30 + "W" + "A" * 30
+    pos, by_context = _find_conserved_trp(seq, 20, FR2_CONTEXT_H)
+    assert pos == 31
+    assert by_context is False

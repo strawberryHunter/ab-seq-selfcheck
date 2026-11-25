@@ -157,7 +157,9 @@ def build_heavy_scaffold(rng: random.Random) -> HeavyScaffold:
     return HeavyScaffold(
         fr1=_draw(rng, FRAMEWORK_WEIGHTS, 21),
         post_cys1=_draw(rng, FRAMEWORK_WEIGHTS, 8),
-        fr2=_draw(rng, FRAMEWORK_WEIGHTS, 13),
+        # 보존 Trp 뒤는 실제 서열에서 VRQ/IRQ 가 압도적이다. 주석기가 이 문맥을
+        # 앵커 탐색에 쓰므로 맞춰 둔다. 길이(13)는 그대로.
+        fr2="VRQ" + _draw(rng, FRAMEWORK_WEIGHTS, 10),
         fr3_motif=motif,
         # 보존 Cys 앞은 실제 서열의 83% 가 YY 다. 주석기가 [YF]C 문맥을 쓰므로 맞춰 둔다.
         # 길이 22 + "YY" = 24. 모티프 5 를 더하면 FR3→보존Cys 거리가 29 가 된다.
@@ -171,7 +173,7 @@ def build_heavy_scaffold(rng: random.Random) -> HeavyScaffold:
 def build_light_scaffold(rng: random.Random) -> LightScaffold:
     return LightScaffold(
         fr1=_draw(rng, FRAMEWORK_WEIGHTS, 22),
-        fr2=_draw(rng, FRAMEWORK_WEIGHTS, 14),
+        fr2="YQQ" + _draw(rng, FRAMEWORK_WEIGHTS, 11),
         fr3_rest=_draw(rng, FRAMEWORK_WEIGHTS, 29) + "YY",
         fr4_rest=_draw(rng, FRAMEWORK_WEIGHTS, 7),
     )
@@ -355,6 +357,19 @@ def _first_index(pattern: re.Pattern[str], seq: str, min_pos1: int) -> int | Non
 
 CONSERVED_CYS_RE = re.compile(r"[YF]C")
 
+#: abcheck.annotate 의 FR2 문맥과 같아야 한다.
+FR2_CONTEXT_H = re.compile(r"W[VIA][RKQ]Q")
+FR2_CONTEXT_L = re.compile(r"W[YF][QL]Q")
+
+
+def _first_fr2_trp(seq: str, min_pos: int, context: re.Pattern[str]) -> int | None:
+    """min_pos(1-based) 이상에서 첫 FR2 문맥의 Trp 위치. 없으면 첫 Trp."""
+    m = context.search(seq, max(min_pos - 1, 0))
+    if m is not None and m.start() + 1 >= min_pos:
+        return m.start() + 1
+    idx = seq.find("W", max(min_pos - 1, 0))
+    return idx + 1 if idx >= 0 else None
+
 
 def _first_conserved_cys(seq: str, min_pos: int) -> int | None:
     """min_pos(1-based) 이상에서 첫 [YF]C 의 Cys 위치. abcheck.annotate 와 같은 규칙."""
@@ -389,12 +404,11 @@ def verify_heavy(seq: str, cdrs: dict, anchors: dict,
     if window != [anchors["cys1"]]:
         problems.append(f"15..30 창의 Cys 가 유일하지 않다: {window}")
 
-    # Trp36: CDR-H1 시작 + 최소 길이 이후 첫 W
-    # (CDR-H1 안에 Trp 이 있는 실제 항체를 흉내내려면 이 규칙이 주석기와 같아야 한다)
+    # Trp36: CDR-H1 시작 + 최소 길이 이후 첫 FR2 문맥(W[VIA][RKQ]Q)
     h1_start = cdrs["CDR-H1"][0]
-    first_w = seq.find("W", h1_start - 1 + MIN_CDR1_LENGTH_H) + 1
+    first_w = _first_fr2_trp(seq, h1_start + MIN_CDR1_LENGTH_H, FR2_CONTEXT_H)
     if first_w != anchors["trp"]:
-        problems.append(f"CDR-H1 최소 길이 이후 첫 Trp 위치가 다르다: {first_w} != {anchors['trp']}")
+        problems.append(f"CDR-H1 이후 첫 FR2 문맥 Trp 위치가 다르다: {first_w} != {anchors['trp']}")
 
     # FR3 모티프: CDR-H2 시작 + 9 이후 첫 매치.
     # 모티프가 일부러 깨진 케이스(과변이 재현)는 주석기의 대체 경로를 타야 하므로,
@@ -441,9 +455,9 @@ def verify_light(seq: str, cdrs: dict, anchors: dict) -> list[str]:
         problems.append(f"16..30 창의 Cys 가 유일하지 않다: {window}")
 
     l1_start = cdrs["CDR-L1"][0]
-    first_w = seq.find("W", l1_start - 1 + MIN_CDR1_LENGTH_L) + 1
+    first_w = _first_fr2_trp(seq, l1_start + MIN_CDR1_LENGTH_L, FR2_CONTEXT_L)
     if first_w != anchors["trp"]:
-        problems.append(f"CDR-L1 최소 길이 이후 첫 Trp 위치가 다르다: {first_w} != {anchors['trp']}")
+        problems.append(f"CDR-L1 이후 첫 FR2 문맥 Trp 위치가 다르다: {first_w} != {anchors['trp']}")
 
     l2_end = cdrs["CDR-L2"][1]
     first_c = _first_conserved_cys(seq, l2_end + 1)
