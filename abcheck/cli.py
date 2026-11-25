@@ -173,7 +173,19 @@ def load_input(raw: str) -> tuple[list[tuple[str, str]], str]:
         # Unknown extension: treat it as a sequence file
         return [(path.stem, text)], f"서열 파일 ({path})"
 
-    if looks_like_path and not path.exists() and path.suffix:
+    # Only report a missing file when it really looks like one: a known extension or a folder
+    # separator. A pasted sequence with alignment gaps ("QVQL....VTVSS") also contains '.',
+    # and used to be reported as a missing file.
+    known_suffix = path.suffix.lower() in (
+        JSON_SUFFIXES | FASTA_SUFFIXES | set(TABLE_SUFFIXES) | EXCEL_SUFFIXES | {".txt"}
+    )
+    filename_shaped = (
+        raw.count(".") == 1 and len(raw) < 100 and 1 <= len(path.suffix) - 1 <= 5
+        and path.suffix[1:].isalnum()
+    )
+    if looks_like_path and not path.exists() and (
+        known_suffix or filename_shaped or "/" in raw or "\\" in raw
+    ):
         raise FileNotFoundError(f"파일을 찾을 수 없다: {raw}")
 
     if raw.lstrip().startswith(">"):

@@ -37,6 +37,7 @@ MAX_DOMAIN_LENGTH = 200
 
 #: Whitespace is stripped silently, since most users paste line-wrapped sequences as-is.
 _STRIPPABLE = frozenset(" \t\r\n\v\f")
+_GAP_CHARS = (".", "-")
 
 
 class SequenceError(ValueError):
@@ -83,6 +84,16 @@ def validate(raw: str) -> ValidationResult:
     cleaned = "".join(ch for ch in text if ch not in _STRIPPABLE).upper()
     if len(cleaned) != len(text):
         warnings.append("공백과 줄바꿈은 제거하고 처리했다.")
+
+    # --- alignment gaps ---
+    # Sequences copied from IMGT/V-QUEST or an alignment carry '.' and '-' gap characters.
+    # They mark missing positions, not residues, so removing them changes nothing about the
+    # protein. Only done when letters dominate, so text that is mostly punctuation is still
+    # rejected below.
+    n_gaps = sum(cleaned.count(g) for g in _GAP_CHARS)
+    if n_gaps and n_gaps < len(cleaned) / 2:
+        cleaned = "".join(ch for ch in cleaned if ch not in _GAP_CHARS)
+        warnings.append(f"정렬 갭 문자('.', '-') {n_gaps}개를 제거하고 처리했다.")
 
     if not cleaned:
         return ValidationResult(False, "", ["서열이 비어 있다. 아미노산 한 글자 코드로 붙여넣어라."])

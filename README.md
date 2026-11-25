@@ -175,7 +175,8 @@ for relative comparison between regions only.
 User-defined rules mark sequences as *needs review*. Defaults: a high-risk,
 top-of-class motif (`N[^P][ST]`, `NG`, `DG`, `DP`) inside a CDR, or a high-risk
 unpaired Cys. Results are *needs review* / *no rule matched* / *cannot evaluate*
-(input or annotation failed — never silently treated as clean). Rules live in
+(input or annotation failed, or no rule matched but the CDR boundaries are not confident —
+never silently treated as clean). Rules live in
 `abcheck/triage.py` (`DEFAULT_RULES`).
 
 ### Input validation

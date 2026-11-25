@@ -139,3 +139,11 @@ def test_error_messages_only_mention_options_that_exist():
         for message in validate(raw).errors:
             for opt in re.findall(r"--[a-z][a-z-]*", message):
                 assert opt in known, f"없는 옵션 {opt} 를 안내한다: {message}"
+
+
+def test_alignment_gaps_are_removed_with_a_warning(records):
+    seq = records[0]["sequence"]
+    result = validate(seq[:20] + "..." + seq[20:60] + "--" + seq[60:])
+    assert result.ok
+    assert result.cleaned == seq
+    assert any("정렬 갭" in w for w in result.warnings)

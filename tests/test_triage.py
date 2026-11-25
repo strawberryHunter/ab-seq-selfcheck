@@ -154,12 +154,29 @@ def test_invalid_input_is_unknown():
     assert "검증을 통과하지 못해" in report.triage.note
 
 
-def test_length_outlier_is_evaluated_but_carries_a_warning(records):
-    """With intact anchors the rule still applies, but a low-confidence warning is left."""
-    report = _report(records, "SYN-VH-903")
-    assert report.triage.status == STATUS_CLEAR
-    assert report.triage.evaluable is True
-    assert "ANARCI" in report.triage.note
+def test_unconfident_sequence_is_never_reported_as_no_rule_matched(records):
+    """Rules still run on an unconfident annotation, but "no match" cannot be claimed.
+
+    SYN-VH-903 (CDR-H1 too long) and SYN-VH-013/014 (FR3 back-calculated) used to show
+    "기준 해당 없음" in the summary table, with the warning only in a note that the table
+    does not show.
+    """
+    for seq_id in ["SYN-VH-903", "SYN-VH-013", "SYN-VH-014"]:
+        report = _report(records, seq_id)
+        assert report.triage.status == STATUS_UNKNOWN, seq_id
+        assert report.triage.evaluable is True          # the rules did run
+        assert "ANARCI" in report.triage.note
+
+
+def test_unconfident_sequence_with_a_cdr_hit_still_needs_review(records):
+    """Uncertain boundaries must not hide a hit the rules did find."""
+    import dataclasses
+
+    report = _report(records, "SYN-VH-003")                 # NG in CDR-H2
+    report.annotation = dataclasses.replace(report.annotation, confident=False)
+    from abcheck.triage import evaluate
+
+    assert evaluate(report).status == STATUS_REVIEW
 
 
 # --------------------------------------------------------------------------

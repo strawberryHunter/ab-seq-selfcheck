@@ -142,7 +142,8 @@ def evaluate(report: "SequenceReport", rules: tuple[Rule, ...] = DEFAULT_RULES) 
     """Apply the triage rules.
 
     If CDR annotation failed, CDRs can't be separated from the framework, so the rules
-    can't be applied. Such sequences are marked "cannot evaluate" (STATUS_UNKNOWN) rather
+    can't be applied; and if the annotation is not confident, "no rule matched" can't be
+    claimed either. Such sequences are marked "cannot evaluate" (STATUS_UNKNOWN) rather
     than passed as "no rule matched" — reporting something unseen as fine is the riskiest outcome.
     """
     if not report.ok:
@@ -169,13 +170,20 @@ def evaluate(report: "SequenceReport", rules: tuple[Rule, ...] = DEFAULT_RULES) 
     if reasons:
         return TriageResult(status=STATUS_REVIEW, reasons=reasons)
 
-    note = ""
+    # No rule matched, but the CDR boundaries themselves are uncertain: a motif just outside
+    # a shifted boundary could really be inside the CDR. "No rule matched" would be a claim
+    # the tool cannot back, and in the summary table only the status is visible -- the note
+    # used to be the only warning, and it was easy to miss.
     if not report.annotation.confident:
-        note = (
-            "규칙에는 걸리지 않았지만 주석 신뢰도가 낮다(confident=False). "
-            "CDR 경계가 밀렸을 수 있으므로 ANARCI/IMGT 로 재확인할 것."
+        return TriageResult(
+            status=STATUS_UNKNOWN,
+            note=(
+                "규칙에는 걸리지 않았지만 주석 신뢰도가 낮아(confident=False) CDR 경계가 "
+                "밀렸을 수 있다. 경계가 맞다는 보장이 없으므로 '기준 해당 없음'이라고 할 수 "
+                "없다. ANARCI/IMGT 로 경계를 확인한 뒤 판단할 것."
+            ),
         )
-    return TriageResult(status=STATUS_CLEAR, note=note)
+    return TriageResult(status=STATUS_CLEAR)
 
 
 def rule_descriptions(rules: tuple[Rule, ...] = DEFAULT_RULES) -> list[str]:

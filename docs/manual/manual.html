@@ -352,7 +352,7 @@ abcheck 0.1.0 — 항체 가변도메인 서열 셀프 점검
 <table><thead><tr><th>항목</th><th>모티프</th><th>기본</th><th>CDR 안</th><th>framework</th></tr></thead><tbody><tr><td>N-결합 당화 서열</td><td>N[^P][ST]</td><td>높음</td><td>높음</td><td>중간</td></tr><tr><td>deamidation (NG)</td><td>NG</td><td>높음</td><td>높음</td><td>중간</td></tr><tr><td>deamidation (NS/NT/NN/NH)</td><td>N[STNH]</td><td>중간</td><td>높음</td><td>낮음</td></tr><tr><td>isomerization (DG)</td><td>DG</td><td>높음</td><td>높음</td><td>중간</td></tr><tr><td>isomerization (DS/DT/DD)</td><td>D[STD]</td><td>중간</td><td>높음</td><td>낮음</td></tr><tr><td>fragmentation (DP)</td><td>DP</td><td>중간</td><td>높음</td><td>낮음</td></tr><tr><td>산화 (Met)</td><td>M</td><td>낮음</td><td>중간</td><td>낮음</td></tr><tr><td>산화 (Trp)</td><td>W</td><td>낮음</td><td>중간</td><td>낮음</td></tr><tr><td>비결합 Cys</td><td>도메인 내 Cys 홀수</td><td>-</td><td>높음 (Cys 가 CDR 안)</td><td>중간</td></tr></tbody></table>
 <h2>선별 규칙 ('검토 필요')</h2><p>기본 규칙은 아래 두 개다. 하나라도 걸리면 <b>검토 필요</b>.</p>
 <ul><li>CDR 안에 위험도 '높음'이면서 각 분류의 최고 위험 모티프(N-결합 당화, NG, DG, DP)가 1건 이상 있으면 검토 필요</li><li>비결합 Cys 등 도메인 플래그가 위험도 '높음'이면 검토 필요</li></ul>
-<table><thead><tr><th>분류</th><th>뜻</th></tr></thead><tbody><tr><td>검토 필요</td><td>규칙에 걸렸다. 항체가 나쁘다는 뜻이 아니다 — 먼저 들여다볼 후보라는 뜻</td></tr><tr><td>기준 해당 없음</td><td>규칙에 걸리지 않았다. 안전하다는 뜻이 아니다</td></tr><tr><td>판정 불가</td><td>CDR 주석이 실패해 규칙을 적용할 수 없다. 사람이 직접 봐야 한다</td></tr></tbody></table>
+<table><thead><tr><th>분류</th><th>뜻</th></tr></thead><tbody><tr><td>검토 필요</td><td>규칙에 걸렸다. 항체가 나쁘다는 뜻이 아니다 — 먼저 들여다볼 후보라는 뜻</td></tr><tr><td>기준 해당 없음</td><td>규칙에 걸리지 않았다. 안전하다는 뜻이 아니다</td></tr><tr><td>판정 불가</td><td>CDR 주석이 실패했거나, 규칙에는 안 걸렸지만 주석 신뢰도가 낮아(`신뢰 불가`) CDR 경계를 믿을 수 없다. 사람이 직접 봐야 한다</td></tr></tbody></table>
 <div class="note"><b>규칙은 바꿀 수 있다</b><code>abcheck/triage.py</code> 의 <code>DEFAULT_RULES</code> 에 글로 적혀 있다. 기준이 코드에 남으므로 나중에 "왜 이 후보를 먼저 봤지"를 추적할 수 있다. 약한 등급(NS/NT/DS 등)이 CDR 상향으로 '높음'이 되어도 선별에는 걸리지 않게 한 것은, 실제 레퍼토리에서 그런 모티프가 너무 흔해 모든 후보가 걸리기 때문이다.</div>
 <h1>9. '신뢰 불가'가 나왔을 때</h1><p>도구는 앵커를 못 찾으면 <b>위치를 지어내지 않고</b> 이유를 적는다. 아래는 실제 출력되는 사유들이다.</p>
 <h3>말단 모티프(WGxG)가 깨진 서열</h3>
@@ -422,14 +422,14 @@ abcheck 0.1.0 — 항체 가변도메인 서열 셀프 점검
     SYN-VH-006 | 기준 해당 없음 | 신뢰 가능 | -              | -         | -              | 중간 1, 낮음 3  | -                       
     SYN-VH-007 | 검토 필요      | 신뢰 가능 | -              | -         | 높음 1         | 낮음 2          | -                       
     SYN-VH-008 | 기준 해당 없음 | 신뢰 가능 | -              | -         | 중간 2         | 낮음 2          | -                       
-    SYN-VH-014 | 기준 해당 없음 | 신뢰 불가 | -              | -         | -              | 낮음 2          | -                       
-    SYN-VH-013 | 기준 해당 없음 | 신뢰 불가 | -              | -         | -              | 낮음 2          | -                       
+    SYN-VH-014 | 판정 불가      | 신뢰 불가 | -              | -         | -              | 낮음 2          | -                       
+    SYN-VH-013 | 판정 불가      | 신뢰 불가 | -              | -         | -              | 낮음 2          | -                       
     SYN-VH-011 | 기준 해당 없음 | 신뢰 가능 | -              | -         | -              | 낮음 2          | -                       
     SYN-VH-012 | 기준 해당 없음 | 신뢰 가능 | -              | -         | -              | 낮음 3          | -                       
     SYN-VH-010 | 기준 해당 없음 | 신뢰 가능 | -              | 높음 1    | -              | 낮음 2          | -                       
     SYN-VH-009 | 기준 해당 없음 | 신뢰 가능 | 중간 1         | -         | -              | 낮음 2          | -                       
     SYN-VH-902 | 판정 불가      | 신뢰 불가 | 주석 실패      | 주석 실패 | 주석 실패      | 낮음 2          | 비결합 Cys 가능성 (중간)
-    SYN-VH-903 | 기준 해당 없음 | 신뢰 불가 | -              | -         | -              | 낮음 2          | -                       
+    SYN-VH-903 | 판정 불가      | 신뢰 불가 | -              | -         | -              | 낮음 2          | -                       
     합계       |                |           | 높음 1, 중간 1 | 높음 2    | 높음 1, 중간 2 | 중간 1, 낮음 34 | 2건                     
 
   ■ 경쇄 (VL) — 7건

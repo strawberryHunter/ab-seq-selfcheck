@@ -378,3 +378,32 @@ def test_old_python_gets_a_clear_message():
     ast.parse(source, feature_version=(3, 4))
     assert "sys.version_info < (3, 9)" in source
     assert "Python 3.9 이상이 필요하다" in source
+
+
+# --------------------------------------------------------------------------
+# Sequences copied from IMGT/V-QUEST or an alignment (gap characters)
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("gapped", [
+    lambda s: s[:30] + "...." + s[30:70] + "---" + s[70:],    # IMGT-style gaps
+    lambda s: s[:50] + "." + s[50:],                          # a single gap
+])
+def test_gapped_sequence_is_analyzed_not_mistaken_for_a_file(records, gapped):
+    """A pasted sequence containing '.' used to be reported as a missing file."""
+    seq = records[0]["sequence"]
+    result = _run(gapped(seq), "--json")
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["sequences"][0]["sequence"] == seq
+
+
+@pytest.mark.parametrize("name", ["후보.fast", "candidates.fast", "nofile.fasta", "x.csv"])
+def test_filename_typos_still_say_file_not_found(name):
+    result = _run(name)
+    assert result.returncode == 2
+    assert "파일을 찾을 수 없다" in result.stderr
+
+
+def test_mostly_punctuation_is_still_rejected():
+    result = _run("....----..AC")
+    assert result.returncode == 1
