@@ -266,3 +266,40 @@ def test_annotate_rejects_invalid_input():
 
     with pytest.raises(SequenceError):
         annotate(">seq1\n" + "A" * 120)          # FASTA 헤더
+
+
+# --------------------------------------------------------------------------
+# FR3 시작 모티프의 germline 변형
+# --------------------------------------------------------------------------
+
+def test_fr3_motif_variants_are_found(records):
+    """실제 레퍼토리에서 흔한 FR3 변형(QVTIS, RITIN)도 찾아야 한다.
+
+    좁은 패턴 [RK].[TSAV][IMLFV][STA] 로는 둘 다 놓친다. OAS VH 1,000건에서
+    26건(2.6%)이 이 때문에 CDR-H2/H3 주석에 실패했다.
+    """
+    for seq_id, motif in [("SYN-VH-011", "QVTIS"), ("SYN-VH-012", "RITIN")]:
+        rec = by_id(records, seq_id)
+        ann = annotate(rec["sequence"])
+
+        assert ann.confident is True, f"{seq_id}: {ann.reasons}"
+        assert set(ann.cdrs) == {"CDR-H1", "CDR-H2", "CDR-H3"}, seq_id
+        fr3 = ann.anchors["fr3_motif"]
+        assert ann.sequence[fr3 - 1:fr3 + 4] == motif, seq_id
+        for name, want in rec["expected"]["cdrs"].items():
+            got = ann.cdrs[name]
+            assert (got.start, got.end) == (want["start"], want["end"]), (seq_id, name)
+
+
+def test_strict_fr3_pattern_would_miss_those_variants(records):
+    """넓힌 패턴이 실제로 필요한지 — 좁은 패턴으로는 못 찾는 것을 확인한다.
+
+    이 테스트가 없으면 누가 패턴을 좁혀도 아무도 모른다.
+    """
+    import re
+
+    from abcheck.annotate import FR3_MOTIF_PATTERN_STRICT
+
+    strict = re.compile(FR3_MOTIF_PATTERN_STRICT)
+    for motif in ["QVTIS", "RITIN"]:
+        assert not strict.fullmatch(motif), f"{motif} 가 좁은 패턴에 걸린다 — 테스트 전제가 틀렸다"

@@ -14,7 +14,7 @@ VH
     CDR-H1     Cys22 + 9 에서 시작, Trp36 직전까지
     Trp36      CDR-H1 시작 + 5 이후 첫 Trp (CDR-H1 안의 Trp 을 피하려고 최소 길이만큼 건너뛴다)
     CDR-H2     Trp36 + 14 에서 시작, FR3 모티프 직전까지
-    FR3 모티프  CDR-H2 시작 + 9 이후 첫 `[RK].[TSAV][IMLFV][STA]` 매치
+    FR3 모티프  CDR-H2 시작 + 9 이후 첫 `[RKQ].[TSAV][IMLFV][STAN]` 매치
     Cys92      FR3 모티프 이후 첫 Cys
     CDR-H3     Cys92 + 3 에서 시작, 말단 `WGxG` 직전까지
 
@@ -43,7 +43,19 @@ from .validate import ensure_valid
 
 WGXG_RE = re.compile(r"WG.G")
 FGXG_RE = re.compile(r"FG.G")
-FR3_MOTIF_RE = re.compile(r"[RK].[TSAV][IMLFV][STA]")
+#: FR3 시작 모티프.
+#:
+#: 원래 설계는 [RK].[TSAV][IMLFV][STA] 였다. OAS 실제 레퍼토리 VH 1,000건으로
+#: 재어 보니 26건(2.6%)에서 이 모티프를 못 찾아 CDR-H2/H3 주석이 실패했다.
+#: 빠진 두 가지는 이랬다.
+#:   - IGHV2 계열의 QVTIS…  → 첫 자리가 R/K 가 아니라 Q
+#:   - RITIN…              → 끝 자리가 N 이라 [STA] 밖
+#: 첫 자리에 Q, 끝 자리에 N 을 더하니 실패가 26건 → 8건으로 줄었고,
+#: **기존에 성공하던 1,000건의 주석은 하나도 바뀌지 않았다**(실측).
+#: 되돌리려면 아래 STRICT 패턴을 쓰면 된다.
+FR3_MOTIF_PATTERN_STRICT = r"[RK].[TSAV][IMLFV][STA]"
+FR3_MOTIF_PATTERN = r"[RKQ].[TSAV][IMLFV][STAN]"
+FR3_MOTIF_RE = re.compile(FR3_MOTIF_PATTERN)
 
 #: 보존 Cys 를 찾을 창 (1-based, 양끝 포함) 과 기대 위치
 CYS1_WINDOW_H = (15, 30)

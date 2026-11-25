@@ -29,7 +29,7 @@
       13
     ]
   },
-  "count": 19,
+  "count": 21,
   "sequences": [
     {
       "id": "SYN-VH-001",
@@ -551,6 +551,88 @@
         "trp": 35,
         "cys2": 88,
         "terminal_motif": 98
+      }
+    },
+    {
+      "id": "SYN-VH-011",
+      "chain": "H",
+      "description": "FR3 모티프가 QVTIS 로 시작하는 VH — IGHV2 계열에서 흔하다. 첫 자리가 R/K 가 아니라 Q 라 좁은 정규식으로는 못 찾는다",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSYGDLIWALKLPYITVTHQSQLSFFPILSAITDLIAQVTISVSESLQHSLQSSLPVVRVVKLCLGKIHSTGPVRYWGQGSSGGFQY",
+      "length": 115,
+      "synthetic": true,
+      "notes": [
+        "FR3 모티프 첫 자리 Q"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "YGDLI"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "QLSFFPILSAITDLIA"
+          },
+          "CDR-H3": {
+            "start": 95,
+            "end": 104,
+            "seq": "KIHSTGPVRY"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 92,
+        "terminal_motif": 105
+      }
+    },
+    {
+      "id": "SYN-VH-012",
+      "chain": "H",
+      "description": "FR3 모티프가 RITIN 으로 끝나는 VH — 끝 자리가 N 이라 좁은 정규식으로는 못 찾는다",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSGLRVLWALKLPYITVTHQSGGSAQIDARSIRYLRTRITINVSESLQHSLQSSLPVVRVVKLCLGEYYFSDILYEWGQGSSGGFQY",
+      "length": 115,
+      "synthetic": true,
+      "notes": [
+        "FR3 모티프 끝 자리 N"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "GLRVL"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "GGSAQIDARSIRYLRT"
+          },
+          "CDR-H3": {
+            "start": 95,
+            "end": 104,
+            "seq": "EYYFSDILYE"
+          }
+        },
+        "chain": "H",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 92,
+        "terminal_motif": 105
       }
     },
     {

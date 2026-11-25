@@ -91,7 +91,8 @@ CDR_LIABILITY_PATTERNS: list[tuple[str, str]] = [
     ("cysteine", r"C"),
 ]
 
-FR3_MOTIF_RE = re.compile(r"[RK].[TSAV][IMLFV][STA]")
+#: abcheck.annotate.FR3_MOTIF_PATTERN 과 같아야 한다.
+FR3_MOTIF_RE = re.compile(r"[RKQ].[TSAV][IMLFV][STAN]")
 
 #: 보존 Trp 앵커를 찾기 시작할 오프셋. abcheck.annotate 와 같은 값을 쓴다.
 MIN_CDR1_LENGTH_H = 5
@@ -192,6 +193,8 @@ class Case:
     anchors_broken: bool = False
     #: 앵커는 멀쩡하지만 CDR 길이가 통상 범위를 벗어나 confident=False 가 되어야 하는 케이스
     length_outlier: bool = False
+    #: FR3 시작 모티프를 이 값으로 고정한다 (실제 germline 계열의 변형을 재현할 때).
+    fr3_motif: str | None = None
     notes: list[str] = field(default_factory=list)
 
 
@@ -267,8 +270,9 @@ def _assemble_heavy(case: Case, scaf: HeavyScaffold, rng: random.Random):
     fr3_rest = _apply_inserts(scaf.fr3_rest, case.fr_inserts.get("fr3_rest", []))
     fr4_rest = _apply_inserts(scaf.fr4_rest, case.fr_inserts.get("fr4_rest", []))
 
+    motif = case.fr3_motif or scaf.fr3_motif
     parts = [fr1, "C", post_cys1, h1, "W", fr2, h2,
-             scaf.fr3_motif, fr3_rest, "C", scaf.post_cys2, h3, "WGQG", fr4_rest]
+             motif, fr3_rest, "C", scaf.post_cys2, h3, "WGQG", fr4_rest]
     seq = "".join(parts)
 
     # 1-based 좌표 계산
@@ -279,7 +283,7 @@ def _assemble_heavy(case: Case, scaf: HeavyScaffold, rng: random.Random):
     h2_start = trp + 14
     h2_end = h2_start + n2 - 1
     fr3_start = h2_end + 1
-    cys2 = fr3_start + len(scaf.fr3_motif) + len(fr3_rest)
+    cys2 = fr3_start + len(motif) + len(fr3_rest)
     h3_start = cys2 + 3
     h3_end = h3_start + n3 - 1
     wgxg = h3_end + 1
@@ -482,6 +486,21 @@ def make_cases() -> list[Case]:
             notes=["염기성 CDR → 높은 pI"],
         ),
 
+        Case(
+            "SYN-VH-011", "H",
+            "FR3 모티프가 QVTIS 로 시작하는 VH — IGHV2 계열에서 흔하다. "
+            "첫 자리가 R/K 가 아니라 Q 라 좁은 정규식으로는 못 찾는다",
+            (5, 16, 10),
+            fr3_motif="QVTIS",
+            notes=["FR3 모티프 첫 자리 Q"],
+        ),
+        Case(
+            "SYN-VH-012", "H",
+            "FR3 모티프가 RITIN 으로 끝나는 VH — 끝 자리가 N 이라 좁은 정규식으로는 못 찾는다",
+            (5, 16, 10),
+            fr3_motif="RITIN",
+            notes=["FR3 모티프 끝 자리 N"],
+        ),
         Case(
             "SYN-VH-010", "H",
             "CDR-H2 에 NT — 약한 deamidation 등급. CDR 상향으로 '높음'이 되지만 "
