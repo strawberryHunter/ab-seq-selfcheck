@@ -1,18 +1,48 @@
 # ab-seq-selfcheck
 
-항체 가변도메인(VH 또는 VL) 아미노산 서열을 붙여넣으면 **CDR 위치**와
-**개발 가능성(developability) 점검 결과**를 보여주는 도구다. 후보 선별 단계에서
-"이 서열 일단 괜찮은지" 빠르게 보는 용도.
+항체 가변도메인(VH/VL) 서열의 **CDR 위치**와 **developability liability** 를 보여주는
+스크리닝 도구. 후보 선별 단계에서 "이 서열 일단 괜찮은지" 30초 만에 보는 용도다.
 
-설치할 것이 없다. 파이썬 3.10 이상이면 바로 돌아간다 (표준 라이브러리만 쓴다).
+의존성 없음 — 파이썬 3.10+ 표준 라이브러리만. 외부 API 를 호출하지 않으므로 사내
+서열도 밖으로 나가지 않는다.
+
+*[English summary](README.en.md)*
+
+```bash
+python3 -m abcheck.cli 후보.fasta --html
+```
+
+## 검증
+
+공개 레퍼토리(OAS) **7,000 서열**로 측정했다. 수치는 재현 가능하다 →
+[`scripts/validate_on_oas.py`](scripts/validate_on_oas.py)
+
+| 항목 | 결과 |
+|---|---|
+| 체인(H/L) 판별 | **오판 0건** / 6,984 |
+| CDR 주석 성공 | 98.3% |
+| **CDR 경계** (ANARCI 정답 대비, 7개 데이터셋 16,427건) | **불일치 0.35%** |
+| 내부 일관성 (FR3↔보존Cys 거리) | 100% |
+
+CDR 경계는 OAS 에 들어 있는 **ANARCI 주석을 정답으로** 비교했다. Kabat 과 IMGT 는
+경계 정의가 다르므로 일치율이 아니라 오프셋의 일관성을 본다 →
+[`scripts/compare_with_anarci.py`](scripts/compare_with_anarci.py)
+
+**실제 데이터로 버그 6개를 찾아 고쳤다.** 합성 데이터만으로는 하나도 못 잡았을 것들이다.
+그중 하나는 **한 번 잘못 기각했다가 정답 비교 후 번복**했다 — 분포만으로는 "흔한 것"과
+"맞는 것"을 구분할 수 없다는 걸 배웠다. 과정은 [VALIDATION.md](VALIDATION.md) 에 그대로 남겼다.
+
+## 설계 원칙
+
+- **못 하면 추측하지 않는다.** 앵커를 못 찾으면 위치를 지어내지 않고 `신뢰 불가` 와
+  한글 사유를 낸다. 7,000건에서 체인 판별 오판이 0건인 이유다.
+- **종합 판정을 내리지 않는다.** "개발 가능성 높음/낮음" 같은 점수를 만들지 않는다.
+  가중치에 근거가 없고, 숫자가 생기면 사람은 근거 대신 숫자만 본다.
+- **근거를 같이 낸다.** 모든 플래그에 왜 문제인지가 붙는다.
 
 ---
 
-> 처음 쓰신다면 **[TUTORIAL.md](TUTORIAL.md)** 를 보세요. 설치부터 출력 읽는 법까지
-> 단계별로 적어 두었습니다.
-
-공개 데이터 **7,000 서열**로 검증했다 — 체인 판별 오판 0건, CDR 주석 성공 98.3%.
-측정 방법과 알려진 한계는 **[VALIDATION.md](VALIDATION.md)** 참고.
+> 처음 쓰신다면 **[TUTORIAL.md](TUTORIAL.md)** — 설치부터 출력 읽는 법까지 단계별로.
 
 ## 먼저 읽을 것 — 이 도구의 한계
 
@@ -371,12 +401,21 @@ abcheck/
   cli.py          명령줄 진입점
 scripts/
   make_synthetic_sequences.py   합성 코퍼스 생성기
+  oas_to_fasta.py               OAS 데이터 → FASTA 변환
+  validate_on_oas.py            공개 데이터로 정확도 측정
+  compare_with_anarci.py        ANARCI 정답과 CDR 경계 비교
 data/synthetic/   합성 서열 + 정답 CDR 좌표
 sample_output/    HTML 리포트 예시
 tests/
+README.en.md      English summary
+VALIDATION.md     검증 기록 (공개 데이터 7,000 서열)
 DECISIONS.md      설계 판단 기록
 ```
 
 ## 범위 밖
 
 구조 예측, 도킹, 결합력 예측은 하지 않는다. 외부 DB·API 를 호출하지 않는다.
+
+## 라이선스
+
+MIT — [LICENSE](LICENSE) 참고.

@@ -262,3 +262,42 @@ def test_validation_script_runs_on_the_synthetic_fasta():
     assert result.returncode == 0, result.stderr
     assert "CDR 주석 성공" in result.stdout
     assert "FR3↔보존Cys" in result.stdout
+
+
+# --------------------------------------------------------------------------
+# 포트폴리오로서 갖춰야 할 것
+# --------------------------------------------------------------------------
+
+def test_license_exists():
+    license_file = REPO_ROOT / "LICENSE"
+    assert license_file.exists(), "LICENSE 가 없으면 남이 쓸 수 없는 코드다"
+    assert "MIT License" in license_file.read_text(encoding="utf-8")
+
+
+def test_english_summary_exists_and_is_linked():
+    english = REPO_ROOT / "README.en.md"
+    assert english.exists()
+    assert "README.en.md" in _readme(), "README 에서 영문 요약으로 가는 링크가 없다"
+
+
+def test_english_summary_carries_the_same_headline_numbers():
+    """영문 요약의 수치가 한글 문서와 어긋나지 않는지."""
+    english = (REPO_ROOT / "README.en.md").read_text(encoding="utf-8")
+    validation = VALIDATION.read_text(encoding="utf-8")
+    for token in ["7,000", "0.35%", "16,427", "98.3%"]:
+        assert token in english, f"영문 요약에 {token} 가 없다"
+        assert token in _readme() or token in validation, f"한글 문서에 {token} 가 없다"
+
+
+def test_english_summary_states_the_limits():
+    """영문 요약에서도 numbering 엔진이 아니라는 점과 판정을 안 한다는 점을 밝힌다."""
+    english = (REPO_ROOT / "README.en.md").read_text(encoding="utf-8")
+    assert "not a numbering engine" in english
+    assert "No overall verdict" in english
+    assert "synthetic" in english
+
+
+def test_readme_leads_with_validation():
+    """리뷰어가 30초만 본다 — 검증 수치가 사용법보다 앞에 와야 한다."""
+    text = _readme()
+    assert text.index("## 검증") < text.index("## 실행 예시 3개")
