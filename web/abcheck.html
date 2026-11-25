@@ -3745,7 +3745,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>짝 체인</dt><dd>이름이 체인 표시(VH · VL · HC · LC · heavy · light)만 다른 두 서열. 한 장에 함께 넣고 나란히 표시</dd>
         <dt>항체 단위</dt><dd>목록의 '항체' 를 누르면 짝 체인을 한 카드에 묶어 표시. 분류는 체인별로 따로 두고 합치지 않음</dd></dl></section>
       <section class="card guide"><h2>단축키</h2><dl>
-        <dt><kbd>/</kbd></dt><dd>검색</dd><dt><kbd>Esc</kbd></dt><dd>상세 · 메뉴 닫기</dd>
+        <dt><kbd>/</kbd></dt><dd>검색</dd><dt><kbd>Enter</kbd> <kbd>↓</kbd></dt><dd>검색 칸에서 첫 결과로</dd><dt><kbd>Esc</kbd></dt><dd>상세 · 메뉴 닫기</dd>
         <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>상세에서 이전 · 다음 후보</dd><dt><kbd>Ctrl</kbd> <kbd>Enter</kbd></dt><dd>분석</dd></dl></section>
       <section class="card guide"><h2>한계</h2><ul>${p.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}<li><b>${esc(p.no_verdict)}</b></li></ul></section>
       <section class="card guide"><h2>저장 범위</h2><dl>
@@ -3780,6 +3780,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   $("menu").addEventListener("click", () => { $("side").classList.add("on"); $("scrim").classList.add("on"); });
 
   /* ---------- render + routing ---------- */
+  let focusFirst = false;      // set by Enter / ArrowDown in the search field
   function render() {
     renderSidebar();
     const v = state.view;
@@ -3787,6 +3788,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       : v === "properties" ? viewProperties() : v === "onepage" ? viewOnepage() : v === "rules" ? viewRules()
       : v === "validation" ? viewValidation() : viewGuide();
     bind();
+    if (focusFirst) { focusFirst = false; const hit = $("view").querySelector("[data-open]"); if (hit) hit.focus(); }
   }
   function go(view) { if (location.hash !== "#" + view) location.hash = view; else { state.view = view; render(); } }
   function route() {
@@ -3967,17 +3969,31 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
     if (ev.key === "Escape") { closeSheet(); closeMenu(); if (document.activeElement === $("q")) $("q").blur(); return; }
     if (ev.key === "/" && !typing && !ev.ctrlKey && !ev.metaKey) { ev.preventDefault(); $("q").focus(); return; }
+    if (ev.key === "Tab" && $("sheet").classList.contains("on")) {
+      const els = [...$("sheet").querySelectorAll("button, a[href], input, select")].filter((e) => !e.disabled && e.offsetParent !== null);
+      const cur = document.activeElement, last = els[els.length - 1];
+      // only the edges are handled: inside the drawer the browser's own order applies (it also stops on the scrolling body)
+      if (els.length && (!$("sheet").contains(cur) || (ev.shiftKey && cur === els[0]) || (!ev.shiftKey && cur === last))) {
+        ev.preventDefault(); (ev.shiftKey ? last : els[0]).focus();
+      }
+      return;
+    }
     if (!$("sheet").classList.contains("on") || typing) return;
     if (ev.key === "ArrowRight" || ev.key === "ArrowDown") { ev.preventDefault(); stepSheet(1); }
     else if (ev.key === "ArrowLeft" || ev.key === "ArrowUp") { ev.preventDefault(); stepSheet(-1); }
   });
   let qTimer = 0;
-  $("q").addEventListener("input", () => {
+  const applyQuery = () => {
+    state.query = $("q").value; state.limit = PAGE;
+    if (LISTS[state.view] || state.view === "compare" || state.view === "properties") render(); else go("all");
+  };
+  $("q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(applyQuery, 150); });
+  $("q").addEventListener("keydown", (ev) => {
+    if (ev.key !== "Enter" && ev.key !== "ArrowDown") return;
+    ev.preventDefault();
     clearTimeout(qTimer);
-    qTimer = setTimeout(() => {
-      state.query = $("q").value; state.limit = PAGE;
-      if (LISTS[state.view] || state.view === "compare" || state.view === "properties") render(); else go("all");
-    }, 150);
+    focusFirst = true;          // render() moves the focus to the first result
+    applyQuery();
   });
 
   const THEMES = [["light", "sun", "라이트"], ["dark", "moon", "다크"], ["system", "monitor", "시스템"]];
