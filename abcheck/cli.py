@@ -20,6 +20,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from ._streams import configure_streams
 from .properties import DEFAULT_PH
 from .render import as_html, as_json, as_text
 from .report import SequenceReport, build_many
@@ -251,28 +252,8 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _configure_streams() -> None:
-    """Never crash on output encoding.
-
-    On Korean Windows, redirecting output (`... --json > result.json`) gives a cp949 stream,
-    which cannot encode characters such as an em dash, and the run died with a traceback.
-    Redirected output is written as UTF-8 (what JSON readers expect); a terminal keeps its
-    encoding and replaces anything it cannot show.
-    """
-    for stream in (sys.stdout, sys.stderr):
-        if not hasattr(stream, "reconfigure"):
-            continue
-        try:
-            if stream.isatty():
-                stream.reconfigure(errors="replace")
-            else:
-                stream.reconfigure(encoding="utf-8")
-        except (OSError, ValueError):
-            pass
-
-
 def main(argv: list[str] | None = None) -> int:
-    _configure_streams()
+    configure_streams()
     args = _build_parser().parse_args(argv)
 
     try:

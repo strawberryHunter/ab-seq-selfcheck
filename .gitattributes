@@ -1,0 +1,5 @@
+# Keep LF line endings on every platform. Windows git otherwise checks text files out with
+# CRLF, which changes the manual's source hash and the committed sample report byte for byte.
+* text=auto eol=lf
+*.pdf binary
+*.png binary

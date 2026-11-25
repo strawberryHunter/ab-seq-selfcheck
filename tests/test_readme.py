@@ -77,7 +77,7 @@ def test_pasted_sequence_example_actually_runs(records, read):
 
     result = subprocess.run(
         [sys.executable, "-m", "abcheck.cli", matches[0]],
-        cwd=REPO_ROOT, capture_output=True, text=True,
+        cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8",
     )
     assert result.returncode == 0, result.stderr
     assert "CDR-H1" in result.stdout
@@ -88,7 +88,7 @@ def test_corpus_html_example_runs(tmp_path):
     result = subprocess.run(
         [sys.executable, "-m", "abcheck.cli", "data/synthetic/sequences.json",
          "--html", "--out-dir", str(tmp_path)],
-        cwd=REPO_ROOT, capture_output=True, text=True,
+        cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8",
     )
     assert result.returncode == 0, result.stderr
     assert (tmp_path / "report.html").exists()
@@ -277,7 +277,7 @@ def test_validation_script_runs_on_the_synthetic_fasta():
     """Does the validation script actually run? Smoke test with a synthetic FASTA."""
     result = subprocess.run(
         [sys.executable, "scripts/validate_on_oas.py", "data/synthetic/sequences.fasta"],
-        cwd=REPO_ROOT, capture_output=True, text=True,
+        cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8",
     )
     assert result.returncode == 0, result.stderr
     assert "CDR 주석 성공" in result.stdout
@@ -344,7 +344,7 @@ def test_korean_summary_example_matches_real_output():
 
     result = subprocess.run(
         [sys.executable, "-m", "abcheck.cli", "data/synthetic/sequences.json"],
-        cwd=REPO_ROOT, capture_output=True, text=True,
+        cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8",
     )
     actual = {}
     for line in result.stdout.splitlines():
