@@ -5,7 +5,7 @@ liabilities** in antibody variable domain (VH/VL) sequences. Built for the
 candidate-triage step: a 30-second read on whether a sequence is worth carrying
 forward.
 
-No dependencies — Python 3.10+ standard library only. It makes no network calls,
+No dependencies — Python 3.9+ standard library only. It makes no network calls,
 so proprietary sequences never leave the machine.
 
 **English** · [한국어](README.ko.md)
@@ -206,14 +206,14 @@ python3 -m pytest -q
 
 | Job | Checks |
 |---|---|
-| `pytest (Python 3.10–3.13)` | the full test suite, including that the committed sample report and user manual match current output |
+| `pytest (Python 3.9–3.13)` | the full test suite, including that the committed sample report and user manual match current output |
 | `Works on windows-latest` / `macos-latest` | the full test suite on real Windows and macOS, then `pip install .` and `abcheck` from another folder |
 | `No runtime dependencies` | `pyproject.toml` still declares no runtime dependencies |
 | `Synthetic corpus is reproducible` | the committed corpus equals the generator output |
 | `CLI smoke test` | the single-sequence, HTML and JSON examples run on the synthetic corpus; invalid input exits with exactly 1 |
 
 To make failing checks block merges, enable branch protection on `main` and require
-the nine checks above (`pytest (Python 3.10)` … `pytest (Python 3.13)`,
+the ten checks above (`pytest (Python 3.9)` … `pytest (Python 3.13)`,
 `Works on windows-latest`, `Works on macos-latest`, `No runtime dependencies`,
 `Synthetic corpus is reproducible`, `CLI smoke test`).
 The exact `gh api` command is in [README.ko.md](README.ko.md#ci-와-차단).

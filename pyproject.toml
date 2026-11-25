@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "ab-seq-selfcheck"
 version = "0.1.0"
 description = "항체 가변도메인 서열 셀프 점검 도구 (표준 라이브러리만 사용)"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 dependencies = []
 
 [project.scripts]

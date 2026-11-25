@@ -22,8 +22,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Cover the whole requires-python = ">=3.10" range from pyproject.toml.
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        # Cover the whole requires-python = ">=3.9" range from pyproject.toml.
+        # 3.9 matters: it is the python3 that ships with macOS.
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v5
@@ -71,6 +72,14 @@ jobs:
           test -s abcheck_out/report.html
           abcheck "$GITHUB_WORKSPACE/data/synthetic/sequences.json" --json > result.json
           python -c "import json; assert json.load(open('result.json', encoding='utf-8'))['count'] == 24"
+
+      - name: Run with the python3 that ships with macOS
+        # What a Mac researcher has before installing anything (3.9 on current macOS).
+        if: runner.os == 'macOS'
+        run: |
+          /usr/bin/python3 --version
+          /usr/bin/python3 -m abcheck.cli data/synthetic/sequences.json --html --out-dir stock_python_out
+          test -s stock_python_out/report.html
 
   deps:
     name: No runtime dependencies

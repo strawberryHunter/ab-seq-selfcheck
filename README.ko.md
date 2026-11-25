@@ -3,7 +3,7 @@
 항체 가변도메인(VH/VL) 서열의 **CDR 위치**와 **developability liability** 를 보여주는
 스크리닝 도구. 후보 선별 단계에서 "이 서열 일단 괜찮은지" 30초 만에 보는 용도다.
 
-의존성 없음 — 파이썬 3.10+ 표준 라이브러리만. 외부 API 를 호출하지 않으므로 사내
+의존성 없음 — 파이썬 3.9+ 표준 라이브러리만. 외부 API 를 호출하지 않으므로 사내
 서열도 밖으로 나가지 않는다.
 
 **[English](README.md)** · 한국어
@@ -320,7 +320,7 @@ python3 -m pytest -q
 
 | job | 검사 |
 |---|---|
-| `pytest (Python 3.10~3.13)` | 전체 테스트. 커밋된 `sample_output/report.html` 이 현재 출력과 같은지(날짜 제외)도 여기서 본다 |
+| `pytest (Python 3.9~3.13)` | 전체 테스트. 커밋된 `sample_output/report.html` 이 현재 출력과 같은지(날짜 제외)도 여기서 본다 |
 | `Works on windows-latest` / `macos-latest` | 실제 Windows·Mac 에서 전체 테스트, 그리고 `pip install .` 뒤 다른 폴더에서 `abcheck` 실행 |
 | `No runtime dependencies` | `pyproject.toml` 에 런타임 의존성이 조용히 추가됐는지 |
 | `Synthetic corpus is reproducible` | 저장된 코퍼스가 생성기 출력과 같은지 |
@@ -341,9 +341,10 @@ CI 는 실패를 **알려줄** 뿐이고, 실제로 **막는** 것은 GitHub 의
 
 1. 대상 브랜치: `main`
 2. **Require status checks to pass** 체크
-3. 아래 9개를 필수 검사로 추가
+3. 아래 10개를 필수 검사로 추가
 
    ```
+   pytest (Python 3.9)
    pytest (Python 3.10)
    pytest (Python 3.11)
    pytest (Python 3.12)
@@ -365,6 +366,7 @@ gh api -X PUT repos/strawberryHunter/ab-seq-selfcheck/branches/main/protection -
   "required_status_checks": {
     "strict": true,
     "checks": [
+      {"context": "pytest (Python 3.9)"},
       {"context": "pytest (Python 3.10)"},
       {"context": "pytest (Python 3.11)"},
       {"context": "pytest (Python 3.12)"},

@@ -11,9 +11,9 @@ import sys
 # Checked before anything else is imported, so an old Python gets one clear Korean message
 # instead of a traceback from somewhere deep in the code. Kept free of newer syntax so that
 # old interpreters can parse this file.
-if sys.version_info < (3, 10):
+if sys.version_info < (3, 9):
     sys.stderr.write(
-        "abcheck 는 Python 3.10 이상이 필요하다. 지금 Python 은 %d.%d 다.\n"
+        "abcheck 는 Python 3.9 이상이 필요하다. 지금 Python 은 %d.%d 다.\n"
         "python.org 에서 최신 Python 을 설치한 뒤 다시 실행하라.\n"
         % sys.version_info[:2]
     )

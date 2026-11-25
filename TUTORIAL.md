@@ -29,7 +29,7 @@
 python3 --version
 ```
 
-`3.10` 이상이면 된다. 없으면 [python.org](https://www.python.org/downloads/) 에서 설치한다.
+`3.9` 이상이면 된다 (Mac 에 기본으로 깔린 `python3` 도 된다). 없으면 [python.org](https://www.python.org/downloads/) 에서 설치한다.
 **그 외에 설치할 것은 없다** — 외부 라이브러리를 하나도 쓰지 않는다.
 
 > **Windows** 에서는 `python3` 대신 `py` 를 쓴다 (python.org 설치 파일이 함께 깔아 준다).

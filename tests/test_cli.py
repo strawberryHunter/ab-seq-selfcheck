@@ -376,5 +376,5 @@ def test_old_python_gets_a_clear_message():
 
     source = (Path(__file__).resolve().parents[1] / "abcheck" / "__init__.py").read_text(encoding="utf-8")
     ast.parse(source, feature_version=(3, 4))
-    assert "sys.version_info < (3, 10)" in source
-    assert "Python 3.10 이상이 필요하다" in source
+    assert "sys.version_info < (3, 9)" in source
+    assert "Python 3.9 이상이 필요하다" in source
