@@ -4,6 +4,11 @@
  * The app (web/app.html) renders what these functions return; tests/test_web_app.py runs
  * them under Node against the real engine output. Defines the global ABUI, and
  * module.exports under Node.
+ *
+ * Triage rule sets live here, not in the engine: the engine always applies its default
+ * rules (abcheck/triage.py DEFAULT_RULES), and applyRules() re-applies a researcher's rule
+ * set to the engine's liability hits. With DEFAULT_RULESET it reproduces the engine's
+ * triage exactly (a test checks this on the whole synthetic corpus).
  */
 (function (root, factory) {
   "use strict";
@@ -14,20 +19,32 @@
   "use strict";
 
   var RISKS = ["높음", "중간", "낮음"];
+  var RISK_RANK = { "낮음": 0, "중간": 1, "높음": 2 };
   var CDR_REGIONS = ["CDR1", "CDR2", "CDR3"];
+  var STATUS = { REVIEW: "검토 필요", CLEAR: "기준 해당 없음", UNKNOWN: "판정 불가" };
 
-  /* The liability motifs as abcheck/liabilities.py MOTIF_SPECS defines them, in the same
-     order. Shown on the rules screen; a test keeps this list equal to the Python one. */
+  /* The liability motifs exactly as abcheck/liabilities.py MOTIF_SPECS defines them, in the
+     same order (pattern, label, base risk, top-of-kind). A test keeps this equal to Python. */
   var MOTIFS = [
-    { pattern: "N[^P][ST]", name: "N-결합 당화", base: "높음", top: true },
-    { pattern: "NG", name: "deamidation", base: "높음", top: true },
-    { pattern: "N[STNH]", name: "deamidation", base: "중간", top: false },
-    { pattern: "DG", name: "isomerization", base: "높음", top: true },
-    { pattern: "D[STD]", name: "isomerization", base: "중간", top: false },
-    { pattern: "DP", name: "fragmentation", base: "중간", top: true },
-    { pattern: "M", name: "산화 (Met)", base: "낮음", top: false },
-    { pattern: "W", name: "산화 (Trp)", base: "낮음", top: false }
+    { pattern: "N[^P][ST]", label: "N-결합 당화 서열", short: "N-결합 당화", base: "높음", top: true },
+    { pattern: "NG", label: "deamidation (NG)", short: "NG", base: "높음", top: true },
+    { pattern: "N[STNH]", label: "deamidation (NS/NT/NN/NH)", short: "NS/NT/NN/NH", base: "중간", top: false },
+    { pattern: "DG", label: "isomerization (DG)", short: "DG", base: "높음", top: true },
+    { pattern: "D[STD]", label: "isomerization (DS/DT/DD)", short: "DS/DT/DD", base: "중간", top: false },
+    { pattern: "DP", label: "fragmentation (DP)", short: "DP", base: "중간", top: true },
+    { pattern: "M", label: "산화 (Met)", short: "Met 산화", base: "낮음", top: false },
+    { pattern: "W", label: "산화 (Trp)", short: "Trp 산화", base: "낮음", top: false }
   ];
+  var MOTIF_BY_LABEL = {};
+  MOTIFS.forEach(function (m) { MOTIF_BY_LABEL[m.label] = m; });
+
+  /* The engine's default rules (abcheck/triage.py DEFAULT_RULES) as a rule set. */
+  var DEFAULT_RULESET = {
+    id: "default", name: "기본",
+    motifs: ["N[^P][ST]", "NG", "DG", "DP"], where: "cdr", minRisk: "높음", cys: "cdr"
+  };
+  var WHERE = { cdr: "CDR 안", cdr3: "CDR3 안", all: "전체 구간" };
+  var CYS = { cdr: "CDR 안 Cys", any: "항상", off: "끔" };
 
   /* Headline validation figures (README.md / VALIDATION.md). A test checks every one of
      these strings still appears in those documents. */
@@ -53,6 +70,12 @@
     ]
   };
 
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
   function zero() { return { "높음": 0, "중간": 0, "낮음": 0 }; }
 
   function addCounts(into, c) {
@@ -66,19 +89,93 @@
     return parts.length ? parts.join(" · ") : "-";
   }
 
-  /** Which sidebar lists a sequence belongs to. A sequence can be in two (needs review AND
-      not confident). Keys double as the app's view names. */
-  function categories(row) {
-    var c = [];
-    if (!row.inputOk) c.push("errors");
-    if (row.status === "검토 필요") c.push("review");
-    if (row.inputOk && !row.confident) c.push("recheck");
-    return c;
+  /* ------------------------------------------------------------------ rule sets */
+
+  /** Validate a stored rule set; throws Error naming the bad field (never guesses). */
+  function normalizeRuleSet(raw) {
+    if (!raw || typeof raw !== "object") throw new Error("rule set is not an object");
+    var patterns = MOTIFS.map(function (m) { return m.pattern; });
+    if (!Array.isArray(raw.motifs) || raw.motifs.some(function (p) { return patterns.indexOf(p) < 0; })) {
+      throw new Error("rule set '" + raw.name + "': motifs must be a list of " + patterns.join(", "));
+    }
+    if (!WHERE[raw.where]) throw new Error("rule set '" + raw.name + "': where must be cdr, cdr3 or all");
+    if (!(raw.minRisk in RISK_RANK)) throw new Error("rule set '" + raw.name + "': minRisk must be 높음, 중간 or 낮음");
+    if (!CYS[raw.cys]) throw new Error("rule set '" + raw.name + "': cys must be cdr, any or off");
+    var name = String(raw.name || "").trim();
+    if (!name) throw new Error("rule set without a name");
+    return {
+      id: String(raw.id || name), name: name,
+      // keep MOTIFS order so two equal sets compare equal
+      motifs: patterns.filter(function (p) { return raw.motifs.indexOf(p) >= 0; }),
+      where: raw.where, minRisk: raw.minRisk, cys: raw.cys
+    };
   }
 
-  /** One flat record per input sequence, joining the engine's per-sequence report with its
-      summary row (same index: the engine keeps input order in both). */
-  function buildRows(payload) {
+  /** Short labels for a rule set: [motif line, Cys line]. */
+  function describeRuleSet(rs) {
+    var motifs = MOTIFS.filter(function (m) { return rs.motifs.indexOf(m.pattern) >= 0; })
+      .map(function (m) { return m.short; });
+    var risk = rs.minRisk === "높음" ? "위험도 높음" : "위험도 " + rs.minRisk + " 이상";
+    return [
+      motifs.length ? WHERE[rs.where] + " · " + motifs.join(" · ") + " · " + risk : "모티프 규칙 없음",
+      "비결합 Cys · " + CYS[rs.cys]
+    ];
+  }
+
+  function hitLabel(h) {
+    return h.label.indexOf("(" + h.match + ")") >= 0 ? h.label : h.label + " (" + h.match + ")";
+  }
+
+  /**
+   * Re-apply a rule set to one engine report (an element of payload.sequences).
+   * Mirrors abcheck/triage.py evaluate(): input error or no CDRs -> 판정 불가 (not evaluable);
+   * any rule hit -> 검토 필요; otherwise an unconfident annotation -> 판정 불가; else
+   * 기준 해당 없음. Reason strings use the engine's wording.
+   */
+  function applyRules(s, rs) {
+    if (!s.input_ok) return { status: STATUS.UNKNOWN, reasons: [], evaluable: false, note: s.triage.note };
+    var a = s.annotation;
+    if (!a || !Object.keys(a.cdrs).length) {
+      return { status: STATUS.UNKNOWN, reasons: [], evaluable: false, note: s.triage.note };
+    }
+    var reasons = [];
+    s.liabilities.hits.forEach(function (h) {
+      var m = MOTIF_BY_LABEL[h.label];
+      if (!m) throw new Error("unknown liability label from the engine: " + h.label);
+      if (rs.motifs.indexOf(m.pattern) < 0) return;
+      if (rs.where === "cdr" && !h.in_cdr) return;
+      if (rs.where === "cdr3" && !(h.in_cdr && /3$/.test(h.region))) return;
+      if (RISK_RANK[h.risk] < RISK_RANK[rs.minRisk]) return;
+      reasons.push(h.region + " " + h.start + "번에 " + hitLabel(h) + " — 위험도 " + h.risk);
+    });
+    s.liabilities.domain_flags.forEach(function (f) {
+      if (rs.cys === "off" || (rs.cys === "cdr" && f.risk !== "높음")) return;
+      reasons.push(f.label + " — 위험도 " + f.risk + " (Cys " + f.cysteine_count + "개, 홀수)");
+    });
+    if (reasons.length) return { status: STATUS.REVIEW, reasons: reasons, evaluable: true, note: "" };
+    if (!a.confident) {
+      return {
+        status: STATUS.UNKNOWN, reasons: [], evaluable: true,
+        note: s.triage.status === STATUS.UNKNOWN ? s.triage.note : "주석 신뢰 불가 · CDR 경계를 ANARCI/IMGT 로 확인할 것."
+      };
+    }
+    return { status: STATUS.CLEAR, reasons: [], evaluable: true, note: "" };
+  }
+
+  /* ------------------------------------------------------------------ rows */
+
+  /** Which lists a row belongs to; keys double as the app's view names. */
+  function categories(row) {
+    if (!row.inputOk) return ["errors"];
+    if (row.status === STATUS.REVIEW) return ["review"];
+    if (row.status === STATUS.UNKNOWN) return ["unknown"];
+    return ["clear"];
+  }
+
+  /** One flat record per input sequence: the engine's report and summary row (same index),
+      with triage re-applied under the given rule set. */
+  function buildRows(payload, ruleSet) {
+    var rs = ruleSet || DEFAULT_RULESET;
     var srows = payload.summary.rows;
     if (srows.length !== payload.sequences.length) {
       throw new Error("summary rows (" + srows.length + ") and sequences (" +
@@ -97,6 +194,7 @@
       if (r.input_ok && !r.regions_unassigned) {
         CDR_REGIONS.forEach(function (reg) { addCounts(cdrCounts, r.regions[reg]); });
       }
+      var t = applyRules(s, rs);
       var row = {
         index: i,
         id: s.id,
@@ -105,14 +203,15 @@
         confident: !!(a && a.confident),
         annotated: !!r.annotated,
         regionsUnassigned: !!r.regions_unassigned,
-        status: s.triage.status,
-        reasons: s.triage.reasons,
-        note: s.triage.note,
+        status: t.status,
+        reasons: t.reasons,
+        note: t.note,
         cdrs: cdrs,
         cdr3: cdrs.filter(function (c) { return /3$/.test(c.name); })[0] || null,
         cdrCounts: cdrCounts,
         fwCounts: r.input_ok ? addCounts(zero(), r.regions.framework) : zero(),
         flags: r.domain_flags || [],
+        hits: s.liabilities ? s.liabilities.hits : [],
         length: s.input_ok ? s.length : null,
         pI: whole ? whole.pI : null,
         gravy: whole ? whole.GRAVY : null,
@@ -126,43 +225,48 @@
     });
   }
 
-  /** Counts for the sidebar and the stat line. */
-  function tally(rows) {
-    var t = { all: rows.length, review: 0, recheck: 0, errors: 0, clear: 0, H: 0, L: 0 };
+  /** Counts for the sidebar, the stat line and the hero. */
+  function tally(rows, picked) {
+    var t = { all: rows.length, review: 0, unknown: 0, clear: 0, errors: 0, picked: 0, H: 0, L: 0, low: 0 };
     rows.forEach(function (r) {
-      r.cats.forEach(function (c) { t[c] += 1; });
-      if (r.status === "기준 해당 없음") t.clear += 1;
+      t[r.cats[0]] += 1;
       if (r.chain === "H") t.H += 1;
       if (r.chain === "L") t.L += 1;
+      if (r.inputOk && !r.confident) t.low += 1;
+      if (picked && picked.has(r.index)) t.picked += 1;
     });
     return t;
   }
 
-  /** view: all|review|recheck|errors · chain: all|H|L · query: name, or residues in a CDR
-      or in the whole sequence (3+ letters). */
+  /** view: all|review|unknown|clear|errors|picked · chain: all|H|L · conf: all|yes|no ·
+      query: a name, a motif name, residues in a CDR (2+ letters) or in the sequence (3+). */
   function filterRows(rows, opts) {
-    var view = opts.view || "all", chain = opts.chain || "all";
+    var view = opts.view || "all", chain = opts.chain || "all", conf = opts.conf || "all";
+    var picked = opts.picked;
     var q = String(opts.query || "").trim();
     var qName = q.toLowerCase();
-    var qSeq = /^[A-Za-z]{3,}$/.test(q) ? q.toUpperCase() : null;
+    var letters = /^[A-Za-z]+$/.test(q) ? q.toUpperCase() : null;
     return rows.filter(function (r) {
-      if (view !== "all" && r.cats.indexOf(view) < 0) return false;
+      if (view === "picked") { if (!picked || !picked.has(r.index)) return false; }
+      else if (view !== "all" && r.cats.indexOf(view) < 0) return false;
       if (chain !== "all" && r.chain !== chain) return false;
+      if (conf === "yes" && !(r.inputOk && r.confident)) return false;
+      if (conf === "no" && !(r.inputOk && !r.confident)) return false;
       if (!q) return true;
       if (r.id.toLowerCase().indexOf(qName) >= 0) return true;
-      return !!(qSeq && r.sequence.indexOf(qSeq) >= 0);
+      if (r.hits.some(function (h) { return h.label.toLowerCase().indexOf(qName) >= 0; })) return true;
+      if (letters && letters.length >= 2 && r.cdrs.some(function (c) { return c.seq.indexOf(letters) >= 0; })) return true;
+      return !!(letters && letters.length >= 3 && r.sequence.indexOf(letters) >= 0);
     });
   }
 
-  /** input (default) · name · pi-desc · pi-asc. Sorting never ranks by liabilities: the
-      tool gives no overall verdict. Rows without a pI go last. */
+  /** input (default) · name · pi-desc · pi-asc. Never by liabilities: no verdicts.
+      Rows without a pI go last. */
   function sortRows(rows, key) {
     var out = rows.slice();
     var byIndex = function (a, b) { return a.index - b.index; };
     if (key === "name") {
-      out.sort(function (a, b) {
-        return a.id.localeCompare(b.id, "ko", { numeric: true }) || byIndex(a, b);
-      });
+      out.sort(function (a, b) { return a.id.localeCompare(b.id, "ko", { numeric: true }) || byIndex(a, b); });
     } else if (key === "pi-desc" || key === "pi-asc") {
       var dir = key === "pi-desc" ? -1 : 1;
       out.sort(function (a, b) {
@@ -206,15 +310,27 @@
     return { lo: lo, hi: hi, step: step, ticks: ticks };
   }
 
+  /** Merge several parsed inputs (one per file) into one analysis input. */
+  function combineEntries(parts) {
+    if (!parts.length) throw new Error("combineEntries needs at least one input");
+    var entries = [];
+    parts.forEach(function (p) { entries = entries.concat(p.entries); });
+    return { entries: entries, source: parts.length === 1 ? parts[0].source : "파일 " + parts.length + "개" };
+  }
+
+  /* ------------------------------------------------------------------ exports */
+
   var TABLE_HEAD = ["순번", "서열 이름", "체인", "분류", "주석", "CDR1", "CDR2", "CDR3",
     "CDR 플래그", "framework 플래그", "도메인 플래그", "길이", "pI", "GRAVY", "net charge", "pH",
-    "선별 근거", "입력 오류"];
+    "규칙 해당", "규칙 세트", "입력 오류"];
 
-  function tableRecords(rows) {
+  function chainName(r) { return r.chain === "H" ? "VH" : r.chain === "L" ? "VL" : ""; }
+
+  function tableRecords(rows, ruleName) {
     return rows.map(function (r) {
       var cdr = function (n) { return r.cdrs[n] ? r.cdrs[n].seq : ""; };
       return [
-        r.index + 1, r.id, r.chain === "H" ? "VH" : r.chain === "L" ? "VL" : "",
+        r.index + 1, r.id, chainName(r),
         r.status, r.inputOk ? (r.confident ? "신뢰 가능" : "신뢰 불가") : "",
         cdr(0), cdr(1), cdr(2),
         r.inputOk && !r.regionsUnassigned ? countText(r.cdrCounts) : (r.inputOk ? "주석 실패" : ""),
@@ -223,38 +339,133 @@
         r.length === null ? "" : r.length,
         r.pI === null ? "" : r.pI, r.gravy === null ? "" : r.gravy,
         r.charge === null ? "" : r.charge, r.pH === null ? "" : r.pH,
-        r.reasons.join(" / "), r.errors.join(" / ")
+        r.reasons.join(" / "), ruleName || "", r.errors.join(" / ")
       ];
     });
   }
 
   /** CSV for Excel: UTF-8 with BOM (so Korean opens correctly), CRLF, RFC 4180 quoting. */
-  function toCsv(rows) {
+  function toCsv(rows, ruleName) {
     var q = function (v) {
       var s = String(v);
       return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     };
-    var lines = [TABLE_HEAD].concat(tableRecords(rows)).map(function (rec) { return rec.map(q).join(","); });
+    var lines = [TABLE_HEAD].concat(tableRecords(rows, ruleName)).map(function (rec) { return rec.map(q).join(","); });
     return "﻿" + lines.join("\r\n") + "\r\n";
   }
 
   /** Tab-separated text for pasting into Excel or Sheets. */
-  function toTsv(rows) {
+  function toTsv(rows, ruleName) {
     var clean = function (v) { return String(v).replace(/[\t\r\n]+/g, " "); };
-    return [TABLE_HEAD].concat(tableRecords(rows)).map(function (rec) { return rec.map(clean).join("\t"); }).join("\n");
+    return [TABLE_HEAD].concat(tableRecords(rows, ruleName)).map(function (rec) { return rec.map(clean).join("\t"); }).join("\n");
   }
 
-  /** Sequences as FASTA text (valid inputs only). */
+  /** Sequences as FASTA text (valid inputs only), 60 residues per line. */
   function toFasta(rows) {
     return rows.filter(function (r) { return r.inputOk; }).map(function (r) {
       return ">" + r.id + "\n" + r.sequence.replace(/(.{60})/g, "$1\n").replace(/\n$/, "") + "\n";
     }).join("");
   }
 
+  function firstSentence(s) {
+    var i = s.indexOf(". ");
+    return i > 0 ? s.slice(0, i + 1) : s;
+  }
+
+  /** Plain text for an e-mail: counts, then each listed candidate with its rule hits.
+      Facts only -- rule hits, not judgements. */
+  function toMailText(rows, meta) {
+    var t = tally(rows);
+    var out = [
+      "AbCheck · 후보 " + t.all + "건 · 규칙 " + meta.ruleName + " · " + meta.when,
+      "검토 필요 " + t.review + " · 판정 불가 " + t.unknown + " · 기준 해당 없음 " + t.clear + " · 입력 오류 " + t.errors
+    ];
+    var section = function (title, list, line) {
+      if (!list.length) return;
+      out.push("", title);
+      list.forEach(function (r) { out.push("- " + r.id + (r.chain ? " (" + chainName(r) + ")" : "") + ": " + line(r)); });
+    };
+    section("검토 필요", rows.filter(function (r) { return r.cats[0] === "review"; }), function (r) { return r.reasons.join("; "); });
+    section("판정 불가", rows.filter(function (r) { return r.cats[0] === "unknown"; }), function (r) {
+      return r.cdrs.length ? "주석 신뢰 불가" : "CDR 주석 실패";
+    });
+    section("입력 오류", rows.filter(function (r) { return r.cats[0] === "errors"; }), function (r) { return firstSentence(r.errors[0] || ""); });
+    out.push("", "Kabat 근사 · ANARCI/IMGT 아님 · 종합 판정 없음");
+    return out.join("\n");
+  }
+
+  /** CDR residues with liability positions underlined (positions are 1-based in the domain). */
+  function markedCdr(cdr, hits) {
+    var marks = new Array(cdr.seq.length).fill(null);
+    (hits || []).forEach(function (x) {
+      for (var p = Math.max(x.start, cdr.start); p <= Math.min(x.end, cdr.end); p++) {
+        var k = p - cdr.start;
+        marks[k] = (marks[k] ? marks[k] + " / " : "") + x.label + " · " + x.risk;
+      }
+    });
+    var out = "", buf = "", cur = null;
+    var flush = function () {
+      if (!buf) return;
+      out += cur ? '<u title="' + esc(cur) + '">' + esc(buf) + "</u>" : esc(buf);
+      buf = "";
+    };
+    for (var k = 0; k < cdr.seq.length; k++) {
+      if (marks[k] !== cur) { flush(); cur = marks[k]; }
+      buf += cdr.seq[k];
+    }
+    flush();
+    return out;
+  }
+
+  /** The one-page sheet for picked candidates: an HTML fragment (no verdict wording). */
+  function onePageFragment(rows, meta) {
+    var head = '<header class="op-head"><b>AbCheck · 후보 ' + rows.length + "건</b><span>규칙 " + esc(meta.ruleName) +
+      " · " + esc(meta.when) + "</span></header>";
+    var body = rows.map(function (r) {
+      var cdrCells = [0, 1, 2].map(function (n) {
+        var c = r.cdrs[n];
+        return "<td class=\"op-seq\">" + (c ? "<small>" + esc(c.name) + "</small>" + markedCdr(c, r.hits) : "-") + "</td>";
+      }).join("");
+      var hits = r.reasons.length ? r.reasons.map(esc).join("<br>") : "-";
+      var anno = !r.inputOk ? "입력 오류" : !r.cdrs.length ? "CDR 주석 실패" : r.confident ? "신뢰 가능" : "신뢰 불가";
+      return "<tr><td class=\"op-id\"><b>" + esc(r.id) + "</b><small>" + esc(chainName(r) || "-") + " · " + (r.length || "-") +
+        " aa</small></td>" + cdrCells + "<td>" + hits + "</td><td>" + anno + "</td><td class=\"op-num\">" +
+        (r.pI === null ? "-" : r.pI.toFixed(2)) + "<br>" + (r.gravy === null ? "-" : r.gravy.toFixed(3)) + "</td></tr>";
+    }).join("");
+    return head + "<table class=\"op-table\"><thead><tr><th>서열</th><th>CDR1</th><th>CDR2</th><th>CDR3</th><th>규칙 해당</th>" +
+      "<th>주석</th><th class=\"op-num\">pI<br>GRAVY</th></tr></thead><tbody>" + body + "</tbody></table>" +
+      "<footer class=\"op-foot\">밑줄 = liability 모티프 · Kabat 근사 · ANARCI/IMGT 아님 · 종합 판정 없음 · 로컬 처리</footer>";
+  }
+
+  var ONE_PAGE_CSS =
+    "@page{size:A4 landscape;margin:12mm}" +
+    ".op{font-family:Pretendard,'Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;color:#1A1F1C;font-size:13px}" +
+    ".op-head{display:flex;justify-content:space-between;align-items:baseline;border-bottom:2px solid #1A1F1C;padding-bottom:6px;margin-bottom:8px}" +
+    ".op-head b{font-size:17px}.op-head span{color:#5A6469}" +
+    ".op-table{width:100%;border-collapse:collapse}" +
+    ".op-table th{text-align:left;font-size:13px;color:#5A6469;border-bottom:1px solid #1A1F1C;padding:6px}" +
+    ".op-table td{border-bottom:1px solid #E3E8E6;padding:6px;vertical-align:top}" +
+    ".op-id small,.op-seq small{display:block;color:#5A6469;font-size:13px;font-family:inherit}" +
+    ".op-seq{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all}" +
+    ".op-seq u{text-decoration:underline 2px;text-underline-offset:3px}" +
+    ".op-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}" +
+    ".op-foot{margin-top:10px;color:#5A6469}" +
+    "tr{break-inside:avoid}";
+
+  /** The same sheet as a standalone HTML document to open and print. */
+  function onePageDoc(rows, meta) {
+    return "<!doctype html><html lang=\"ko\"><head><meta charset=\"utf-8\"><title>AbCheck 후보 " + rows.length +
+      "건</title><style>body{margin:0;padding:12mm;background:#fff}" + ONE_PAGE_CSS + "</style></head><body><div class=\"op\">" +
+      onePageFragment(rows, meta) + "</div></body></html>";
+  }
+
   return {
-    RISKS: RISKS, MOTIFS: MOTIFS, VALIDATION: VALIDATION, TABLE_HEAD: TABLE_HEAD,
-    countText: countText, categories: categories, buildRows: buildRows, tally: tally,
+    RISKS: RISKS, STATUS: STATUS, MOTIFS: MOTIFS, DEFAULT_RULESET: DEFAULT_RULESET, WHERE: WHERE, CYS: CYS,
+    VALIDATION: VALIDATION, TABLE_HEAD: TABLE_HEAD, ONE_PAGE_CSS: ONE_PAGE_CSS,
+    esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
+    applyRules: applyRules, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
-    toCsv: toCsv, toTsv: toTsv, toFasta: toFasta
+    combineEntries: combineEntries, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
+    markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
 });

@@ -1,355 +1,339 @@
 <title>AbCheck 항체 서열 점검</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
-/* Layout: an app shell in the Nextmove family — a fixed left sidebar (brand, primary
-   action, grouped navigation with counts, recent analyses), a sticky top bar (search,
-   theme), one screen at a time, and detail in a sheet from the right. Risk is always
-   written as text and never painted: the tool gives no verdicts. */
+/*__FONTS__*/
+/* Layout: app shell shared by the portfolio series — 260px sidebar (name, one primary
+   action, counted menus), top bar (search, principle chips, theme), then hero card,
+   title, clickable stat line, filter row, 3-column cards, and a detail drawer from the
+   right. Green is brand/action only. Risk is always text, never a color: no verdicts. */
 :root {
-  --paper: #ffffff;
-  --card: #ffffff;
-  --surf: #f5f7fb;
-  --line: #e2e7f0;
-  --line2: #eef2f8;
-  --ink: #0d1526;
-  --body: #3a4560;
-  --muted: #667089;
-  --brand: #2563eb;
-  --brand-soft: #e4ecfd;
-  --brand-ink: #1b4ed8;
-  --sbg: #f5f7fb;
-  --sbg2: #e6edfb;
-  --cdr: #dce7fd;
-  --scrim: rgba(10, 13, 18, 0.45);
-  --vh: #2a78d6;
-  --vl: #eb6834;
-  --ff: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
-  --fm: "IBM Plex Mono", "D2Coding", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --bg: #F7F9F8;
+  --card: #FFFFFF;
+  --field: #FFFFFF;
+  --line: #E3E8E6;
+  --text: #1A1F1C;
+  --muted: #5A6469;
+  --brand: #00733C;
+  --brand-strong: #00552D;
+  --brand-tint: #EAF7EE;
+  --on-brand: #FFFFFF;
+  --accent: #00466E;
+  --bright: #00CD00;
+  --cdr: #E1ECF4;
+  --vh: #1A6CA8;
+  --vl: #D9622B;
+  --scrim: rgba(15, 20, 18, 0.45);
+  --ff: "Pretendard", system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --fm: ui-monospace, SFMono-Regular, Menlo, Consolas, "D2Coding", monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --paper: #080c15; --card: #0f1626; --surf: #141c2e; --line: #22304f; --line2: #19233a;
-    --ink: #eef2fa; --body: #b4bfd6; --muted: #8f9ab3; --brand: #6ea0ff; --brand-soft: #15213c;
-    --brand-ink: #9dbcff; --sbg: #0b111d; --sbg2: #16213b; --cdr: #1d2f55; --scrim: rgba(0, 0, 0, 0.6);
-    --vh: #3987e5; --vl: #d95926; color-scheme: dark;
+    --bg: #0F1412; --card: #171D1A; --field: #121815; --line: #2A332F; --text: #E8EEEA; --muted: #9BA7A1;
+    --brand: #5FE65A; --brand-strong: #8AF086; --brand-tint: #16301F; --on-brand: #0F1412;
+    --accent: #7FB6DE; --bright: #00CD00; --cdr: #1B2E3B; --vh: #4590D0; --vl: #E26A38;
+    --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --paper: #080c15; --card: #0f1626; --surf: #141c2e; --line: #22304f; --line2: #19233a;
-  --ink: #eef2fa; --body: #b4bfd6; --muted: #8f9ab3; --brand: #6ea0ff; --brand-soft: #15213c;
-  --brand-ink: #9dbcff; --sbg: #0b111d; --sbg2: #16213b; --cdr: #1d2f55; --scrim: rgba(0, 0, 0, 0.6);
-  --vh: #3987e5; --vl: #d95926; color-scheme: dark;
+  --bg: #0F1412; --card: #171D1A; --field: #121815; --line: #2A332F; --text: #E8EEEA; --muted: #9BA7A1;
+  --brand: #5FE65A; --brand-strong: #8AF086; --brand-tint: #16301F; --on-brand: #0F1412;
+  --accent: #7FB6DE; --bright: #00CD00; --cdr: #1B2E3B; --vh: #4590D0; --vl: #E26A38;
+  --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
 body {
-  margin: 0; background: var(--paper); color: var(--ink);
-  font-family: var(--ff); font-size: 15px; line-height: 1.6;
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--ff); font-size: 15px; font-weight: 400; line-height: 1.55;
   word-break: keep-all; -webkit-font-smoothing: antialiased;
 }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 40; background: var(--paper); }
-button, input, select, textarea { font: inherit; color: inherit; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 40; background: var(--bg); }
+button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
 button { cursor: pointer; }
-a { color: var(--brand-ink); text-underline-offset: 3px; }
+a { color: var(--brand); text-underline-offset: 3px; }
 :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
-h1, h2, h3, h4 { margin: 0; line-height: 1.3; text-wrap: balance; }
+h1, h2, h3 { margin: 0; line-height: 1.3; font-weight: 700; }
 p { margin: 0; }
-.mono { font-family: var(--fm); font-size: 0.92em; }
-.num { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--fm); }
 .muted { color: var(--muted); }
-.small { font-size: 13px; }
+.s13 { font-size: 13px; }
+.num { font-variant-numeric: tabular-nums; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ic { display: block; flex: none; }
 
 /* ---------- shell ---------- */
-.app { display: grid; grid-template-columns: 256px minmax(0, 1fr); min-height: 100vh; }
+.app { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 100vh; }
 .side {
-  position: sticky; top: env(safe-area-inset-top, 0px); align-self: start;
+  position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; z-index: 45;
   height: calc(100vh - env(safe-area-inset-top, 0px)); overflow: auto;
-  background: var(--sbg); border-right: 1px solid var(--line2);
-  padding: 22px 12px 22px; padding-left: max(12px, env(safe-area-inset-left, 0px));
+  background: var(--card); border-right: 1px solid var(--line);
+  padding: 20px 12px 16px; padding-left: max(12px, env(safe-area-inset-left, 0px));
   display: flex; flex-direction: column; gap: 14px;
 }
-.brand { display: flex; align-items: center; gap: 11px; padding: 0 8px 4px; text-decoration: none; color: var(--ink); }
-.brand svg { flex: none; }
-.bname { display: grid; gap: 1px; }
-.bname b { font-family: var(--fm); font-size: 19px; font-weight: 600; letter-spacing: -0.4px; line-height: 1.15; }
-.bname b span { color: var(--brand); }
-.bname small { font-size: 12px; color: var(--muted); }
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; text-decoration: none; color: var(--text); font-size: 19px; font-weight: 700; }
 .cta {
-  display: block; text-align: center; text-decoration: none; font-weight: 700; font-size: 15px;
-  padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--brand-ink);
+  display: flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none;
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card);
+  color: var(--brand); font-weight: 700;
 }
 .cta:hover { border-color: var(--brand); }
-.cta[aria-current="page"] { background: var(--brand); border-color: var(--brand); color: #fff; }
-.ngroup { display: grid; gap: 1px; }
-.slabel { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.6px; padding: 12px 12px 6px; border-top: 1px solid var(--line); }
+.ngroup { display: grid; gap: 2px; }
+.slabel { font-size: 13px; color: var(--muted); padding: 8px 12px 4px; }
 .nav {
-  position: relative; display: flex; align-items: center; gap: 8px; text-decoration: none;
-  padding: 8px 10px 8px 12px; border-radius: 9px; font-size: 15px; font-weight: 600; color: var(--body);
+  position: relative; display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  border: none; background: none; text-decoration: none;
+  padding: 8px 12px; border-radius: 10px; color: var(--text);
 }
-.nav b { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
-.nav:hover { background: var(--sbg2); color: var(--ink); }
-.nav[aria-current="page"] { background: var(--sbg2); color: var(--ink); font-weight: 700; }
-.nav[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 2px; background: var(--brand); }
-.nav[aria-current="page"] b { color: var(--brand-ink); }
-.nav.zero b { opacity: 0.5; }
-.recent { display: grid; gap: 2px; }
-.rec { display: grid; gap: 1px; text-align: left; border: none; background: none; padding: 7px 10px 7px 12px; border-radius: 9px; color: var(--body); }
-.rec:hover { background: var(--sbg2); color: var(--ink); }
-.rec span { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rec small { font-size: 12px; color: var(--muted); }
-.linkbtn { border: none; background: none; padding: 4px 12px; color: var(--muted); font-size: 12.5px; text-align: left; text-decoration: underline; text-underline-offset: 3px; }
-.sfoot { margin-top: auto; padding: 12px 12px 0; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); display: grid; gap: 4px; }
+.nav b { margin-left: auto; font-size: 13px; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.nav:hover { background: var(--bg); }
+.nav[aria-current="page"] { background: var(--brand-tint); font-weight: 700; }
+.nav[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--brand); }
+.nav .sub { display: block; font-size: 13px; color: var(--muted); font-weight: 400; }
+.nav.rec { display: block; }
+.nav.rec span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sfoot { margin-top: auto; display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.sfoot p { font-size: 13px; color: var(--muted); padding: 0 12px; }
 
 .mainwrap { min-width: 0; display: flex; flex-direction: column; }
-.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--paper); border-bottom: 1px solid var(--line); }
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); border-bottom: 1px solid var(--line); }
 .inner {
-  max-width: 1280px; width: 100%; margin: 0 auto;
+  max-width: 1180px; width: 100%; margin: 0 auto;
   padding-left: max(24px, env(safe-area-inset-left, 0px));
   padding-right: max(24px, env(safe-area-inset-right, 0px));
 }
-.topin { display: flex; align-items: center; gap: 10px; padding-block: 11px; }
-.search { flex: 1; min-width: 0; position: relative; }
-.search svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); }
-.search input { width: 100%; border: 1px solid var(--line); background: var(--surf); border-radius: 10px; padding: 9px 36px 9px 38px; outline: none; }
-.search input:focus { border-color: var(--ink); background: var(--card); }
-.search .clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: none; background: none; color: var(--muted); font-size: 18px; width: 28px; height: 28px; border-radius: 6px; }
-.iconbtn { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--card); border-radius: 10px; color: var(--ink); }
-.iconbtn:hover { border-color: var(--ink); }
-main { padding-block: 26px 72px; }
-
-/* ---------- common pieces ---------- */
-.bar { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.bar h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.6px; }
-.bar .cnt { font-weight: 600; color: var(--muted); }
-.sub { color: var(--body); margin-top: 6px; max-width: 70ch; }
-.stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; margin-top: 14px; font-size: 14px; color: var(--body); }
-.stats > * { padding: 0 14px; border-left: 1px solid var(--line); }
-.stats > *:first-child { padding-left: 0; border-left: none; }
-.stats a { color: var(--body); text-decoration: none; }
-.stats a:hover { color: var(--brand-ink); text-decoration: underline; }
-.stats b { color: var(--ink); font-variant-numeric: tabular-nums; margin-left: 4px; }
-.note {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px;
-  background: var(--brand-soft); color: var(--brand-ink); border-radius: 12px; padding: 11px 15px; font-size: 14px; font-weight: 600;
+.topin { display: flex; align-items: center; gap: 10px; padding-block: 10px; flex-wrap: wrap; }
+.search { flex: 1 1 220px; min-width: 0; position: relative; display: block; }
+.search .ic { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.search input { width: 100%; border: 1px solid var(--line); background: var(--field); border-radius: 10px; padding: 9px 12px 9px 38px; outline: none; }
+.search input:focus { border-color: var(--brand); }
+.chips { display: flex; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--card); color: var(--muted); text-decoration: none; white-space: nowrap;
 }
-.note .btn { margin-left: auto; }
-.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
-.toolbar .spacer { margin-left: auto; }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-.seg button { border: none; background: var(--card); padding: 7px 14px; font-weight: 600; font-size: 14px; color: var(--body); border-left: 1px solid var(--line); }
-.seg button:first-child { border-left: none; }
-.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
-.seg button:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
-.seg button b { font-weight: 600; opacity: 0.7; margin-left: 4px; font-variant-numeric: tabular-nums; }
-select { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 7px 10px; font-weight: 600; font-size: 14px; color: var(--body); }
-.btn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: 14px; color: var(--ink); white-space: nowrap; text-decoration: none; display: inline-block; }
-.btn:hover { border-color: var(--ink); }
-.btn.fill { background: var(--brand); border-color: var(--brand); color: #fff; }
-.btn.fill:hover { filter: brightness(1.08); }
+.chip.dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--bright); }
+a.chip:hover, button.chip:hover { border-color: var(--brand); color: var(--text); }
+.iconbtn { flex: none; width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--card); border-radius: 10px; color: var(--text); }
+.iconbtn:hover { border-color: var(--brand); }
+.menu { display: none; }
+main { padding-block: 24px 72px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; }
+
+/* ---------- controls ---------- */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap;
+  border: 1px solid var(--line); background: var(--card); color: var(--text);
+  border-radius: 10px; padding: 8px 14px; font-weight: 700;
+}
+.btn:hover { border-color: var(--brand); }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+.btn.primary:hover { background: var(--brand-strong); border-color: var(--brand-strong); }
+.btn.big { font-size: 17px; padding: 13px 22px; }
 .btn:disabled { opacity: 0.45; cursor: default; }
-.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-width: 0; }
-.blank { border: 1px dashed var(--line); border-radius: 14px; padding: 42px 20px; text-align: center; color: var(--body); margin-top: 14px; }
-.blank b { display: block; font-size: 17px; color: var(--ink); margin-bottom: 4px; }
-.foot { margin-top: 18px; font-size: 13px; color: var(--muted); max-width: 90ch; display: grid; gap: 4px; }
-.sect { margin-top: 30px; display: grid; gap: 12px; }
-.sect > h3 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--card); }
+.seg > * { border: none; background: none; padding: 8px 12px; color: var(--muted); text-decoration: none; border-left: 1px solid var(--line); white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.seg > *:first-child { border-left: none; }
+.seg > [aria-pressed="true"], .seg > [aria-current="true"] { background: var(--brand-tint); color: var(--text); font-weight: 700; }
+.seg > :disabled { opacity: 0.45; cursor: default; }
+.seg b { font-weight: 400; font-variant-numeric: tabular-nums; }
+select, input[type="text"], input[type="number"] { border: 1px solid var(--line); background: var(--field); border-radius: 10px; padding: 8px 10px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
+.row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.spacer { margin-left: auto; }
+.tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; border: 1px solid var(--text); color: var(--text); }
+.tag.review { background: var(--text); color: var(--card); }
+.tag.unknown, .tag.errors { border-style: dashed; }
+.tag.clear { border-color: var(--line); color: var(--muted); font-weight: 400; }
+.chain { flex: none; font-family: var(--fm); font-size: 13px; font-weight: 700; border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--muted); }
+.blank { border: 1px dashed var(--line); border-radius: 16px; padding: 36px 20px; text-align: center; color: var(--muted); display: grid; gap: 12px; justify-items: center; }
+.busy { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; background: var(--scrim); }
+.busy div { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 26px; font-weight: 700; }
 
-/* status tags: three states told apart by fill and border style, never by color */
-.tag { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 700; white-space: nowrap; border: 1px solid var(--ink); color: var(--ink); }
-.tag.review { background: var(--ink); color: var(--paper); }
-.tag.unknown { border-style: dashed; }
-.tag.clear { border-color: var(--line); color: var(--muted); font-weight: 600; }
-.chain { display: inline-block; font-family: var(--fm); font-size: 11.5px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
+/* ---------- home ---------- */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 24px; align-items: center; padding: 22px 24px; }
+.hero h2 { font-size: 24px; margin-top: 8px; }
+.hero .why { color: var(--muted); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hero .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 10px; font-size: 13px; color: var(--muted); }
+.hero .wide { grid-column: 1 / -1; min-width: 0; }
+.badge { display: inline-block; font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--brand-tint); color: var(--brand-strong); }
+.hnav { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.hnav .iconbtn { width: 30px; height: 30px; }
+.dots { display: flex; gap: 5px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.dots i.on { background: var(--brand); width: 16px; border-radius: 3px; }
+.hero textarea { min-height: 120px; }
+.titlebar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 10px; }
+.titlebar h1 { font-size: 24px; }
+.titlebar .cnt { font-size: 17px; color: var(--muted); }
+.titlebar .row { margin-left: auto; }
+.stats { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
+.stat { display: inline-flex; align-items: baseline; gap: 6px; text-decoration: none; color: var(--muted); padding: 2px 0; border-bottom: 2px solid transparent; }
+.stat b { font-size: 17px; color: var(--text); font-variant-numeric: tabular-nums; }
+.stat:hover b { color: var(--brand); }
+.stat[aria-current="true"] { border-bottom-color: var(--brand); color: var(--text); }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.cand { display: grid; gap: 8px; cursor: pointer; align-content: start; }
+.cand:hover { border-color: var(--brand); }
+.chead { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.cname { border: none; background: none; padding: 0; font-family: var(--fm); font-weight: 700; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pick { margin-left: auto; flex: none; border: none; background: none; padding: 4px; border-radius: 6px; color: var(--muted); }
+.pick:hover { color: var(--brand); }
+.pick[aria-pressed="true"] { color: var(--brand); }
+.pick[aria-pressed="true"] .ic { fill: currentColor; }
+.ctitle { font-size: 17px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-all; }
+.ctitle.why { font-size: 15px; word-break: keep-all; color: var(--muted); }
+.csub { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.csub.seq { font-family: var(--fm); }
+.ctitle.seq { font-family: var(--fm); }
+.ctitle .k { font-family: var(--ff); font-size: 13px; color: var(--muted); margin-right: 8px; }
+.cstate { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.cfoot .s13 { color: var(--muted); }
+u.m { text-decoration: underline 2px; text-underline-offset: 3px; text-decoration-color: currentColor; cursor: help; }
 
-/* tables */
+/* ---------- tables ---------- */
 .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; }
-table { border-collapse: collapse; width: 100%; font-size: 14px; }
-th { text-align: left; font-size: 12.5px; font-weight: 700; color: var(--muted); padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-td { padding: 10px 12px; border-bottom: 1px solid var(--line2); vertical-align: top; }
+table { border-collapse: collapse; width: 100%; }
+th { text-align: left; font-size: 13px; font-weight: 400; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tbody tr:last-child td { border-bottom: none; }
 td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-td.nowrap { white-space: nowrap; }
-table.list tbody tr { cursor: pointer; }
-table.list tbody tr:hover { background: var(--surf); }
-.rowlink { border: none; background: none; padding: 0; font-family: var(--fm); font-weight: 600; font-size: 14px; color: var(--ink); text-align: left; white-space: nowrap; }
-.rowlink:hover { color: var(--brand-ink); text-decoration: underline; text-underline-offset: 3px; }
-.seqcell { font-family: var(--fm); font-size: 13.5px; white-space: nowrap; }
-.seqcell small { font-family: var(--ff); color: var(--muted); margin-left: 6px; font-size: 12px; }
-.seqcell u, .ruler u { text-decoration: underline 2px; text-underline-offset: 3px; text-decoration-color: var(--ink); cursor: help; }
-.more { margin-top: 12px; }
+td.nw { white-space: nowrap; }
+tr.click { cursor: pointer; }
+tr.click:hover td { background: var(--bg); }
+.seqcell { font-family: var(--fm); white-space: nowrap; }
+.seqcell small { font-family: var(--ff); font-size: 13px; color: var(--muted); margin-left: 6px; }
+.rowlink { border: none; background: none; padding: 0; font-family: var(--fm); font-weight: 700; white-space: nowrap; }
+.rowlink:hover { color: var(--brand); }
 
-/* sheet */
-.scrim { position: fixed; inset: 0; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity 0.16s; z-index: 50; }
+/* ---------- drawer ---------- */
+.scrim { position: fixed; inset: 0; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity 0.16s; z-index: 44; }
 .scrim.on { opacity: 1; pointer-events: auto; }
 #sheet {
-  position: fixed; top: 0; right: 0; bottom: 0; width: min(680px, 100vw); z-index: 51;
-  background: var(--card); display: flex; flex-direction: column;
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 100vw); z-index: 51;
+  background: var(--card); border-left: 1px solid var(--line); display: flex; flex-direction: column;
   transform: translateX(101%); visibility: hidden; transition: transform 0.2s ease, visibility 0s linear 0.2s;
-  box-shadow: -10px 0 40px rgba(10, 13, 18, 0.18);
 }
 #sheet.on { transform: none; visibility: visible; transition: transform 0.2s ease; }
-.sh { display: flex; gap: 12px; align-items: flex-start; padding: 18px 22px 14px; padding-top: calc(18px + env(safe-area-inset-top, 0px)); padding-right: max(22px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); }
-.sh h3 { font-family: var(--fm); font-size: 20px; font-weight: 600; letter-spacing: -0.4px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
-.sh p { margin-top: 4px; color: var(--muted); font-size: 14px; }
-.sh .x { margin-left: auto; flex: none; border: none; background: var(--surf); border-radius: 9px; width: 34px; height: 34px; font-size: 20px; line-height: 1; color: var(--body); }
-.sb { flex: 1; overflow: auto; padding: 6px 22px 28px; padding-right: max(22px, env(safe-area-inset-right, 0px)); }
-.sf { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-top: 1px solid var(--line); padding: 11px 22px; padding-bottom: calc(11px + env(safe-area-inset-bottom, 0px)); padding-right: max(22px, env(safe-area-inset-right, 0px)); }
-.sf .pos { margin-right: auto; font-size: 13px; color: var(--muted); }
-.blk { margin-top: 22px; display: grid; gap: 8px; min-width: 0; }
-.blk h4 { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: 0.3px; }
-.blk ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; font-size: 14.5px; }
-.callout { border-left: 3px solid var(--ink); padding: 2px 0 2px 14px; display: grid; gap: 6px; font-size: 14.5px; }
-.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--muted); }
-.legend .c { background: var(--cdr); font-family: var(--fm); font-weight: 600; padding: 0 4px; border-radius: 3px; color: var(--ink); }
-.legend u { font-family: var(--fm); text-decoration: underline 2px; text-underline-offset: 3px; color: var(--ink); }
-.ruler { margin: 0; font-family: var(--fm); font-size: 13px; line-height: 1.75; white-space: pre; color: var(--ink); }
-.ruler .p { color: var(--muted); user-select: none; }
-.ruler .c { background: var(--cdr); font-weight: 600; }
-.ruler .l { color: var(--muted); font-family: var(--ff); font-size: 12px; }
-.hit td:first-child { font-weight: 700; white-space: nowrap; }
-.hit .why { display: block; margin-top: 3px; font-size: 12.5px; color: var(--muted); }
+.sh { display: grid; gap: 8px; padding: 16px 20px 14px; padding-top: calc(16px + env(safe-area-inset-top, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); }
+.sh h2 { font-family: var(--fm); font-size: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sh .chead .iconbtn { width: 34px; height: 34px; }
+.sb { flex: 1; overflow: auto; padding: 4px 20px 24px; padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+.sf { display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--line); padding: 10px 20px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
+.sf .pos { margin-right: auto; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.blk { margin-top: 20px; display: grid; gap: 8px; min-width: 0; }
+.blk h3 { font-size: 13px; color: var(--muted); font-weight: 700; }
+.blk ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.legend .c { background: var(--cdr); font-family: var(--fm); padding: 0 4px; border-radius: 3px; color: var(--text); }
+.ruler { margin: 0; font-family: var(--fm); font-size: 13px; line-height: 1.8; white-space: pre; }
+.ruler .p, .ruler .l { color: var(--muted); }
+.ruler .l { font-family: var(--ff); }
+.ruler .c { background: var(--cdr); font-weight: 700; }
+.why2 { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
 
-/* new analysis */
+/* ---------- other screens ---------- */
 textarea {
-  width: 100%; min-height: 260px; resize: vertical; padding: 14px;
+  width: 100%; min-height: 240px; resize: vertical; padding: 12px;
   font-family: var(--fm); font-size: 13px; line-height: 1.55;
-  background: var(--surf); color: var(--ink); border: 1px solid var(--line); border-radius: 12px;
+  background: var(--field); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
 }
-textarea:focus { outline: none; border-color: var(--ink); background: var(--card); }
+textarea:focus { outline: none; border-color: var(--brand); }
 textarea.drag { border-style: dashed; border-color: var(--brand); }
-textarea[aria-invalid="true"] { border-color: var(--ink); border-width: 2px; }
-.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+textarea[aria-invalid="true"] { border-color: var(--text); }
 .filebtn { position: relative; }
 .filebtn input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.ph { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; font-weight: 600; color: var(--body); margin-left: auto; }
-.ph input { width: 4.6em; border: 1px solid var(--line); background: var(--card); border-radius: 9px; padding: 7px 9px; }
-.detect { font-size: 13.5px; color: var(--muted); min-height: 1.4em; }
-.hints { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--body); display: grid; gap: 3px; }
-kbd { font-family: var(--fm); font-size: 0.85em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--card); }
-.errbox { border-left: 3px solid var(--ink); padding: 4px 0 4px 14px; display: grid; gap: 8px; }
-.errbox ul { margin: 0; padding-left: 18px; font-size: 14px; }
-
-/* tiles, steps, figure */
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-top: 18px; }
-.tile { background: var(--card); padding: 16px 18px; display: grid; gap: 6px; align-content: start; }
-.tile b { font-size: 28px; font-weight: 700; letter-spacing: -1px; line-height: 1.05; font-variant-numeric: tabular-nums; }
-.tile span { font-size: 13.5px; font-weight: 600; color: var(--body); }
-.tile i { font-style: normal; font-size: 12.5px; color: var(--muted); }
-.steps { list-style: none; counter-reset: s; padding: 0; margin: 0; display: grid; gap: 14px; }
-.steps li { counter-increment: s; position: relative; padding-left: 42px; }
-.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 9px; background: var(--brand-soft); color: var(--brand-ink); font-weight: 800; font-size: 13.5px; display: grid; place-items: center; }
-.steps b { display: block; font-size: 15.5px; }
-.steps p { color: var(--body); font-size: 14px; margin-top: 2px; }
-.figure { position: relative; margin-top: 16px; }
-.figure svg { display: block; width: 100%; height: auto; overflow: visible; }
-.figure .grid line { stroke: var(--line2); stroke-width: 1; }
-.figure .axis line { stroke: var(--line); }
-.figure text { fill: var(--muted); font-size: 12px; font-family: var(--ff); }
-.figure text.lab { fill: var(--body); font-family: var(--fm); font-size: 11.5px; }
-.figure text.ttl { fill: var(--body); font-weight: 600; font-size: 12.5px; }
+.field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.field input[type="number"] { width: 5em; color: var(--text); }
+.err { border-left: 3px solid var(--text); padding-left: 12px; display: grid; gap: 4px; }
+.err b { font-weight: 700; }
+.form { display: grid; gap: 14px; }
+.form .frow { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; align-items: center; }
+.form .frow > span { color: var(--muted); font-size: 13px; }
+.toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+.toggle { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 6px 10px; color: var(--muted); }
+.toggle[aria-pressed="true"] { background: var(--brand-tint); color: var(--text); font-weight: 700; border-color: var(--brand); }
+.toggle:disabled { cursor: default; opacity: 0.7; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tile { display: grid; gap: 4px; align-content: start; }
+.tile b { font-size: 32px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile span { color: var(--muted); }
+.tile i { font-style: normal; font-size: 13px; color: var(--muted); }
+.figure { position: relative; }
+.figure svg { display: block; width: 100%; height: auto; }
+.figure .gl line { stroke: var(--line); stroke-width: 1; }
+.figure text { fill: var(--muted); font-size: 13px; font-family: var(--ff); }
+.figure text.lab { fill: var(--text); font-family: var(--fm); }
 .figure .pt { cursor: pointer; outline: none; }
-.figure .pt .hitarea { fill: transparent; }
-.figure .pt .mark-h { fill: var(--vh); stroke: var(--card); stroke-width: 2; }
-.figure .pt .mark-l { fill: var(--vl); stroke: var(--card); stroke-width: 2; }
-.figure .pt:hover .mark-h, .figure .pt:hover .mark-l, .figure .pt:focus-visible .mark-h, .figure .pt:focus-visible .mark-l { stroke: var(--ink); }
-.tip { position: absolute; pointer-events: none; z-index: 5; background: var(--ink); color: var(--paper); border-radius: 9px; padding: 8px 11px; font-size: 12.5px; line-height: 1.5; white-space: nowrap; transform: translate(-50%, calc(-100% - 12px)); }
-.tip b { font-family: var(--fm); }
-.key { display: inline-flex; align-items: center; gap: 6px; }
-.key svg { display: block; }
+.figure .pt .hit { fill: transparent; }
+.figure .pt .mh { fill: var(--vh); stroke: var(--card); stroke-width: 2; }
+.figure .pt .ml { fill: var(--vl); stroke: var(--card); stroke-width: 2; }
+.figure .pt:hover .mh, .figure .pt:hover .ml, .figure .pt:focus-visible .mh, .figure .pt:focus-visible .ml { stroke: var(--text); }
+.tip { position: absolute; pointer-events: none; z-index: 5; background: var(--text); color: var(--card); border-radius: 10px; padding: 8px 10px; font-size: 13px; white-space: nowrap; transform: translate(-50%, calc(-100% - 12px)); }
+.key { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.paper { background: #FFFFFF; border: 1px solid var(--line); border-radius: 16px; padding: 20px; overflow-x: auto; }
+.guide { display: grid; gap: 12px; }
+.guide h2 { font-size: 17px; }
+.guide dl { margin: 0; display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 6px 14px; }
+.guide dt { color: var(--muted); }
+.guide dd { margin: 0; }
+.guide ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; background: var(--card); }
 
 .toast {
   position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 12px); z-index: 90;
-  background: var(--ink); color: var(--paper); border-radius: 12px; padding: 11px 16px; font-size: 14px; font-weight: 600;
+  background: var(--text); color: var(--card); border-radius: 10px; padding: 10px 16px; font-weight: 700;
   opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; max-width: calc(100vw - 32px);
 }
 .toast.on { opacity: 1; transform: translate(-50%, 0); }
 
-@media (max-width: 860px) {
+@media (max-width: 1024px) {
   .app { grid-template-columns: minmax(0, 1fr); }
-  .side {
-    position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line);
-    padding: 14px 0 12px; gap: 10px;
-  }
-  .side > .brand, .side > .cta { margin-left: max(16px, env(safe-area-inset-left, 0px)); margin-right: max(16px, env(safe-area-inset-right, 0px)); }
-  .brand { padding: 0; }
-  .navs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  .navs::-webkit-scrollbar { display: none; }
-  .ngroup { display: contents; }
-  .slabel, .recent, .sfoot, .recgroup { display: none; }
-  .nav { flex: none; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; font-size: 14px; background: var(--card); }
-  .nav[aria-current="page"]::before { display: none; }
-  .nav[aria-current="page"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
-  .nav[aria-current="page"] b { color: var(--paper); }
-  .inner { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  main { padding-block: 20px 60px; }
-  .bar h2 { font-size: 21px; }
-  .ph { margin-left: 0; }
+  .side { position: fixed; top: 0; left: 0; bottom: 0; width: min(280px, 86vw); height: auto; transform: translateX(-101%); visibility: hidden; transition: transform 0.2s ease, visibility 0s linear 0.2s; padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
+  .side.on { transform: none; visibility: visible; transition: transform 0.2s ease; }
+  .menu { display: grid; }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 640px) {
-  #sheet { top: auto; height: 92vh; width: 100vw; border-radius: 18px 18px 0 0; transform: translateY(101%); }
+@media (max-width: 768px) {
+  .inner { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .grid { grid-template-columns: minmax(0, 1fr); }
+  .hero { grid-template-columns: minmax(0, 1fr); padding: 18px; }
+  .hero .why { white-space: normal; }
+  .hero .btn.big { justify-content: center; }
+  .titlebar .row { margin-left: 0; width: 100%; }
+  .chips { order: 3; width: 100%; }
+  .search { flex: 1 1 120px; }
+  .row > .seg { max-width: 100%; overflow-x: auto; }
+  .titlebar .btn { padding: 7px 10px; }
+  #f-sort.spacer { margin-left: 0; }
+  #sheet { top: auto; height: 92vh; width: 100vw; border-left: none; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; transform: translateY(101%); }
   #sheet.on { transform: none; }
   .sh { padding-top: 16px; }
-  .stats > * { padding: 0 10px; }
+  .form .frow { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .guide dl { grid-template-columns: minmax(0, 1fr); gap: 0 0; }
+  .guide dd { margin-bottom: 8px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  #sheet, .scrim, .toast { transition: none; }
+  #sheet, .side, .scrim, .toast { transition: none; }
 }
 </style>
 
 <div class="app">
-  <aside class="side" aria-label="메뉴">
-    <a class="brand" href="#all" aria-label="AbCheck 후보 전체로">
-      <svg width="38" height="38" viewBox="0 0 38 38" aria-hidden="true">
-        <rect width="38" height="38" rx="10" fill="var(--brand)"/>
-        <path d="M19 30V19M19 19L11.5 10.5M19 19l7.5-8.5" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/>
-        <circle cx="10.6" cy="9.6" r="2.6" fill="#fff"/><circle cx="27.4" cy="9.6" r="2.6" fill="#fff"/>
-      </svg>
-      <span class="bname"><b><span>Ab</span>Check</b><small>항체 서열 점검</small></span>
-    </a>
-    <a class="cta" href="#new" id="nav-new">+ 새 분석</a>
-    <nav class="navs" aria-label="화면">
-      <div class="ngroup"><div class="slabel">후보</div>
-        <a class="nav" href="#all" data-v="all">후보 전체 <b id="n-all">0</b></a>
-        <a class="nav" href="#review" data-v="review">검토 필요 <b id="n-review">0</b></a>
-        <a class="nav" href="#recheck" data-v="recheck">재확인 필요 <b id="n-recheck">0</b></a>
-        <a class="nav" href="#errors" data-v="errors">입력 오류 <b id="n-errors">0</b></a>
-      </div>
-      <div class="ngroup"><div class="slabel">비교</div>
-        <a class="nav" href="#compare" data-v="compare">CDR 비교</a>
-        <a class="nav" href="#properties" data-v="properties">물성 분포</a>
-      </div>
-      <div class="ngroup"><div class="slabel">정보</div>
-        <a class="nav" href="#rules" data-v="rules">선별 규칙</a>
-        <a class="nav" href="#validation" data-v="validation">검증 기록</a>
-        <a class="nav" href="#guide" data-v="guide">사용법 · 한계</a>
-      </div>
-    </nav>
-    <div class="recgroup" id="recgroup" hidden>
-      <div class="slabel">최근 분석</div>
-      <div class="recent" id="recent"></div>
-      <button class="linkbtn" type="button" id="rec-clear">기록 지우기</button>
-    </div>
-    <div class="sfoot">
-      <span>분석은 이 브라우저 안에서만 실행됨 · 서열은 어디로도 전송되지 않음</span>
-      <a href="https://github.com/strawberryHunter/ab-seq-selfcheck" target="_blank" rel="noopener">소스와 검증 기록 (GitHub)</a>
-    </div>
-  </aside>
-
+  <aside class="side" id="side" aria-label="메뉴"></aside>
   <div class="mainwrap">
     <header class="top">
       <div class="inner topin">
+        <button class="iconbtn menu" type="button" id="menu" aria-label="메뉴 열기"></button>
         <label class="search" for="q">
-          <span class="sr">서열 검색</span>
-          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5.2" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="서열 이름 또는 잔기 3개 이상 검색 (예: SYN-VH-003, NGS)">
-          <button class="clear" type="button" id="q-clear" aria-label="검색 지우기" hidden>×</button>
+          <span class="sr">검색</span>
+          <span id="q-ic"></span>
+          <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="서열 이름 · CDR 잔기 · 모티프 이름 검색">
         </label>
-        <button class="iconbtn" type="button" id="theme" aria-label="밝은 화면 / 어두운 화면 전환" title="밝은 화면 / 어두운 화면 전환">
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M9 2a7 7 0 0 1 0 14z" fill="currentColor"/></svg>
-        </button>
+        <span class="chips">
+          <span class="chip dot" title="분석은 이 브라우저 안에서만 실행 · 서열 전송 없음">로컬 처리</span>
+          <a class="chip" href="#guide" title="CDR 경계는 Kabat 근사 · ANARCI/IMGT 를 대신하지 않음">Kabat 근사</a>
+        </span>
+        <div class="seg" role="group" aria-label="테마" id="theme"></div>
       </div>
     </header>
     <main class="inner" id="view" tabindex="-1"></main>
@@ -359,8 +343,10 @@ kbd { font-family: var(--fm); font-size: 0.85em; border: 1px solid var(--line); 
 <div class="scrim" id="scrim"></div>
 <aside id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" aria-hidden="true">
   <div class="sh">
-    <div><h3 id="sheet-title"></h3><p id="sheet-sub"></p></div>
-    <button class="x" type="button" id="sheet-close" aria-label="닫기">×</button>
+    <div class="chead"><span class="chain" id="sheet-chain"></span><h2 id="sheet-title"></h2>
+      <button class="pick" type="button" id="sheet-pick" aria-pressed="false" aria-label="고르기"></button>
+      <button class="iconbtn" type="button" id="sheet-close" aria-label="닫기"></button></div>
+    <div class="row" id="sheet-sub"></div>
   </div>
   <div class="sb" id="sheet-body"></div>
   <div class="sf">
@@ -371,6 +357,7 @@ kbd { font-family: var(--fm); font-size: 0.85em; border: 1px solid var(--line); 
   </div>
 </aside>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div id="busy"></div>
 
 <script>
 /*__ENGINE__*/
@@ -382,30 +369,34 @@ kbd { font-family: var(--fm); font-size: 0.85em; border: 1px solid var(--line); 
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const esc = ABUI.esc;
   const fmt = (v, d) => (v === null || v === undefined ? "-" : Number(v).toFixed(d));
   const signed = (v) => (v === null || v === undefined ? "-" : (v > 0 ? "+" : "") + Number(v).toFixed(2));
 
   /* Synthetic examples from data/synthetic/sequences.json — no real antibody sequences. */
   const EXAMPLE = /*__EXAMPLE__*/"";
 
-  const VIEWS = ["new", "all", "review", "recheck", "errors", "compare", "properties", "rules", "validation", "guide"];
-  const LIST_VIEWS = { all: "후보 전체", review: "검토 필요", recheck: "재확인 필요", errors: "입력 오류" };
-  const LIST_LEDE = {
-    all: "입력한 모든 서열. 행을 누르면 CDR · 서열 · liability · 물성 상세가 열림.",
-    review: "선별 규칙에 걸린 서열. 항체가 나쁘다는 뜻이 아니라 먼저 들여다볼 대상이라는 뜻.",
-    recheck: "주석 신뢰도가 낮은 서열. CDR 경계가 밀렸을 수 있으므로 ANARCI/IMGT 로 경계 확인 필요.",
-    errors: "입력 검증을 통과하지 못해 분석하지 않은 서열. 상세에서 고칠 내용 확인 가능."
+  /* One icon set: 24-grid outline icons, 1.8 stroke. */
+  const PATHS = {
+    search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+    menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    x: '<path d="M18 6L6 18M6 6l12 12"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    moon: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+    monitor: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>',
+    bookmark: '<path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+    arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+    left: '<path d="M15 18l-6-6 6-6"/>',
+    right: '<path d="M9 18l6-6-6-6"/>'
   };
+  const icon = (name, size) => `<svg class="ic" width="${size || 18}" height="${size || 18}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name]}</svg>`;
+  const LOGO = '<svg class="ic" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect width="30" height="30" rx="8" fill="var(--brand)"/><path d="M15 24v-9M15 15L9 8.5M15 15l6-6.5" stroke="var(--on-brand)" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>';
 
-  const state = {
-    payload: null, rows: [], source: "", ph: 7.4, at: null, isExample: true,
-    view: "all", chain: "all", sort: "input", query: "", limit: 300,
-    input: "", fileName: "", inputError: "", rejected: null,
-    open: null, openList: [], opener: null
-  };
+  const VIEWS = ["new", "all", "review", "unknown", "clear", "errors", "picked", "compare", "properties", "onepage", "rules", "validation", "guide"];
+  const LISTS = { all: "후보 전체", review: "검토 필요", unknown: "판정 불가", clear: "기준 해당 없음", errors: "입력 오류", picked: "고른 후보" };
+  const PAGE = 60;
 
-  /* ---------- browser storage (per-viewer conveniences only) ---------- */
+  /* ---------- browser storage: per-viewer conveniences only ---------- */
   const store = {
     get(key, fallback) {
       try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); }
@@ -416,103 +407,186 @@ kbd { font-family: var(--fm); font-size: 0.85em; border: 1px solid var(--line); 
       catch (e) { console.warn("abcheck: could not save " + key + " to browser storage", e); return false; }
     }
   };
-  const RECENT_KEY = "abcheck.recent.v1", THEME_KEY = "abcheck.theme.v1";
+  const K = { recent: "abcheck.recent.v2", theme: "abcheck.theme.v2", ui: "abcheck.ui.v1", rules: "abcheck.rules.v1" };
 
-  /* ---------- toast ---------- */
+  const ui = Object.assign({ chain: "all", conf: "all", sort: "input", view: "all" }, store.get(K.ui, {}));
+  const state = {
+    payload: null, rows: [], source: "", ph: 7.4, at: null, isExample: false, recentId: null,
+    view: "all", query: "", limit: PAGE, hero: 0, picked: new Set(),
+    input: "", fileName: "", error: null, rejected: null,
+    rules: { active: "default", sets: [] },
+    open: null, openList: [], opener: null
+  };
+  const saveUi = () => store.set(K.ui, { chain: ui.chain, conf: ui.conf, sort: ui.sort, view: state.view });
+
+  /* ---------- toast, clipboard, files ---------- */
   let toastTimer = 0;
   function toast(msg) {
     const t = $("toast");
     t.textContent = msg; t.classList.add("on");
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), 3200);
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), 2800);
   }
-
-  /* ---------- clipboard and downloads ---------- */
   function copy(text, done) {
     const fallback = (err) => {
       if (err) console.warn("abcheck: clipboard write refused, selecting the text instead", err);
       const ta = document.createElement("textarea");
       ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
       document.body.appendChild(ta); ta.select();
-      toast("자동 복사가 막혀 있어 내용을 선택해 둠 · Ctrl+C (Mac 은 ⌘C) 로 복사");
+      toast("자동 복사 불가 · Ctrl+C 로 복사");
       setTimeout(() => ta.remove(), 15000);
     };
     try { navigator.clipboard.writeText(text).then(() => toast(done), fallback); }
     catch (e) { fallback(e); }
   }
-
   let downloads = null;
   if (window.claude && typeof window.claude.use === "function") {
-    window.claude.use("downloads").then((d) => { downloads = d; if (d) render(); },
+    window.claude.use("downloads").then((d) => { downloads = d; },
       (e) => console.warn("abcheck: downloads capability did not load", e));
   }
-  function save(filename, data) {
-    if (!downloads) { toast("이 화면에서는 파일 저장 불가 · '표 복사' 사용"); return; }
-    downloads.save({ filename, data }).then(
-      () => toast(filename + " 저장"),
-      (e) => {
+  function save(filename, data, mime) {
+    if (downloads) {
+      downloads.save({ filename, data }).then(() => toast(filename + " 저장"), (e) => {
         const code = e && e.code;
-        if (code === "declined") toast("저장 취소됨");
-        else if (code === "rate_limited") toast("저장 창이 이미 열려 있음 · 잠시 후 다시 시도");
-        else { console.error("abcheck: saving " + filename + " failed", e); toast("파일 저장 실패 (" + (code || "unknown") + ") · '표 복사' 사용"); }
+        if (code === "declined") toast("저장 취소");
+        else if (code === "rate_limited") toast("저장 창이 이미 열려 있음");
+        else { console.error("abcheck: saving " + filename + " failed", e); toast("저장 실패 · Excel용 복사 사용"); }
       });
+      return;
+    }
+    // Opened as a plain file (outside the artifact viewer): an ordinary browser download.
+    const url = URL.createObjectURL(new Blob([data], { type: mime }));
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast(filename + " 저장");
   }
-  function stamp() {
-    const d = state.at || new Date(), p = (n) => String(n).padStart(2, "0");
-    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes());
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp = () => { const d = state.at || new Date(); return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + "-" + pad(d.getHours()) + pad(d.getMinutes()); };
+  const when = (d) => d ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}` : "";
+  const whenShort = (d) => d ? `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}` : "";
+
+  /* ---------- rule sets ---------- */
+  function loadRules() {
+    const raw = store.get(K.rules, null);
+    if (!raw) return;
+    let dropped = 0;
+    (raw.sets || []).forEach((s) => {
+      try { state.rules.sets.push(ABUI.normalizeRuleSet(s)); }
+      catch (e) { dropped += 1; console.error("abcheck: a stored rule set was dropped", e); }
+    });
+    state.rules.active = state.rules.sets.some((s) => s.id === raw.active) ? raw.active : "default";
+    if (dropped) setTimeout(() => toast(`저장된 규칙 세트 ${dropped}개를 읽지 못함`), 500);
   }
+  const rules = () => state.rules.sets.find((s) => s.id === state.rules.active) || ABUI.DEFAULT_RULESET;
+  const saveRules = () => store.set(K.rules, state.rules);
+  const retriage = () => { if (state.payload) state.rows = ABUI.buildRows(state.payload, rules()); };
+  const meta = () => ({ ruleName: rules().name, when: when(state.at) });
 
   /* ---------- analysis ---------- */
-  function analyze(text, fileName, ph, example) {
-    state.inputError = ""; state.rejected = null;
-    if (!String(text).trim()) { state.inputError = "서열이 비어 있음. 서열이나 FASTA 를 붙여넣거나 파일을 열 것."; return false; }
-    if (!(ph >= 0 && ph <= 14)) { state.inputError = "pH 는 0 에서 14 사이 숫자로 넣을 것."; return false; }
-    let entries, source;
-    try { [entries, source] = ABCHECK.readInput(text, fileName); }
-    catch (e) { state.inputError = "입력을 읽을 수 없음: " + e.message; return false; }
-    if (!entries.length) { state.inputError = "처리할 서열이 없음."; return false; }
+  function setBusy(msg) { $("busy").innerHTML = msg ? `<div class="busy" role="status"><div>${esc(msg)}</div></div>` : ""; }
+
+  /** Analyse parsed entries; false when nothing passed validation (state.rejected holds why). */
+  function analyzeEntries(entries, source, ph, opts) {
     const payload = ABCHECK.analyze(entries, ph);
     if (payload.sequences.every((s) => !s.input_ok)) { state.rejected = payload; return false; }
-    state.payload = payload;
-    state.rows = ABUI.buildRows(payload);
-    state.source = source; state.ph = ph; state.at = new Date(); state.isExample = !!example;
-    state.limit = 300;
-    if (!example) remember(text, fileName, source, ph, payload.count);
+    state.payload = payload; state.source = source; state.ph = ph;
+    state.at = opts.at ? new Date(opts.at) : new Date();
+    state.isExample = !!opts.example; state.recentId = opts.recentId || null;
+    state.picked = new Set(opts.picked || []);
+    state.limit = PAGE; state.hero = 0; state.error = null; state.rejected = null;
+    retriage();
+    if (!opts.example && !opts.recentId) remember(entries, source, ph, opts.text || "");
     return true;
   }
-
-  function remember(text, fileName, source, ph, count) {
-    if (text.length > 300000) return;   // too big for browser storage; the analysis itself is unaffected
-    const list = store.get(RECENT_KEY, []).filter((r) => r.text !== text);
-    list.unshift({ text, fileName, source, ph, count, at: Date.now() });
-    store.set(RECENT_KEY, list.slice(0, 6));
+  function run(work, count) {
+    const start = () => { try { work(); } finally { setBusy(""); } };
+    if (count > 300) { setBusy(`분석 중 · 서열 ${count}개`); setTimeout(start, 30); } else start();
   }
-
-  /* ---------- shared bits ---------- */
-  function tag(status) {
-    const cls = status === "검토 필요" ? "review" : status === "판정 불가" ? "unknown" : "clear";
-    return `<span class="tag ${cls}">${esc(status)}</span>`;
+  /** Show a cause and the next step on the 새 분석 screen. */
+  function fail(cause, next) {
+    state.error = [cause, next];
+    if (state.view === "new") render(); else go("new");
   }
-  const chainBadge = (r) => (r.chain ? `<span class="chain">${r.chain === "H" ? "VH" : "VL"}</span>` : "");
-  const seqObj = (r) => state.payload.sequences[r.index];
-
-  /** CDR residues with liability positions underlined (positions are 1-based in the domain). */
-  function markedCdr(cdr, hits) {
-    const marks = new Array(cdr.length).fill(null);
-    (hits || []).forEach((x) => {
-      for (let p = Math.max(x.start, cdr.start); p <= Math.min(x.end, cdr.end); p++) {
-        const k = p - cdr.start;
-        marks[k] = (marks[k] ? marks[k] + " / " : "") + `${x.label} · ${x.risk}`;
+  function finish(ok) {
+    if (ok) {
+      const t = ABUI.tally(state.rows);
+      toast(`후보 ${t.all}건 분석${t.errors ? ` · 입력 오류 ${t.errors}` : ""}`);
+      if (state.view === "all") render(); else go("all");
+    } else if (state.view === "new") render(); else go("new");
+  }
+  function analyzeText(text, fileName, ph, opts) {
+    state.error = null; state.rejected = null;
+    if (!(opts && opts.example)) { state.input = text; state.fileName = fileName || ""; }
+    if (!String(text).trim()) return fail("입력이 비어 있음", "서열 · FASTA 붙여넣기 또는 파일 열기");
+    if (!(ph >= 0 && ph <= 14)) return fail("pH 값이 범위를 벗어남", "0–14 사이 숫자 입력");
+    let entries, source;
+    try { [entries, source] = ABCHECK.readInput(text, fileName); }
+    catch (e) { return fail(e.message, "형식을 고친 뒤 다시 분석"); }
+    if (!entries.length) return fail("읽은 서열이 없음", "FASTA 는 '>' 줄 아래에 서열 필요");
+    run(() => finish(analyzeEntries(entries, source, ph, Object.assign({ text }, opts || {}))), entries.length);
+  }
+  function decode(buf) {
+    const b = new Uint8Array(buf);
+    if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) return new TextDecoder("utf-8").decode(b.subarray(3));
+    if (b[0] === 0xff && b[1] === 0xfe) return new TextDecoder("utf-16le").decode(b.subarray(2));
+    if (b[0] === 0xfe && b[1] === 0xff) return new TextDecoder("utf-16be").decode(b.subarray(2));
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(b); } catch (e) { /* not UTF-8: try the Korean code page next */ }
+    try { return new TextDecoder("euc-kr", { fatal: true }).decode(b); } catch (e) { /* neither: reported below */ }
+    throw new Error("글자 인코딩을 알 수 없음");
+  }
+  /** Several files at once: each is parsed by its own name, then all are analysed together. */
+  function analyzeFiles(fileList, ph) {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    state.error = null; state.rejected = null;
+    const xlsx = files.find((f) => /\.xlsx?$/i.test(f.name));
+    if (xlsx) return fail(`${xlsx.name}: 엑셀 파일은 바로 읽지 않음`, "엑셀에서 'CSV UTF-8' 로 저장한 파일 열기");
+    Promise.all(files.map((f) => f.arrayBuffer().then((buf) => ({ name: f.name, buf })))).then((loaded) => {
+      const parts = [];
+      let text = "";
+      for (const f of loaded) {
+        try {
+          const t = decode(f.buf);
+          const [entries, source] = ABCHECK.readInput(t, f.name);
+          parts.push({ entries, source });
+          if (loaded.length === 1) text = t;
+        } catch (e) { return fail(`${f.name}: ${e.message}`, "파일을 고치거나 빼고 다시 열기"); }
       }
-    });
-    let out = "", buf = "", cur = null;
-    const flush = () => { if (!buf) return; out += cur ? `<u title="${esc(cur)}">${esc(buf)}</u>` : esc(buf); buf = ""; };
-    for (let k = 0; k < cdr.seq.length; k++) {
-      if (marks[k] !== cur) { flush(); cur = marks[k]; }
-      buf += cdr.seq[k];
-    }
-    flush();
-    return out;
+      const all = ABUI.combineEntries(parts);
+      if (!all.entries.length) return fail("읽은 서열이 없음", "FASTA 는 '>' 줄 아래에 서열 필요");
+      if (loaded.length === 1) { state.input = text; state.fileName = loaded[0].name; }
+      run(() => finish(analyzeEntries(all.entries, all.source, ph, { text })), all.entries.length);
+    }, (e) => { console.error("abcheck: reading the dropped files failed", e); fail("파일을 읽지 못함", "다시 끌어다 놓기"); });
   }
+
+  function remember(entries, source, ph, text) {
+    const body = JSON.stringify(entries);
+    if (body.length + text.length > 500000) { state.recentId = null; return; }   // too big for browser storage
+    const list = store.get(K.recent, []).filter((r) => JSON.stringify(r.entries) !== body);
+    const id = "r" + Date.now();
+    list.unshift({ id, entries, source, ph, text, count: entries.length, at: Date.now(), picked: [] });
+    store.set(K.recent, list.slice(0, 6));
+    state.recentId = id;
+  }
+  function savePicked() {
+    if (!state.recentId) return;
+    const list = store.get(K.recent, []);
+    const r = list.find((x) => x.id === state.recentId);
+    if (r) { r.picked = Array.from(state.picked); store.set(K.recent, list); }
+  }
+  function openRecent(r) {
+    run(() => finish(analyzeEntries(r.entries, r.source, r.ph, { recentId: r.id, picked: r.picked, at: r.at })), r.entries.length);
+  }
+  const recentText = (r) => r.text || r.entries.map((e) => ">" + e[0] + "\n" + e[1] + "\n").join("");
+
+  /* ---------- shared pieces ---------- */
+  const tag = (r) => r.inputOk ? `<span class="tag ${r.cats[0]}">${esc(r.status)}</span>` : `<span class="tag errors">입력 오류</span>`;
+  const chainText = (r) => r.chain === "H" ? "VH" : r.chain === "L" ? "VL" : "–";
+  const marked = (c, hits) => ABUI.markedCdr(c, hits).replace(/<u /g, '<u class="m" ');
+  const seqObj = (r) => state.payload.sequences[r.index];
+  const first = (s) => { const i = s.indexOf(". "); return i > 0 ? s.slice(0, i + 1) : s; };
+  const confText = (r) => !r.inputOk ? "입력 오류" : !r.cdrs.length ? "CDR 주석 실패" : r.confident ? "신뢰 가능" : "신뢰 불가";
+  const pickBtn = (r) => `<button class="pick" type="button" data-pick="${r.index}" aria-pressed="${state.picked.has(r.index)}" aria-label="${esc(r.id)} 고르기" title="한 장에 넣기">${icon("bookmark")}</button>`;
 
   function ruler(seq, cdrs, hits) {
     const at = new Array(seq.length + 2).fill(null), liab = new Array(seq.length + 2).fill(null);
@@ -526,7 +600,7 @@ kbd { font-family: var(--fm); font-size: 0.85em; border: 1px solid var(--line); 
       const flush = () => {
         if (!buf) return;
         let t = esc(buf);
-        if (curL) t = `<u title="${esc(curL)}">${t}</u>`;
+        if (curL) t = `<u class="m" title="${esc(curL)}">${t}</u>`;
         line += cur ? `<span class="c" title="${esc(cur)}">${t}</span>` : t;
         buf = "";
       };
@@ -538,294 +612,156 @@ kbd { font-family: var(--fm); font-size: 0.85em; border: 1px solid var(--line); 
         if (n && !names.includes(n)) names.push(n);
       }
       flush();
-      out += `<span class="p">${String(off + 1).padStart(4, " ")}  </span>${line}${names.length ? `  <span class="l">${esc(names.join(", "))}</span>` : ""}\n`;
+      out += `<span class="p">${String(off + 1).padStart(4, " ")}  </span>${line}${names.length ? `  <span class="l">${esc(names.join(" · "))}</span>` : ""}\n`;
     }
     return out;
   }
 
-  /* ---------- views ---------- */
-  function viewNew() {
-    const r = state.rejected;
-    let err = "";
-    if (state.inputError) err = `<div class="errbox" role="alert"><strong>${esc(state.inputError)}</strong></div>`;
-    else if (r) {
-      err = `<div class="errbox" role="alert"><strong>분석할 수 있는 서열 없음 · 고칠 것</strong>` +
-        r.sequences.map((s) => `<div><span class="mono">${esc(s.id)}</span><ul>${s.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div>`).join("") +
-        `<p class="small muted">고친 뒤 '분석하기' 를 다시 누르면 됨. 이전 결과는 그대로 유지됨.</p></div>`;
+  /* ---------- home: hero, title, stats, filters, cards ---------- */
+  function heroSlides(t) {
+    const d = ABUI.describeRuleSet(rules());
+    const slides = [{
+      badge: "선별 결과", title: `검토 필요 후보 ${t.review}개`, why: d[0] + " / " + d[1],
+      btn: t.review ? ["목록 보기", "review"] : ["규칙 보기", "rules"]
+    }];
+    if (t.unknown) slides.push({ badge: "확인 필요", title: `판정 불가 ${t.unknown}개`, why: "주석 신뢰 불가 또는 CDR 주석 실패 · ANARCI/IMGT 로 경계 확인", btn: ["목록 보기", "unknown"] });
+    if (t.errors) {
+      const e = state.rows.find((r) => !r.inputOk);
+      slides.push({ badge: "입력 오류", title: `입력 오류 ${t.errors}개`, why: `${e.id}: ${first(e.errors[0] || "")}`, btn: ["목록 보기", "errors"] });
     }
-    return `
-      <div class="bar"><h2>새 분석</h2></div>
-      <p class="sub">VH 또는 VL 가변도메인 서열을 넣으면 CDR 위치 · liability 모티프 · 물성을 계산함. 분석은 이 브라우저 안에서만 실행됨.</p>
-      <div class="panel" style="margin-top:18px;display:grid;gap:12px">
-        <label for="input" class="small" style="font-weight:700">서열 · FASTA · 엑셀 표(이름 · 서열 두 열) · JSON</label>
-        <textarea id="input" spellcheck="false" autocomplete="off" aria-invalid="${err ? "true" : "false"}" placeholder=">후보-1&#10;QVQLVQSGAEVKKPGASVKVSCKAS...&#10;>후보-2&#10;DIQMTQSPSSLSASVGDRVTITC...">${esc(state.input)}</textarea>
-        <p class="detect" id="detect" aria-live="polite"></p>
-        <div class="controls">
-          <button class="btn fill" type="button" id="run">분석하기</button>
-          <label class="btn filebtn" for="file">파일 열기<input id="file" type="file" accept=".fasta,.fa,.faa,.fas,.txt,.csv,.tsv,.json"></label>
-          <button class="btn" type="button" id="example">예시 넣기</button>
-          <button class="btn" type="button" id="clear">지우기</button>
-          <span class="ph"><label for="ph">net charge pH</label><input id="ph" type="number" step="0.1" min="0" max="14" value="${esc(state.ph)}"></span>
-        </div>
-        ${err}
-      </div>
-      <div class="sect">
-        <h3>넣을 때 참고</h3>
-        <ul class="hints">
-          <li>파일은 입력창에 끌어다 놓아도 됨 · <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> 로 분석</li>
-          <li>공백 · 줄바꿈 · 소문자 · 정렬 갭(<code>.</code> <code>-</code>)은 자동 정리</li>
-          <li>한 서열 = VH 또는 VL 도메인 하나(70–200 잔기) · scFv · Fab 는 VH 와 VL 로 나눠서</li>
-          <li>메모장 · 엑셀이 저장한 UTF-8 · UTF-16 · cp949 파일 모두 읽음 · .xlsx 는 'CSV UTF-8' 로 저장 후 열기</li>
-        </ul>
-      </div>`;
+    return slides;
+  }
+  function hero(t) {
+    if (!state.payload) {
+      return `<section class="card hero" aria-label="새 분석">
+        <div class="wide"><span class="badge">새 분석</span><h2>서열 붙여넣기</h2></div>
+        <textarea id="hero-input" class="wide" spellcheck="false" autocomplete="off" aria-label="서열 · FASTA" placeholder=">후보-1&#10;QVQLVQSGAEVKKPGASVKVSCKAS..."></textarea>
+        <div class="row wide">
+          <button class="btn primary" type="button" id="hero-run">분석</button>
+          <label class="btn filebtn" for="hero-file">파일 열기<input id="hero-file" type="file" multiple accept=".fasta,.fa,.faa,.fas,.txt,.csv,.tsv,.json"></label>
+          <button class="btn" type="button" id="hero-example">예시</button>
+        </div></section>`;
+    }
+    const slides = heroSlides(t);
+    const i = Math.min(state.hero, slides.length - 1), s = slides[i];
+    const nav = slides.length > 1 ? `<div class="hnav">
+        <button class="iconbtn" type="button" id="hero-prev" aria-label="이전">${icon("left", 16)}</button>
+        <button class="iconbtn" type="button" id="hero-next" aria-label="다음">${icon("right", 16)}</button>
+        <span class="dots" aria-hidden="true">${slides.map((_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("")}</span>
+        <span class="num">${i + 1}/${slides.length}</span></div>` : "";
+    return `<section class="card hero" aria-label="먼저 볼 것">
+      <div style="min-width:0"><span class="badge">${s.badge}</span>
+        <h2>${esc(s.title)}</h2>
+        <p class="why" title="${esc(s.why)}">${esc(s.why)}</p>
+        <div class="meta"><a class="chip" href="#rules">규칙 ${esc(rules().name)}</a><span>후보 ${t.all}</span><span>·</span><span>${esc(state.source)}</span><span>·</span><span class="num">${whenShort(state.at)}</span>
+          ${state.isExample ? `<span class="chip">예시 데이터</span><button class="chip" type="button" id="hero-clear">비우기</button>` : ""}</div></div>
+      <a class="btn primary big" href="#${s.btn[1]}">${s.btn[0]} ${icon("arrow")}</a>
+      ${nav}</section>`;
   }
 
-  function listView(view) {
-    const rows = state.rows, t = ABUI.tally(rows);
-    const shown = ABUI.sortRows(ABUI.filterRows(rows, { view, chain: state.chain, query: state.query }), state.sort);
-    state.openList = shown;
-    const when = state.at ? state.at.toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
-    let h = `<div class="bar"><h2>${LIST_VIEWS[view]}</h2><span class="cnt">${shown.length}건</span></div>
-      <p class="sub">${esc(LIST_LEDE[view])}</p>
-      <div class="stats">
-        <a href="#review">검토 필요<b>${t.review}</b></a>
-        <a href="#recheck">재확인 필요<b>${t.recheck}</b></a>
-        <a href="#errors">입력 오류<b>${t.errors}</b></a>
-        <span>VH<b>${t.H}</b> · VL<b>${t.L}</b></span>
-        <span class="muted">${esc(state.source)} · pH ${esc(state.ph)}${when ? " · " + esc(when) : ""}</span>
-      </div>`;
-    if (state.isExample) {
-      h += `<div class="note"><span>예시(합성 서열) 분석 결과 표시 중 · 실제 항체 서열 아님</span><a class="btn fill" href="#new">내 서열 분석하기</a></div>`;
+  function candCard(r) {
+    let title, sub = "", stateLine;
+    const cnt = (c) => { const x = ABUI.countText(c); return x === "-" ? "없음" : x; };
+    if (!r.inputOk) {
+      title = `<div class="ctitle why">${esc(first(r.errors[0] || ""))}</div>`;
+      stateLine = "분석 안 함";
+    } else {
+      // not confident: say why on the card itself (the engine's own first reason)
+      const reasons = seqObj(r).annotation.reasons;
+      const why = !r.confident && reasons.length ? first(reasons[0]) : "";
+      title = r.cdr3
+        ? `<div class="ctitle seq"><span class="k">${r.cdr3.name.slice(-2)}</span>${marked(r.cdr3, r.hits)}</div>`
+        : `<div class="ctitle why">${esc(why || "CDR 주석 실패")}</div>`;
+      if (r.cdr3) {
+        sub = why ? `<div class="csub" title="${esc(why)}">${esc(why)}</div>`
+          : `<div class="csub seq">${r.cdrs.slice(0, 2).map((c) => esc(c.name.slice(-2) + " " + c.seq)).join(" · ")}</div>`;
+      }
+      const parts = [];
+      if (!r.regionsUnassigned) parts.push("CDR " + cnt(r.cdrCounts));
+      parts.push((r.regionsUnassigned ? "모티프 " : "FR ") + cnt(r.fwCounts));
+      if (r.flags.length) parts.push("비결합 Cys");
+      parts.push("pI " + fmt(r.pI, 2), r.length + " aa");
+      stateLine = parts.join(" · ");
     }
-    h += `<div class="toolbar">
-        <div class="seg" role="group" aria-label="체인">
-          ${[["all", "전체", rows.length], ["H", "VH", t.H], ["L", "VL", t.L]].map(([k, l, n]) =>
-            `<button type="button" data-chain="${k}" aria-pressed="${state.chain === k}"${n ? "" : " disabled"}>${l}<b>${n}</b></button>`).join("")}
+    return `<article class="card cand" data-i="${r.index}">
+      <div class="chead"><span class="chain">${chainText(r)}</span><button class="cname" type="button" data-open="${r.index}">${esc(r.id)}</button>${r.inputOk ? pickBtn(r) : ""}</div>
+      ${title}${sub}
+      <div class="cstate" title="${esc(stateLine)}">${esc(stateLine)}</div>
+      <div class="cfoot">${tag(r)}<span class="s13">${r.inputOk ? (r.confident ? "신뢰 가능" : "신뢰 불가") : ""}</span></div>
+    </article>`;
+  }
+
+  function viewHome(view) {
+    const t = ABUI.tally(state.rows, state.picked);
+    if (!state.payload) return hero(t) + `<div class="blank"><span>분석한 후보 없음</span></div>`;
+    const shown = ABUI.sortRows(ABUI.filterRows(state.rows, { view, chain: ui.chain, conf: ui.conf, query: state.query, picked: state.picked }), ui.sort);
+    state.openList = shown;
+    const cur = (v) => (view === v ? ' aria-current="true"' : "");
+    const opt = (list, val) => list.map(([k, l]) => `<option value="${k}"${val === k ? " selected" : ""}>${l}</option>`).join("");
+    let h = view === "all" && !state.query ? hero(t) : "";
+    h += `<div class="titlebar"><h1>${LISTS[view]}</h1><span class="cnt num">${shown.length}건</span>
+        <div class="row"><button class="btn" type="button" id="x-tsv">Excel용 복사</button><button class="btn" type="button" id="x-mail">메일용 복사</button>
+          <button class="btn" type="button" id="x-csv">CSV</button><button class="btn" type="button" id="x-json">JSON</button></div></div>
+      <div class="stats">
+        <a class="stat" href="#all"${cur("all")}>후보<b>${t.all}</b></a>
+        <a class="stat" href="#review"${cur("review")}>검토 필요<b>${t.review}</b></a>
+        <a class="stat" href="#unknown"${cur("unknown")}>판정 불가<b>${t.unknown}</b></a>
+        <a class="stat" href="#errors"${cur("errors")}>입력 오류<b>${t.errors}</b></a>
+        <a class="stat" href="#picked"${cur("picked")}>고른 후보<b>${t.picked}</b></a>
+        <span class="spacer s13 muted num">${when(state.at)} 분석</span>
+      </div>
+      <div class="row">
+        <label class="sr" for="f-chain">체인</label><select id="f-chain">${opt([["all", "체인 전체"], ["H", "VH"], ["L", "VL"]], ui.chain)}</select>
+        <label class="sr" for="f-conf">주석</label><select id="f-conf">${opt([["all", "주석 전체"], ["yes", "신뢰 가능"], ["no", "신뢰 불가"]], ui.conf)}</select>
+        <div class="seg" role="group" aria-label="분류">
+          ${[["all", "전체", t.all], ["review", "검토 필요", t.review], ["unknown", "판정 불가", t.unknown], ["clear", "기준 해당 없음", t.clear]].map(([k, l, n]) =>
+            `<a href="#${k}"${cur(k)}>${l} <b>${n}</b></a>`).join("")}
         </div>
-        <label class="sr" for="sort">정렬</label>
-        <select id="sort">
-          ${[["input", "입력 순"], ["name", "이름 순"], ["pi-desc", "pI 높은 순"], ["pi-asc", "pI 낮은 순"]].map(([k, l]) =>
-            `<option value="${k}"${state.sort === k ? " selected" : ""}>${l}</option>`).join("")}
-        </select>
-        <span class="spacer"></span>
-        <button class="btn" type="button" id="copy-tsv">표 복사</button>
-        ${downloads ? `<button class="btn" type="button" id="save-csv">CSV 저장</button><button class="btn" type="button" id="save-json">JSON 저장</button>` : ""}
+        <label class="sr" for="f-sort">정렬</label><select id="f-sort" class="spacer">${opt([["input", "입력 순"], ["name", "이름 순"], ["pi-desc", "pI 높은 순"], ["pi-asc", "pI 낮은 순"]], ui.sort)}</select>
       </div>`;
     if (!shown.length) {
-      const why = state.query ? `'${esc(state.query)}' 검색 결과 없음` : `${LIST_VIEWS[view]} 서열 없음`;
-      h += `<div class="blank"><b>${why}</b>${view === "all" && !state.query ? "" : "다른 목록을 보거나 검색어를 지우면 됨."}</div>`;
+      const filtered = state.query || ui.chain !== "all" || ui.conf !== "all";
+      const msg = view === "picked" && !filtered ? "고른 후보 없음 · 카드의 북마크로 고르기" : filtered ? "조건에 맞는 후보 없음" : `${LISTS[view]} 후보 없음`;
+      h += `<div class="blank"><span>${msg}</span>${filtered ? `<button class="btn" type="button" id="f-reset">필터 지우기</button>` : ""}</div>`;
     } else {
-      const page = shown.slice(0, state.limit);
-      h += `<div class="scroll"><table class="list"><thead><tr>
-          <th>서열</th><th>분류</th><th>주석</th><th>CDR3</th><th>CDR 플래그</th><th>framework</th><th>도메인 플래그</th>
-          <th class="num">pI</th><th class="num">GRAVY</th></tr></thead><tbody>` +
-        page.map((r) => {
-          const s = seqObj(r);
-          const cdr3 = r.cdr3 ? `${markedCdr(r.cdr3, s.liabilities ? s.liabilities.hits : [])}<small>${r.cdr3.length}</small>` : `<span class="muted">-</span>`;
-          return `<tr data-i="${r.index}">
-            <td class="nowrap"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button>${chainBadge(r)}</td>
-            <td>${tag(r.status)}</td>
-            <td class="nowrap">${!r.inputOk ? "입력 오류" : r.confident ? "신뢰 가능" : "신뢰 불가"}</td>
-            <td class="seqcell">${cdr3}</td>
-            <td class="nowrap">${!r.inputOk ? "-" : r.regionsUnassigned ? "주석 실패" : ABUI.countText(r.cdrCounts)}</td>
-            <td class="nowrap">${r.inputOk ? ABUI.countText(r.fwCounts) : "-"}</td>
-            <td>${r.flags.length ? esc(r.flags.map((f) => f.label + " (" + f.risk + ")").join(", ")) : "-"}</td>
-            <td class="num">${fmt(r.pI, 2)}</td><td class="num">${fmt(r.gravy, 3)}</td></tr>`;
-        }).join("") + `</tbody></table></div>`;
-      if (shown.length > page.length) h += `<button class="btn more" type="button" id="more">나머지 ${shown.length - page.length}건 더 보기</button>`;
+      h += `<div class="grid">${shown.slice(0, state.limit).map(candCard).join("")}</div>`;
+      if (shown.length > state.limit) h += `<div class="row"><button class="btn" type="button" id="more">${shown.length - state.limit}건 더 보기</button></div>`;
     }
-    h += `<div class="foot"><p>${esc(state.payload.summary.note)}</p><p>${esc(state.payload.no_verdict)}</p></div>`;
     return h;
   }
 
-  function compareView() {
-    const rows = ABUI.filterRows(state.rows, { view: "all", chain: "all", query: state.query }).filter((r) => r.cdrs.length);
-    state.openList = rows;
-    let h = `<div class="bar"><h2>CDR 비교</h2><span class="cnt">${rows.length}건</span></div>
-      <p class="sub">같은 체인끼리 CDR 서열을 나란히 표시. 밑줄 = liability 모티프 (마우스를 올리면 내용). 숫자 = 잔기 수.</p>`;
-    const shared = ABUI.sharedCdrs(rows);
-    if (shared.length) {
-      h += `<div class="sect"><h3>같은 CDR 서열을 가진 후보</h3><div class="callout">` +
-        shared.map((g) => `<div><strong>${esc(g.name)}</strong> <span class="mono">${esc(g.seq)}</span> — ${g.ids.map(esc).join(", ")}</div>`).join("") +
-        `</div></div>`;
-    }
-    if (!rows.length) return h + `<div class="blank"><b>비교할 CDR 없음</b>CDR 주석이 성공한 서열이 없거나 검색 결과가 없음.</div>`;
-    [["H", "중쇄 (VH)", ["CDR-H1", "CDR-H2", "CDR-H3"]], ["L", "경쇄 (VL)", ["CDR-L1", "CDR-L2", "CDR-L3"]]].forEach(([chain, title, names]) => {
-      const group = rows.filter((r) => r.chain === chain);
-      if (!group.length) return;
-      h += `<div class="sect"><h3>${title} <span class="muted small">${group.length}건</span></h3><div class="scroll"><table class="list"><thead><tr>
-        <th>서열</th><th>분류</th>${names.map((n) => `<th>${n}</th>`).join("")}</tr></thead><tbody>` +
-        group.map((r) => {
-          const hits = seqObj(r).liabilities ? seqObj(r).liabilities.hits : [];
-          const cells = names.map((n) => {
-            const c = r.cdrs.find((x) => x.name === n);
-            return `<td class="seqcell">${c ? markedCdr(c, hits) + `<small>${c.length}</small>` : `<span class="muted">-</span>`}</td>`;
-          }).join("");
-          return `<tr data-i="${r.index}"><td class="nowrap"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button></td><td>${tag(r.status)}</td>${cells}</tr>`;
-        }).join("") + `</tbody></table></div></div>`;
-    });
-    return h;
-  }
-
-  function scatter(rows) {
-    const pts = rows.filter((r) => r.pI !== null && r.gravy !== null);
-    const W = 760, H = 430, m = { l: 62, r: 30, t: 20, b: 52 };
-    const xs = pts.map((r) => r.pI), ys = pts.map((r) => r.gravy);
-    const xt = ABUI.niceTicks(Math.min(...xs) - 0.3, Math.max(...xs) + 0.3, 7);
-    const yt = ABUI.niceTicks(Math.min(...ys) - 0.1, Math.max(...ys) + 0.1, 6);
-    const X = (v) => m.l + (v - xt.lo) / (xt.hi - xt.lo) * (W - m.l - m.r);
-    const Y = (v) => H - m.b - (v - yt.lo) / (yt.hi - yt.lo) * (H - m.t - m.b);
-    const label = pts.length <= 15;
-    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="도메인 pI 와 GRAVY 산점도, 서열 ${pts.length}개">`;
-    s += `<g class="grid">` + xt.ticks.map((v) => `<line x1="${X(v)}" x2="${X(v)}" y1="${m.t}" y2="${H - m.b}"/>`).join("") +
-      yt.ticks.map((v) => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}"/>`).join("") + `</g>`;
-    s += `<g class="axis"><line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}"/><line x1="${m.l}" x2="${m.l}" y1="${m.t}" y2="${H - m.b}"/></g>`;
-    s += xt.ticks.map((v) => `<text x="${X(v)}" y="${H - m.b + 18}" text-anchor="middle">${v}</text>`).join("");
-    s += yt.ticks.map((v) => `<text x="${m.l - 9}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`).join("");
-    s += `<text class="ttl" x="${(m.l + W - m.r) / 2}" y="${H - 10}" text-anchor="middle">pI (도메인 전체)</text>`;
-    s += `<text class="ttl" transform="translate(16 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">GRAVY</text>`;
-    s += pts.map((r) => {
-      const x = X(r.pI), y = Y(r.gravy);
-      const mark = r.chain === "L"
-        ? `<rect class="mark-l" x="${x - 5}" y="${y - 5}" width="10" height="10" rx="1.5"/>`
-        : `<circle class="mark-h" cx="${x}" cy="${y}" r="5.5"/>`;
-      // labels sit right of the point, or left of it near the right edge so they stay inside the plot
-      const right = x < W - m.r - 120;
-      const lab = label ? `<text class="lab" x="${right ? x + 9 : x - 9}" y="${y + 4}" text-anchor="${right ? "start" : "end"}">${esc(r.id)}</text>` : "";
-      return `<g class="pt" tabindex="0" role="button" data-open="${r.index}" data-x="${x}" data-y="${y}" aria-label="${esc(r.id)}, pI ${fmt(r.pI, 2)}, GRAVY ${fmt(r.gravy, 3)}">
-        <circle class="hitarea" cx="${x}" cy="${y}" r="13"/>${mark}${lab}</g>`;
-    }).join("");
-    return { svg: s + `</svg>`, count: pts.length, W };
-  }
-
-  function propertiesView() {
-    const rows = ABUI.filterRows(state.rows, { view: "all", chain: state.chain, query: state.query }).filter((r) => r.pI !== null);
-    state.openList = rows;
-    const t = ABUI.tally(state.rows);
-    let h = `<div class="bar"><h2>물성 분포</h2><span class="cnt">${rows.length}건</span></div>
-      <p class="sub">도메인 전체의 pI(EMBOSS pKa) 와 GRAVY(Kyte-Doolittle). 판정선 없음 — 어디까지 괜찮은지는 연구자가 정함. 점을 누르면 상세가 열림.</p>
-      <div class="toolbar">
-        <div class="seg" role="group" aria-label="체인">
-          ${[["all", "전체", state.rows.filter((r) => r.pI !== null).length], ["H", "VH", t.H], ["L", "VL", t.L]].map(([k, l, n]) =>
-            `<button type="button" data-chain="${k}" aria-pressed="${state.chain === k}"${n ? "" : " disabled"}>${l}<b>${n}</b></button>`).join("")}
-        </div>
-        <span class="spacer"></span>
-        <span class="key small"><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="var(--vh)"/></svg>VH</span>
-        <span class="key small"><svg width="12" height="12" aria-hidden="true"><rect x="1" y="1" width="10" height="10" rx="1.5" fill="var(--vl)"/></svg>VL</span>
-      </div>`;
-    if (!rows.length) return h + `<div class="blank"><b>표시할 서열 없음</b>입력 검증을 통과한 서열이 없거나 검색 결과가 없음.</div>`;
-    const sc = scatter(rows);
-    h += `<div class="figure" id="fig">${sc.svg}<div class="tip" id="tip" hidden></div></div>`;
-    if (sc.count > 15) h += `<p class="small muted" style="margin-top:6px">서열이 많아 이름은 점에 마우스를 올릴 때만 표시.</p>`;
-    h += `<div class="sect"><h3>값 표 <span class="muted small">net charge 는 pH ${esc(state.ph)}</span></h3><div class="scroll"><table class="list"><thead><tr>
-      <th>서열</th><th>체인</th><th class="num">길이</th><th class="num">pI</th><th class="num">GRAVY</th><th class="num">net charge</th><th class="num">CDR3 pI</th><th class="num">CDR3 GRAVY</th></tr></thead><tbody>` +
-      rows.slice(0, state.limit).map((r) => {
-        const p = seqObj(r).properties || {};
-        const c3 = r.cdr3 ? p[r.cdr3.name] : null;
-        return `<tr data-i="${r.index}"><td class="nowrap"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button></td>
-          <td>${r.chain === "H" ? "VH" : r.chain === "L" ? "VL" : "-"}</td><td class="num">${r.length}</td>
-          <td class="num">${fmt(r.pI, 2)}</td><td class="num">${fmt(r.gravy, 3)}</td><td class="num">${signed(r.charge)}</td>
-          <td class="num">${c3 ? fmt(c3.pI, 2) : "-"}</td><td class="num">${c3 ? fmt(c3.GRAVY, 3) : "-"}</td></tr>`;
-      }).join("") + `</tbody></table></div>
-      <p class="small muted">CDR 별 pI 는 조각을 독립 펩타이드로 계산한 값 — 구간끼리 상대 비교용.</p></div>`;
-    return h;
-  }
-
-  function rulesView() {
-    const s = state.payload.summary;
-    const shift = (base, step) => { const L = ["낮음", "중간", "높음"]; return L[Math.max(0, Math.min(2, L.indexOf(base) + step))]; };
-    return `<div class="bar"><h2>선별 규칙</h2></div>
-      <p class="sub">점수를 매기지 않고, 정해 둔 규칙에 걸리는지만 표시. 규칙은 연구자가 정한 것이고 도구는 그대로 적용만 함.</p>
-      <div class="sect"><h3>지금 적용 중인 규칙</h3><div class="callout">${s.triage_rules.map((d) => `<div>${esc(d)}</div>`).join("")}</div>
-        <p class="small muted">${esc(s.triage_notice)}</p></div>
-      <div class="sect"><h3>분류의 뜻</h3><div class="scroll"><table><tbody>
-        <tr><td>${tag("검토 필요")}</td><td>위 규칙에 하나 이상 걸림 · 먼저 들여다볼 서열</td></tr>
-        <tr><td>${tag("기준 해당 없음")}</td><td>규칙에 걸리지 않음 · 안전하다는 뜻은 아님</td></tr>
-        <tr><td>${tag("판정 불가")}</td><td>입력 오류 · CDR 주석 실패 · 주석 신뢰도가 낮아 CDR 경계를 믿을 수 없음 · 사람이 직접 확인</td></tr>
-      </tbody></table></div></div>
-      <div class="sect"><h3>liability 모티프와 위험도</h3>
-        <p class="small muted">같은 모티프라도 CDR 안이면 한 단계 올리고 framework 면 한 단계 내림. 선별 규칙은 각 분류에서 가장 빠른 모티프만 봄.</p>
-        <div class="scroll"><table><thead><tr><th>모티프</th><th>항목</th><th>기본</th><th>CDR 안</th><th>framework</th><th>선별 대상</th></tr></thead><tbody>` +
-        ABUI.MOTIFS.map((x) => `<tr><td class="seqcell">${esc(x.pattern)}</td><td>${esc(x.name)}</td><td>${x.base}</td><td>${shift(x.base, 1)}</td><td>${shift(x.base, -1)}</td><td>${x.top ? "예" : "-"}</td></tr>`).join("") +
-        `<tr><td class="seqcell">Cys 홀수</td><td>비결합 Cys 가능성</td><td>-</td><td>높음</td><td>중간</td><td>예 (높음일 때)</td></tr>
-        </tbody></table></div>
-        <p class="small muted">규칙 원본: abcheck/triage.py · abcheck/liabilities.py — 웹 엔진도 같은 규칙 사용.</p></div>`;
-  }
-
-  function validationView() {
-    const v = ABUI.VALIDATION;
-    return `<div class="bar"><h2>검증 기록</h2></div>
-      <p class="sub">공개 항체 레퍼토리 OAS(Observed Antibody Space) ${v.sequences} 서열, ${v.datasets}개 데이터셋으로 측정. 숫자는 저장소 스크립트로 다시 재현 가능.</p>
-      <div class="tiles">
-        <div class="tile"><span>측정한 서열</span><b>${v.sequences}</b><i>공개 데이터셋 ${v.datasets}개 · 사람 · 마우스</i></div>
-        <div class="tile"><span>체인(H/L) 오판</span><b>${v.chainWrong}</b><i>입력 검증 통과 ${v.passedInput}건 중</i></div>
-        <div class="tile"><span>CDR 주석 성공</span><b>${v.annotation}</b><i>신뢰 가능 ${v.confident}</i></div>
-        <div class="tile"><span>ANARCI 대비 CDR 경계 불일치</span><b>${v.boundary}</b><i>${v.boundaryOf} · 계열 · IMGT 길이 고정</i></div>
-      </div>
-      <div class="sect"><h3>데이터셋별</h3><div class="scroll"><table><thead><tr>
-        <th>데이터셋</th><th>세포</th><th class="num">CDR 주석 성공</th><th class="num">신뢰 가능</th><th class="num">체인 판별</th><th class="num">경계 불일치</th></tr></thead><tbody>` +
-        v.rows.map((r) => `<tr><td class="nowrap">${esc(r[0])}</td><td>${esc(r[1])}</td>${r.slice(2).map((c) => `<td class="num">${esc(c)}</td>`).join("")}</tr>`).join("") +
-        `</tbody></table></div>
-        <p class="small muted">세포 종류가 정확도를 가름 — 체세포 과변이가 적은 naive B 가 가장 높음. 실제 서열은 저장소에 넣지 않음.</p></div>
-      <div class="sect"><h3>이 화면의 엔진</h3><div class="callout">
-        <div>브라우저 엔진은 Python 도구를 JavaScript 로 옮긴 것. 같은 ${v.sequences} 서열에서 두 엔진의 결과를 글자 단위로 비교해 <strong>차이 0건</strong>.</div>
-        <div>FR3 모티프 → 보존 Cys 거리 29 잔기: ${v.fr3Gap} (예외 14건은 모두 모티프가 엉뚱한 자리에 걸린 경우)</div>
-      </div></div>
-      <div class="sect"><h3>더 보기</h3><p><a href="https://github.com/strawberryHunter/ab-seq-selfcheck/blob/main/VALIDATION.md" target="_blank" rel="noopener">측정 방법 · 실제 데이터로 찾아 고친 버그 7개 · 알려진 한계 (VALIDATION.md)</a></p></div>`;
-  }
-
-  function guideView() {
-    const p = state.payload;
-    return `<div class="bar"><h2>사용법 · 한계</h2></div>
-      <p class="sub">후보 서열을 들여다볼 순서를 정하는 스크리닝 도구. numbering 엔진이 아니고 종합 판정을 내리지 않음.</p>
-      <div class="sect"><h3>쓰는 순서</h3><ol class="steps">
-        <li><b>서열 넣기</b><p>'+ 새 분석' 에서 붙여넣기 · 파일 열기 · 끌어다 놓기. FASTA, 엑셀 표, JSON, 서열 하나 모두 가능.</p></li>
-        <li><b>먼저 볼 서열 고르기</b><p>왼쪽 '검토 필요' 와 '재확인 필요' 숫자부터 확인. 둘 다 0 이어도 안전하다는 뜻은 아님.</p></li>
-        <li><b>근거 확인</b><p>행을 누르면 CDR 위치, 서열 위 모티프 위치, 위험도 조정 이유, 물성이 한 화면에 나옴.</p></li>
-        <li><b>비교 · 내보내기</b><p>'CDR 비교' 와 '물성 분포' 로 후보를 나란히 보고, 목록의 '표 복사' 로 엑셀에 붙여넣기.</p></li>
-      </ol></div>
-      <div class="sect"><h3>이 도구의 한계</h3><div class="callout">${p.limitations.map((l) => `<div>${esc(l)}</div>`).join("")}<div><strong>${esc(p.no_verdict)}</strong></div></div></div>
-      <div class="sect"><h3>개인정보</h3><p class="sub" style="margin-top:0">분석은 이 브라우저 안에서만 실행됨. 서열은 어디로도 전송되지 않음. '최근 분석' 기록도 이 브라우저에만 저장되고 다른 사람에게 보이지 않음.</p></div>`;
-  }
-
-  /* ---------- detail sheet ---------- */
+  /* ---------- detail drawer ---------- */
   function sheetBody(r) {
     const s = seqObj(r);
-    if (!s.input_ok) {
-      return `<div class="blk"><h4>분석하지 않음 · 고칠 것</h4><ul>${s.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div>`;
-    }
-    const a = s.annotation, L = s.liabilities, P = s.properties || {};
+    if (!s.input_ok) return `<div class="blk"><h3>고칠 것</h3><ul>${s.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div>`;
+    const a = s.annotation, L = s.liabilities, P = Object.values(s.properties || {});
     let h = "";
-    if (s.triage.reasons.length || s.triage.note) {
-      h += `<div class="blk"><h4>선별 근거</h4><ul>${s.triage.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}${s.triage.note ? `<li>${esc(s.triage.note)}</li>` : ""}</ul></div>`;
-    }
+    if (r.reasons.length || r.note) h += `<div class="blk"><h3>규칙 해당 · ${esc(rules().name)}</h3><ul>${r.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}${r.note ? `<li>${esc(r.note)}</li>` : ""}</ul></div>`;
     const memos = [...a.reasons.map((x) => ["신뢰 불가 사유", x]), ...a.warnings.map((x) => ["주의", x]), ...s.warnings.map((x) => ["참고", x])];
-    if (memos.length) h += `<div class="blk"><h4>주석 메모</h4><ul>${memos.map(([k, x]) => `<li><strong>${k}</strong> · ${esc(x)}</li>`).join("")}</ul></div>`;
+    if (memos.length) h += `<div class="blk"><h3>주석 메모</h3><ul>${memos.map(([k, x]) => `<li><b>${k}</b> · ${esc(x)}</li>`).join("")}</ul></div>`;
     if (r.cdrs.length) {
-      h += `<div class="blk"><h4>CDR · 좌표 1-based, 양끝 포함</h4><div class="scroll"><table><thead><tr><th>CDR</th><th class="num">위치</th><th class="num">길이</th><th>서열</th></tr></thead><tbody>` +
-        r.cdrs.map((c) => `<tr><td class="nowrap">${esc(c.name)}</td><td class="num">${c.start}-${c.end}</td><td class="num">${c.length}</td><td class="seqcell">${markedCdr(c, L.hits)}</td></tr>`).join("") +
+      h += `<div class="blk"><h3>CDR · 1-based</h3><div class="scroll"><table><thead><tr><th>CDR</th><th class="num">위치</th><th class="num">길이</th><th>서열</th></tr></thead><tbody>` +
+        r.cdrs.map((c) => `<tr><td class="nw">${esc(c.name)}</td><td class="num">${c.start}-${c.end}</td><td class="num">${c.length}</td><td class="seqcell">${marked(c, L.hits)}</td></tr>`).join("") +
         `</tbody></table></div></div>`;
     }
-    h += `<div class="blk"><h4>서열</h4><p class="legend"><span><span class="c">ABC</span> CDR</span><span><u>NG</u> liability 모티프 (마우스를 올리면 내용)</span></p>
+    h += `<div class="blk"><h3>서열</h3><p class="legend"><span><span class="c">ABC</span> CDR</span><span><u class="m">NG</u> 모티프</span></p>
       <div class="scroll"><pre class="ruler">${ruler(s.sequence, r.cdrs, L.hits)}</pre></div></div>`;
-    h += `<div class="blk"><h4>liability 플래그 · CDR 안은 한 단계 올리고 framework 는 한 단계 내림</h4>`;
-    if (L.domain_flags.length) h += `<div class="callout">${L.domain_flags.map((f) => `<div><strong>${esc(f.label)} (${esc(f.risk)})</strong> · ${esc(f.rationale)}</div>`).join("")}</div>`;
+    h += `<div class="blk"><h3>liability</h3>`;
+    if (L.domain_flags.length) h += `<ul>${L.domain_flags.map((f) => `<li><b>${esc(f.label)} · ${esc(f.risk)}</b><span class="why2">${esc(f.rationale)}</span></li>`).join("")}</ul>`;
     h += L.hits.length
-      ? `<div class="scroll"><table><thead><tr><th>위험도</th><th>항목 · 근거</th><th class="num">위치</th><th>구간</th></tr></thead><tbody>` +
-        L.hits.map((x) => `<tr class="hit"><td>${esc(x.risk)}</td><td>${esc(x.label)} <span class="mono">${esc(x.match)}</span><span class="why">${esc(x.risk_note)} ${esc(x.rationale)}</span></td><td class="num">${x.start === x.end ? x.start : x.start + "-" + x.end}</td><td class="nowrap">${esc(x.region)}</td></tr>`).join("") +
+      ? `<div class="scroll"><table><thead><tr><th>위험도</th><th>항목</th><th class="num">위치</th><th>구간</th></tr></thead><tbody>` +
+        L.hits.map((x) => `<tr><td class="nw"><b>${esc(x.risk)}</b></td><td>${esc(x.label)} <span class="mono">${esc(x.match)}</span><span class="why2">${esc(x.risk_note)} ${esc(x.rationale)}</span></td><td class="num">${x.start === x.end ? x.start : x.start + "-" + x.end}</td><td class="nw">${esc(x.region)}</td></tr>`).join("") +
         `</tbody></table></div>`
-      : `<p class="small muted">검출된 모티프 없음.</p>`;
-    L.warnings.forEach((w) => { h += `<p class="small muted">${esc(w)}</p>`; });
+      : `<p class="muted">검출된 모티프 없음</p>`;
+    L.warnings.forEach((w) => { h += `<p class="s13 muted">${esc(w)}</p>`; });
     h += `</div>`;
-    const props = Object.values(P);
-    if (props.length) {
-      h += `<div class="blk"><h4>물성 · pI(EMBOSS) · GRAVY(Kyte-Doolittle) · net charge pH ${esc(props[0].pH)}</h4><div class="scroll"><table><thead><tr><th>구간</th><th class="num">길이</th><th class="num">pI</th><th class="num">GRAVY</th><th class="num">net charge</th></tr></thead><tbody>` +
-        props.map((x) => `<tr><td>${esc(x.label)}</td><td class="num">${x.length}</td><td class="num">${fmt(x.pI, 2)}</td><td class="num">${fmt(x.GRAVY, 3)}</td><td class="num">${signed(x.net_charge)}</td></tr>`).join("") +
+    if (P.length) {
+      h += `<div class="blk"><h3>물성 · pH ${esc(P[0].pH)}</h3><div class="scroll"><table><thead><tr><th>구간</th><th class="num">길이</th><th class="num">pI</th><th class="num">GRAVY</th><th class="num">net charge</th></tr></thead><tbody>` +
+        P.map((x) => `<tr><td class="nw">${esc(x.label)}</td><td class="num">${x.length}</td><td class="num">${fmt(x.pI, 2)}</td><td class="num">${fmt(x.GRAVY, 3)}</td><td class="num">${signed(x.net_charge)}</td></tr>`).join("") +
         `</tbody></table></div></div>`;
     }
     return h;
   }
-
   function openSheet(index, opener) {
     const r = state.rows[index];
     if (!r) return;
@@ -833,10 +769,11 @@ kbd { font-family: var(--fm); font-size: 0.85em; border: 1px solid var(--line); 
     if (opener) state.opener = opener;
     const list = state.openList.length ? state.openList : state.rows;
     const pos = list.findIndex((x) => x.index === index);
-    $("sheet-title").innerHTML = `${esc(r.id)} ${tag(r.status)}`;
-    $("sheet-sub").textContent = r.inputOk
-      ? `${r.chain === "H" ? "중쇄 (VH)" : r.chain === "L" ? "경쇄 (VL)" : "체인 판별 실패"} · ${r.length} 잔기 · ${r.confident ? "주석 신뢰 가능" : "주석 신뢰 불가"}`
-      : "입력 오류";
+    $("sheet-chain").textContent = chainText(r);
+    $("sheet-title").textContent = r.id;
+    $("sheet-sub").innerHTML = `${tag(r)}<span class="s13 muted">${r.inputOk ? `${confText(r)} · ${r.length} aa` : "분석 안 함"}</span>`;
+    $("sheet-pick").hidden = !r.inputOk;
+    $("sheet-pick").setAttribute("aria-pressed", String(state.picked.has(index)));
     $("sheet-body").innerHTML = sheetBody(r);
     $("sheet-body").scrollTop = 0;
     $("sheet-pos").textContent = pos >= 0 ? `${pos + 1} / ${list.length}` : "";
@@ -852,219 +789,455 @@ kbd { font-family: var(--fm); font-size: 0.85em; border: 1px solid var(--line); 
   function closeSheet() {
     const sheet = $("sheet");
     if (!sheet.classList.contains("on")) return;
-    sheet.classList.remove("on"); sheet.setAttribute("aria-hidden", "true"); $("scrim").classList.remove("on");
+    sheet.classList.remove("on"); sheet.setAttribute("aria-hidden", "true");
+    if (!$("side").classList.contains("on")) $("scrim").classList.remove("on");
     state.open = null;
     if (state.opener && document.contains(state.opener)) state.opener.focus();
     state.opener = null;
   }
   function stepSheet(d) {
     const list = state.openList.length ? state.openList : state.rows;
-    const pos = list.findIndex((x) => x.index === state.open);
-    const next = list[pos + d];
+    const next = list[list.findIndex((x) => x.index === state.open) + d];
     if (next) openSheet(next.index);
   }
-  $("sheet-close").addEventListener("click", closeSheet);
-  $("scrim").addEventListener("click", closeSheet);
-  $("sheet-prev").addEventListener("click", () => stepSheet(-1));
-  $("sheet-next").addEventListener("click", () => stepSheet(1));
-  $("sheet-copy").addEventListener("click", () => {
-    const r = state.rows[state.open];
-    if (r) copy(ABUI.toFasta([r]), r.id + " 서열을 FASTA 로 복사함");
-  });
-  document.addEventListener("keydown", (ev) => {
-    if (!$("sheet").classList.contains("on")) return;
-    if (ev.key === "Escape") { ev.preventDefault(); closeSheet(); }
-    else if (ev.key === "ArrowDown" || ev.key === "ArrowRight") { if (!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { ev.preventDefault(); stepSheet(1); } }
-    else if (ev.key === "ArrowUp" || ev.key === "ArrowLeft") { if (!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { ev.preventDefault(); stepSheet(-1); } }
-  });
+  function togglePick(index) {
+    if (state.picked.has(index)) state.picked.delete(index); else state.picked.add(index);
+    savePicked();
+    document.querySelectorAll(`[data-pick="${index}"]`).forEach((b) => b.setAttribute("aria-pressed", String(state.picked.has(index))));
+    if (state.open === index) $("sheet-pick").setAttribute("aria-pressed", String(state.picked.has(index)));
+    renderSidebar();
+    if (state.view === "picked" || state.view === "onepage") render();
+    else { const b = document.querySelector('.stat[href="#picked"] b'); if (b) b.textContent = state.picked.size; }
+  }
+
+  /* ---------- other screens ---------- */
+  function recentRows() {
+    const list = store.get(K.recent, []);
+    if (!list.length) return "";
+    return `<section class="card"><div class="scroll"><table><thead><tr><th>최근 입력</th><th class="num">서열</th><th>시각</th><th></th></tr></thead><tbody>` +
+      list.map((r, i) => `<tr><td>${esc(r.source)}</td><td class="num">${r.count}</td><td class="nw num">${whenShort(new Date(r.at))}</td>
+        <td class="num"><button class="btn" type="button" data-load="${i}">불러오기</button></td></tr>`).join("") +
+      `</tbody></table></div></section>`;
+  }
+  function viewNew() {
+    let err = "";
+    if (state.error) err = `<div class="err" role="alert"><b>${esc(state.error[0])}</b><span>${esc(state.error[1])}</span></div>`;
+    else if (state.rejected) {
+      err = `<div class="err" role="alert"><b>분석 가능한 서열 없음</b>` +
+        state.rejected.sequences.slice(0, 8).map((s) => `<span><span class="mono">${esc(s.id)}</span> · ${esc(first(s.errors[0] || ""))}</span>`).join("") +
+        `<span>고친 뒤 다시 분석</span></div>`;
+    }
+    return `<div class="titlebar"><h1>새 분석</h1></div>
+      <section class="card" style="display:grid;gap:12px">
+        <label class="sr" for="input">서열 · FASTA · 표 · JSON</label>
+        <textarea id="input" spellcheck="false" autocomplete="off" aria-invalid="${err ? "true" : "false"}" placeholder=">후보-1&#10;QVQLVQSGAEVKKPGASVKVSCKAS...&#10;>후보-2&#10;DIQMTQSPSSLSASVGDRVTITC...&#10;&#10;FASTA · CSV · TSV · JSON 파일 여러 개 끌어다 놓기">${esc(state.input)}</textarea>
+        <div class="row">
+          <button class="btn primary" type="button" id="run">분석</button>
+          <label class="btn filebtn" for="file">파일 열기<input id="file" type="file" multiple accept=".fasta,.fa,.faa,.fas,.txt,.csv,.tsv,.json"></label>
+          <button class="btn" type="button" id="example">예시</button>
+          <button class="btn" type="button" id="clear">지우기</button>
+          <span class="s13 muted" id="detect" aria-live="polite"></span>
+          <label class="field spacer">pH<input id="ph" type="number" step="0.1" min="0" max="14" value="${esc(state.ph)}"></label>
+        </div>
+        ${err}
+      </section>
+      ${recentRows()}`;
+  }
+
+  function viewCompare() {
+    const rows = ABUI.filterRows(state.rows, { view: "all", query: state.query }).filter((r) => r.cdrs.length);
+    state.openList = rows;
+    let h = `<div class="titlebar"><h1>CDR 비교</h1><span class="cnt num">${rows.length}건</span></div>`;
+    if (!rows.length) return h + `<div class="blank"><span>비교할 CDR 없음</span></div>`;
+    const shared = ABUI.sharedCdrs(rows);
+    if (shared.length) {
+      h += `<section class="card"><div class="scroll"><table><thead><tr><th>같은 CDR</th><th>서열</th><th>후보</th></tr></thead><tbody>` +
+        shared.map((g) => `<tr><td class="nw">${esc(g.name)}</td><td class="seqcell">${esc(g.seq)}</td><td>${g.ids.map(esc).join(" · ")}</td></tr>`).join("") +
+        `</tbody></table></div></section>`;
+    }
+    [["H", "VH", ["CDR-H1", "CDR-H2", "CDR-H3"]], ["L", "VL", ["CDR-L1", "CDR-L2", "CDR-L3"]]].forEach(([chain, title, names]) => {
+      const group = rows.filter((r) => r.chain === chain);
+      if (!group.length) return;
+      h += `<section class="card"><div class="scroll"><table><thead><tr><th>${title} ${group.length}</th><th>분류</th>${names.map((n) => `<th>${n}</th>`).join("")}</tr></thead><tbody>` +
+        group.map((r) => `<tr class="click" data-i="${r.index}"><td class="nw"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button></td><td>${tag(r)}</td>` +
+          names.map((n) => { const c = r.cdrs.find((x) => x.name === n); return `<td class="seqcell">${c ? marked(c, r.hits) + `<small>${c.length}</small>` : "-"}</td>`; }).join("") + `</tr>`).join("") +
+        `</tbody></table></div></section>`;
+    });
+    return h;
+  }
+
+  function scatter(rows) {
+    const W = 760, H = 420, m = { l: 58, r: 26, t: 16, b: 46 };
+    const xs = rows.map((r) => r.pI), ys = rows.map((r) => r.gravy);
+    const xt = ABUI.niceTicks(Math.min(...xs) - 0.3, Math.max(...xs) + 0.3, 7);
+    const yt = ABUI.niceTicks(Math.min(...ys) - 0.1, Math.max(...ys) + 0.1, 6);
+    const X = (v) => m.l + (v - xt.lo) / (xt.hi - xt.lo) * (W - m.l - m.r);
+    const Y = (v) => H - m.b - (v - yt.lo) / (yt.hi - yt.lo) * (H - m.t - m.b);
+    const label = rows.length <= 15;
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="pI × GRAVY 산점도 · 서열 ${rows.length}개">`;
+    s += `<g class="gl">` + xt.ticks.map((v) => `<line x1="${X(v)}" x2="${X(v)}" y1="${m.t}" y2="${H - m.b}"/>`).join("") +
+      yt.ticks.map((v) => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}"/>`).join("") + `</g>`;
+    s += xt.ticks.map((v) => `<text x="${X(v)}" y="${H - m.b + 18}" text-anchor="middle">${v}</text>`).join("");
+    s += yt.ticks.map((v) => `<text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`).join("");
+    s += `<text x="${(m.l + W - m.r) / 2}" y="${H - 8}" text-anchor="middle">pI</text>`;
+    s += `<text transform="translate(14 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">GRAVY</text>`;
+    s += rows.map((r) => {
+      const x = X(r.pI), y = Y(r.gravy);
+      const mark = r.chain === "L" ? `<rect class="ml" x="${x - 5}" y="${y - 5}" width="10" height="10" rx="1.5"/>` : `<circle class="mh" cx="${x}" cy="${y}" r="5.5"/>`;
+      const right = x < W - m.r - 120;
+      const lab = label ? `<text class="lab" x="${right ? x + 9 : x - 9}" y="${y + 4}" text-anchor="${right ? "start" : "end"}">${esc(r.id)}</text>` : "";
+      return `<g class="pt" tabindex="0" role="button" data-open="${r.index}" data-x="${x}" data-y="${y}" aria-label="${esc(r.id)} · pI ${fmt(r.pI, 2)} · GRAVY ${fmt(r.gravy, 3)}"><circle class="hit" cx="${x}" cy="${y}" r="13"/>${mark}${lab}</g>`;
+    }).join("");
+    return s + `</svg>`;
+  }
+  function viewProperties() {
+    const rows = ABUI.filterRows(state.rows, { view: "all", chain: ui.chain, query: state.query }).filter((r) => r.pI !== null);
+    state.openList = rows;
+    const t = ABUI.tally(state.rows);
+    let h = `<div class="titlebar"><h1>물성 분포</h1><span class="cnt num">${rows.length}건</span></div>
+      <div class="row">
+        <div class="seg" role="group" aria-label="체인">${[["all", "전체"], ["H", "VH " + t.H], ["L", "VL " + t.L]].map(([k, l]) => `<button type="button" data-chain="${k}" aria-pressed="${ui.chain === k}">${l}</button>`).join("")}</div>
+        <span class="key spacer"><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="var(--vh)"/></svg>VH</span>
+        <span class="key"><svg width="12" height="12" aria-hidden="true"><rect x="1" y="1" width="10" height="10" rx="1.5" fill="var(--vl)"/></svg>VL</span>
+        <span class="chip">판정선 없음</span>
+      </div>`;
+    if (!rows.length) return h + `<div class="blank"><span>표시할 후보 없음</span></div>`;
+    h += `<section class="card"><div class="figure" id="fig">${scatter(rows)}<div class="tip" id="tip" hidden></div></div></section>
+      <section class="card"><div class="scroll"><table><thead><tr><th>서열</th><th>체인</th><th class="num">길이</th><th class="num">pI</th><th class="num">GRAVY</th><th class="num">net charge · pH ${esc(state.ph)}</th><th class="num">CDR3 pI</th></tr></thead><tbody>` +
+      rows.slice(0, 300).map((r) => {
+        const c3 = r.cdr3 ? (seqObj(r).properties || {})[r.cdr3.name] : null;
+        return `<tr class="click" data-i="${r.index}"><td class="nw"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button></td><td>${chainText(r)}</td><td class="num">${r.length}</td>
+          <td class="num">${fmt(r.pI, 2)}</td><td class="num">${fmt(r.gravy, 3)}</td><td class="num">${signed(r.charge)}</td><td class="num">${c3 ? fmt(c3.pI, 2) : "-"}</td></tr>`;
+      }).join("") + `</tbody></table></div></section>`;
+    return h;
+  }
+
+  function viewOnepage() {
+    const rows = state.rows.filter((r) => state.picked.has(r.index));
+    const t = ABUI.tally(state.rows, state.picked);
+    state.openList = rows;
+    let h = `<div class="titlebar"><h1>한 장</h1><span class="cnt num">${rows.length}건</span>
+      <div class="row">
+        <button class="btn" type="button" id="op-add"${t.review ? "" : " disabled"}>검토 필요 ${t.review}건 넣기</button>
+        <button class="btn" type="button" id="op-clear"${rows.length ? "" : " disabled"}>비우기</button>
+        <button class="btn" type="button" id="op-tsv"${rows.length ? "" : " disabled"}>Excel용 복사</button>
+        <button class="btn primary" type="button" id="op-save"${rows.length ? "" : " disabled"}>HTML 저장</button>
+      </div></div>`;
+    if (!rows.length) return h + `<div class="blank"><span>고른 후보 없음 · 카드의 북마크로 고르기</span></div>`;
+    return h + `<div class="paper"><div class="op">${ABUI.onePageFragment(rows, meta())}</div></div>`;
+  }
+
+  function viewRules() {
+    const rs = rules(), fixed = rs.id === "default", dis = fixed ? " disabled" : "";
+    const all = [ABUI.DEFAULT_RULESET].concat(state.rules.sets);
+    const t = ABUI.tally(state.rows);
+    const shift = (base, step) => { const L = ["낮음", "중간", "높음"]; return L[Math.max(0, Math.min(2, L.indexOf(base) + step))]; };
+    const seg = (name, opts, val) => `<div><div class="seg" role="group">${opts.map(([k, l]) => `<button type="button" data-rule="${name}" data-val="${k}" aria-pressed="${val === k}"${dis}>${l}</button>`).join("")}</div></div>`;
+    return `<div class="titlebar"><h1>선별 규칙</h1>
+        <div class="row"><span class="chip">${fixed ? "읽기 전용" : "자동 저장"}</span></div></div>
+      <section class="card form">
+        <div class="frow"><span>규칙 세트</span><div class="row">
+          <label class="sr" for="r-set">규칙 세트</label>
+          <select id="r-set">${all.map((s) => `<option value="${esc(s.id)}"${s.id === rs.id ? " selected" : ""}>${esc(s.name)}</option>`).join("")}</select>
+          <button class="btn${fixed ? " primary" : ""}" type="button" id="r-copy">복제</button>
+          <button class="btn" type="button" id="r-del"${dis}>삭제</button></div></div>
+        <div class="frow"><span>이름</span><div><label class="sr" for="r-name">이름</label><input id="r-name" type="text" maxlength="30" value="${esc(rs.name)}"${dis}></div></div>
+        <div class="frow"><span>모티프</span><div class="toggles">${ABUI.MOTIFS.map((x) =>
+          `<button class="toggle" type="button" data-motif="${esc(x.pattern)}" aria-pressed="${rs.motifs.includes(x.pattern)}" title="${esc(x.label)} · 기본 ${x.base}"${dis}>${esc(x.short)}</button>`).join("")}</div></div>
+        <div class="frow"><span>위치</span>${seg("where", Object.entries(ABUI.WHERE), rs.where)}</div>
+        <div class="frow"><span>최소 위험도</span>${seg("minRisk", [["높음", "높음"], ["중간", "중간 이상"], ["낮음", "낮음 이상"]], rs.minRisk)}</div>
+        <div class="frow"><span>비결합 Cys</span>${seg("cys", Object.entries(ABUI.CYS), rs.cys)}</div>
+        <div class="frow"><span>지금 결과</span><div class="stats">
+          <a class="stat" href="#review">검토 필요<b>${t.review}</b></a><a class="stat" href="#unknown">판정 불가<b>${t.unknown}</b></a><a class="stat" href="#clear">기준 해당 없음<b>${t.clear}</b></a></div></div>
+      </section>
+      <section class="card"><div class="scroll"><table><thead><tr><th>모티프</th><th>항목</th><th>기본</th><th>CDR 안</th><th>framework</th></tr></thead><tbody>` +
+      ABUI.MOTIFS.map((x) => `<tr><td class="seqcell">${esc(x.pattern)}</td><td>${esc(x.label)}</td><td>${x.base}</td><td>${shift(x.base, 1)}</td><td>${shift(x.base, -1)}</td></tr>`).join("") +
+      `<tr><td class="seqcell">Cys 홀수</td><td>비결합 Cys 가능성</td><td>-</td><td>높음</td><td>중간</td></tr></tbody></table></div></section>`;
+  }
+
+  function viewValidation() {
+    const v = ABUI.VALIDATION;
+    return `<div class="titlebar"><h1>검증 기록</h1><span class="cnt">OAS 공개 데이터</span>
+        <div class="row"><a class="btn" href="https://github.com/strawberryHunter/ab-seq-selfcheck/blob/main/VALIDATION.md" target="_blank" rel="noopener">VALIDATION.md 열기</a></div></div>
+      <div class="tiles">
+        <div class="card tile"><span>측정 서열</span><b>${v.sequences}</b><i>데이터셋 ${v.datasets}개</i></div>
+        <div class="card tile"><span>체인 오판</span><b>${v.chainWrong}</b><i>검증 통과 ${v.passedInput}건 중</i></div>
+        <div class="card tile"><span>CDR 주석 성공</span><b>${v.annotation}</b><i>신뢰 가능 ${v.confident}</i></div>
+        <div class="card tile"><span>CDR 경계 불일치</span><b>${v.boundary}</b><i>ANARCI 대비 ${v.boundaryOf}</i></div>
+      </div>
+      <section class="card"><div class="scroll"><table><thead><tr><th>데이터셋</th><th>세포</th><th class="num">CDR 주석 성공</th><th class="num">신뢰 가능</th><th class="num">체인 판별</th><th class="num">경계 불일치</th></tr></thead><tbody>` +
+      v.rows.map((r) => `<tr><td class="nw">${esc(r[0])}</td><td>${esc(r[1])}</td>${r.slice(2).map((c) => `<td class="num">${esc(c)}</td>`).join("")}</tr>`).join("") +
+      `</tbody></table></div></section>
+      <section class="card"><div class="scroll"><table><tbody>
+        <tr><td class="nw muted">브라우저 엔진 = Python 엔진</td><td>${v.sequences} 서열 결과 차이 0건</td></tr>
+        <tr><td class="nw muted">FR3 모티프 → 보존 Cys 29 잔기</td><td>${v.fr3Gap}</td></tr>
+        <tr><td class="nw muted">경계 불일치 조건</td><td>germline 계열 · IMGT 길이 고정</td></tr>
+      </tbody></table></div></section>`;
+  }
+
+  function viewGuide() {
+    const p = state.payload || ABCHECK.analyze([], 7.4);
+    return `<div class="titlebar"><h1>사용법</h1></div>
+      <section class="card guide"><h2>입력</h2><dl>
+        <dt>붙여넣기</dt><dd>서열 하나 · FASTA 여러 개 · 엑셀 표(이름, 서열 두 열)</dd>
+        <dt>파일</dt><dd>FASTA · CSV · TSV · JSON 여러 개를 한 번에 끌어다 놓기. .xlsx 는 'CSV UTF-8' 로 저장 후 열기</dd>
+        <dt>자동 정리</dt><dd>공백 · 줄바꿈 · 소문자 · 정렬 갭(. -)</dd>
+        <dt>서열 단위</dt><dd>VH 또는 VL 도메인 하나, 70–200 잔기. scFv · Fab 는 VH 와 VL 로 나눠서</dd></dl></section>
+      <section class="card guide"><h2>분류</h2><dl>
+        <dt>검토 필요</dt><dd>선별 규칙에 하나 이상 해당. 먼저 볼 후보라는 뜻이며 판정이 아님</dd>
+        <dt>기준 해당 없음</dt><dd>규칙에 해당하지 않음. 안전하다는 뜻이 아님</dd>
+        <dt>판정 불가</dt><dd>CDR 주석 실패 또는 주석 신뢰 불가. 추측하지 않고 이유를 상세에 표시</dd>
+        <dt>위험도</dt><dd>글자로만 표시. CDR 안은 한 단계 올리고 framework 는 한 단계 내림</dd>
+        <dt>규칙 세트</dt><dd>선별 규칙 화면에서 복제해 수정. 이 브라우저에 저장되고 다음 분석에 그대로 적용</dd></dl></section>
+      <section class="card guide"><h2>내보내기</h2><dl>
+        <dt>Excel용 복사</dt><dd>지금 보이는 목록을 표로 복사</dd>
+        <dt>메일용 복사</dt><dd>건수와 규칙 해당 내용을 글로 복사</dd>
+        <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준, JSON 은 엔진 원본(기본 규칙) 출력</dd>
+        <dt>한 장</dt><dd>북마크로 고른 후보만 A4 한 장 HTML 로 저장. 브라우저에서 열어 인쇄</dd></dl></section>
+      <section class="card guide"><h2>단축키</h2><dl>
+        <dt><kbd>/</kbd></dt><dd>검색</dd><dt><kbd>Esc</kbd></dt><dd>상세 · 메뉴 닫기</dd>
+        <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>상세에서 이전 · 다음 후보</dd><dt><kbd>Ctrl</kbd> <kbd>Enter</kbd></dt><dd>분석</dd></dl></section>
+      <section class="card guide"><h2>한계</h2><ul>${p.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}<li><b>${esc(p.no_verdict)}</b></li></ul></section>
+      <section class="card guide"><h2>저장 범위</h2><dl>
+        <dt>로컬 처리</dt><dd>분석은 이 브라우저 안에서만 실행. 서열은 어디로도 전송되지 않음</dd>
+        <dt>브라우저 저장</dt><dd>최근 분석 6건 · 규칙 세트 · 필터와 테마. 다른 사람에게 보이지 않음</dd></dl></section>`;
+  }
 
   /* ---------- sidebar ---------- */
   function renderSidebar() {
-    const t = ABUI.tally(state.rows);
-    ["all", "review", "recheck", "errors"].forEach((k) => {
-      $("n-" + k).textContent = t[k];
-      $("n-" + k).parentElement.classList.toggle("zero", !t[k]);
-    });
-    document.querySelectorAll(".nav").forEach((a) => {
-      if (a.dataset.v === state.view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
-    });
-    if (state.view === "new") $("nav-new").setAttribute("aria-current", "page"); else $("nav-new").removeAttribute("aria-current");
-    const list = store.get(RECENT_KEY, []);
-    $("recgroup").hidden = !list.length;
-    $("recent").innerHTML = list.map((r, i) => {
-      const d = new Date(r.at);
-      return `<button class="rec" type="button" data-rec="${i}"><span>${esc(r.fileName || r.source)}</span><small>서열 ${r.count}건 · ${d.toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</small></button>`;
-    }).join("");
+    const t = ABUI.tally(state.rows, state.picked);
+    const nav = (v, label, n) => `<a class="nav" href="#${v}"${state.view === v ? ' aria-current="page"' : ""}>${label}${n === undefined ? "" : `<b>${n}</b>`}</a>`;
+    const recent = store.get(K.recent, []).slice(0, 4);
+    $("side").innerHTML = `
+      <a class="brand" href="#all">${LOGO}AbCheck</a>
+      <a class="cta" href="#new">+ 새 분석</a>
+      <nav class="ngroup" aria-label="후보"><div class="slabel">후보</div>
+        ${nav("all", "후보 전체", t.all)}${nav("review", "검토 필요", t.review)}${nav("unknown", "판정 불가", t.unknown)}${nav("errors", "입력 오류", t.errors)}${nav("picked", "고른 후보", t.picked)}</nav>
+      <nav class="ngroup" aria-label="보기"><div class="slabel">보기</div>
+        ${nav("compare", "CDR 비교")}${nav("properties", "물성 분포")}${nav("onepage", "한 장", t.picked)}</nav>
+      <nav class="ngroup" aria-label="기준"><div class="slabel">기준</div>
+        ${nav("rules", "선별 규칙", esc(rules().name))}${nav("validation", "검증 기록")}</nav>
+      ${recent.length ? `<div class="ngroup"><div class="slabel">최근 분석</div>${recent.map((r, i) =>
+        `<button class="nav rec" type="button" data-rec="${i}"><span>${esc(r.source)}</span><span class="sub num">${r.count}건 · ${whenShort(new Date(r.at))}</span></button>`).join("")}</div>` : ""}
+      <div class="sfoot">${nav("guide", "사용법")}<p>개인 프로젝트 · 셀트리온과 무관</p></div>`;
   }
-  $("recent").addEventListener("click", (ev) => {
+  function closeMenu() { $("side").classList.remove("on"); if (!$("sheet").classList.contains("on")) $("scrim").classList.remove("on"); }
+  $("side").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-rec]");
-    if (!b) return;
-    const r = store.get(RECENT_KEY, [])[Number(b.dataset.rec)];
-    if (!r) return;
-    state.input = r.text; state.fileName = r.fileName || "";
-    if (analyze(r.text, r.fileName || "", r.ph, false)) { toast(`${r.fileName || r.source} 다시 분석함`); go("all"); }
-    else go("new");
+    if (b) { const r = store.get(K.recent, [])[Number(b.dataset.rec)]; if (r) openRecent(r); }
+    if (ev.target.closest("a, [data-rec]")) closeMenu();
   });
-  $("rec-clear").addEventListener("click", () => { store.set(RECENT_KEY, []); renderSidebar(); toast("최근 분석 기록을 지움"); });
+  $("menu").addEventListener("click", () => { $("side").classList.add("on"); $("scrim").classList.add("on"); });
 
   /* ---------- render + routing ---------- */
   function render() {
     renderSidebar();
     const v = state.view;
-    let html;
-    if (v === "new") html = viewNew();
-    else if (LIST_VIEWS[v]) html = listView(v);
-    else if (v === "compare") html = compareView();
-    else if (v === "properties") html = propertiesView();
-    else if (v === "rules") html = rulesView();
-    else if (v === "validation") html = validationView();
-    else html = guideView();
-    $("view").innerHTML = html;
-    bindView();
+    $("view").innerHTML = v === "new" ? viewNew() : LISTS[v] ? viewHome(v) : v === "compare" ? viewCompare()
+      : v === "properties" ? viewProperties() : v === "onepage" ? viewOnepage() : v === "rules" ? viewRules()
+      : v === "validation" ? viewValidation() : viewGuide();
+    bind();
   }
-
-  function go(view) {
-    if (location.hash !== "#" + view) location.hash = view; else { state.view = view; render(); }
-  }
+  function go(view) { if (location.hash !== "#" + view) location.hash = view; else { state.view = view; render(); } }
   function route() {
     const h = (location.hash || "").replace(/^#/, "");
-    const v = VIEWS.includes(h) ? h : "all";
+    const v = VIEWS.includes(h) ? h : !h && VIEWS.includes(ui.view) ? ui.view : "all";
     const changed = v !== state.view;
-    state.view = v;
-    closeSheet();
+    state.view = v; state.limit = PAGE;
+    closeSheet(); closeMenu(); saveUi();
     render();
-    if (changed) { window.scrollTo(0, 0); }
+    if (changed) window.scrollTo(0, 0);
   }
   window.addEventListener("hashchange", route);
 
-  function bindView() {
+  const on = (id, type, fn) => { const el = $(id); if (el) el.addEventListener(type, fn); };
+  function bind() {
     const view = $("view");
-    view.querySelectorAll("[data-chain]").forEach((b) => b.addEventListener("click", () => { state.chain = b.dataset.chain; render(); }));
-    const sort = $("sort");
-    if (sort) sort.addEventListener("change", () => { state.sort = sort.value; render(); });
-    const more = $("more");
-    if (more) more.addEventListener("click", () => { state.limit += 300; render(); });
-    const ct = $("copy-tsv");
-    if (ct) ct.addEventListener("click", () => copy(ABUI.toTsv(state.openList), `표 ${state.openList.length}행을 복사함 · 엑셀에 붙여넣으면 됨`));
-    const sc = $("save-csv");
-    if (sc) sc.addEventListener("click", () => save(`abcheck-${stamp()}.csv`, ABUI.toCsv(state.openList)));
-    const sj = $("save-json");
-    if (sj) sj.addEventListener("click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(state.payload)));
-    // open detail from any row, link, or chart point
-    view.querySelectorAll("tr[data-i]").forEach((tr) => tr.addEventListener("click", (ev) => {
+    view.querySelectorAll(".cand, tr.click").forEach((el) => el.addEventListener("click", (ev) => {
       if (ev.target.closest("button, a")) return;
-      openSheet(Number(tr.dataset.i), tr.querySelector("[data-open]"));
+      openSheet(Number(el.dataset.i), el.querySelector("[data-open]"));
     }));
     view.querySelectorAll("button[data-open]").forEach((b) => b.addEventListener("click", () => openSheet(Number(b.dataset.open), b)));
+    view.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => togglePick(Number(b.dataset.pick))));
+    view.querySelectorAll("[data-chain]").forEach((b) => b.addEventListener("click", () => { ui.chain = b.dataset.chain; saveUi(); render(); }));
+    // home
+    on("f-chain", "change", (e) => { ui.chain = e.target.value; saveUi(); render(); });
+    on("f-conf", "change", (e) => { ui.conf = e.target.value; saveUi(); render(); });
+    on("f-sort", "change", (e) => { ui.sort = e.target.value; saveUi(); render(); });
+    on("f-reset", "click", () => { ui.chain = "all"; ui.conf = "all"; state.query = ""; $("q").value = ""; saveUi(); render(); });
+    on("more", "click", () => { state.limit += PAGE; render(); });
+    on("x-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name), `표 ${state.openList.length}행 복사`));
+    on("x-mail", "click", () => copy(ABUI.toMailText(state.rows, meta()), "메일용 글 복사"));
+    on("x-csv", "click", () => save(`abcheck-${stamp()}.csv`, ABUI.toCsv(state.openList, rules().name), "text/csv"));
+    on("x-json", "click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(state.payload), "application/json"));
+    const slideCount = () => heroSlides(ABUI.tally(state.rows)).length;
+    on("hero-prev", "click", () => { const n = slideCount(); state.hero = (Math.min(state.hero, n - 1) + n - 1) % n; render(); $("hero-prev").focus(); });
+    on("hero-next", "click", () => { const n = slideCount(); state.hero = (Math.min(state.hero, n - 1) + 1) % n; render(); $("hero-next").focus(); });
+    on("hero-clear", "click", () => { state.payload = null; state.rows = []; state.picked = new Set(); state.isExample = false; render(); const ta = $("hero-input"); if (ta) ta.focus(); });
+    on("hero-run", "click", () => analyzeText($("hero-input").value, "", state.ph));
+    on("hero-input", "keydown", (ev) => { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); analyzeText(ev.target.value, "", state.ph); } });
+    on("hero-file", "change", (ev) => { analyzeFiles(ev.target.files, state.ph); ev.target.value = ""; });
+    on("hero-example", "click", loadExample);
+    bindDrop($("hero-input"));
+    if (state.view === "new") bindNew();
+    // one page
+    on("op-add", "click", () => { state.rows.forEach((r) => { if (r.cats[0] === "review") state.picked.add(r.index); }); savePicked(); render(); });
+    on("op-clear", "click", () => { state.picked = new Set(); savePicked(); render(); });
+    on("op-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name), `표 ${state.openList.length}행 복사`));
+    on("op-save", "click", () => save(`abcheck-onepage-${stamp()}.html`, ABUI.onePageDoc(state.openList, meta()), "text/html"));
+    if (state.view === "rules") bindRules();
     const fig = $("fig");
     if (fig) bindFigure(fig);
-    if (state.view === "new") bindNew();
+  }
+
+  function bindDrop(ta) {
+    if (!ta) return;
+    ta.addEventListener("dragover", (ev) => { ev.preventDefault(); ta.classList.add("drag"); });
+    ta.addEventListener("dragleave", () => ta.classList.remove("drag"));
+    ta.addEventListener("drop", (ev) => {
+      ev.preventDefault(); ta.classList.remove("drag");
+      analyzeFiles(ev.dataTransfer && ev.dataTransfer.files, parseFloat(($("ph") || {}).value) || state.ph);
+    });
+  }
+  function loadExample() { analyzeText(EXAMPLE, "", 7.4, { example: true }); }
+  function bindNew() {
+    const ta = $("input");
+    const detect = () => {
+      if (!ta.value.trim()) { $("detect").textContent = ""; return; }
+      try { const [entries, source] = ABCHECK.readInput(ta.value, state.fileName); $("detect").textContent = `${source} · 서열 ${entries.length}개`; }
+      catch (e) { $("detect").textContent = "읽을 수 없는 형식"; }
+    };
+    const start = () => analyzeText(ta.value, state.fileName, parseFloat($("ph").value));
+    let timer = 0;
+    ta.addEventListener("input", () => { state.input = ta.value; state.fileName = ""; clearTimeout(timer); timer = setTimeout(detect, 200); });
+    ta.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); start(); } });
+    bindDrop(ta);
+    on("file", "change", (ev) => { analyzeFiles(ev.target.files, parseFloat($("ph").value) || state.ph); ev.target.value = ""; });
+    on("run", "click", start);
+    on("example", "click", loadExample);
+    on("clear", "click", () => { state.input = ""; state.fileName = ""; state.error = null; state.rejected = null; render(); $("input").focus(); });
+    $("view").querySelectorAll("[data-load]").forEach((b) => b.addEventListener("click", () => {
+      const r = store.get(K.recent, [])[Number(b.dataset.load)];
+      if (!r) return;
+      state.input = recentText(r); state.fileName = ""; state.error = null; state.rejected = null; state.ph = r.ph;
+      render(); $("input").focus();
+    }));
+    detect();
+  }
+
+  function bindRules() {
+    const changed = () => { saveRules(); retriage(); render(); };
+    const editable = () => state.rules.sets.find((s) => s.id === state.rules.active);
+    on("r-set", "change", (e) => { state.rules.active = e.target.value; changed(); });
+    on("r-copy", "click", () => {
+      const base = rules();
+      let n = 1, name;
+      do { name = (base.id === "default" ? "내 규칙" : base.name) + " " + n++; } while (state.rules.sets.some((s) => s.name === name));
+      const copyOf = ABUI.normalizeRuleSet(Object.assign({}, base, { id: "s" + Date.now(), name }));
+      state.rules.sets.push(copyOf); state.rules.active = copyOf.id;
+      changed(); toast(`${name} 만듦`);
+      const input = $("r-name"); if (input) { input.focus(); input.select(); }
+    });
+    on("r-del", "click", () => {
+      const rs = editable(); if (!rs) return;
+      state.rules.sets = state.rules.sets.filter((s) => s.id !== rs.id); state.rules.active = "default";
+      changed(); toast(`${rs.name} 삭제`);
+    });
+    on("r-name", "change", (e) => {
+      const rs = editable(); if (!rs) return;
+      const name = e.target.value.trim();
+      if (!name) { e.target.value = rs.name; return toast("이름이 비어 있음"); }
+      rs.name = name; saveRules(); render();
+    });
+    $("view").querySelectorAll("[data-motif]").forEach((b) => b.addEventListener("click", () => {
+      const rs = editable(); if (!rs) return;
+      const p = b.dataset.motif;
+      rs.motifs = rs.motifs.includes(p) ? rs.motifs.filter((x) => x !== p) : rs.motifs.concat([p]);
+      Object.assign(rs, ABUI.normalizeRuleSet(rs));
+      changed();
+    }));
+    $("view").querySelectorAll("[data-rule]").forEach((b) => b.addEventListener("click", () => {
+      const rs = editable(); if (!rs) return;
+      rs[b.dataset.rule] = b.dataset.val;
+      changed();
+    }));
   }
 
   function bindFigure(fig) {
     const tip = $("tip"), svg = fig.querySelector("svg");
     const show = (g) => {
       const r = state.rows[Number(g.dataset.open)];
-      const box = svg.getBoundingClientRect(), k = box.width / Number(svg.viewBox.baseVal.width);
-      tip.innerHTML = `<b>${esc(r.id)}</b> · ${r.chain === "H" ? "VH" : "VL"}<br>pI ${fmt(r.pI, 2)} · GRAVY ${fmt(r.gravy, 3)} · net charge ${signed(r.charge)}`;
-      tip.style.left = (Number(g.dataset.x) * k) + "px";
-      tip.style.top = (Number(g.dataset.y) * k) + "px";
+      const k = svg.getBoundingClientRect().width / Number(svg.viewBox.baseVal.width);
+      tip.innerHTML = `<b class="mono">${esc(r.id)}</b> · ${chainText(r)}<br>pI ${fmt(r.pI, 2)} · GRAVY ${fmt(r.gravy, 3)} · net charge ${signed(r.charge)}`;
+      tip.style.left = (Number(g.dataset.x) * k) + "px"; tip.style.top = (Number(g.dataset.y) * k) + "px";
       tip.hidden = false;
     };
     const hide = () => { tip.hidden = true; };
     fig.querySelectorAll(".pt").forEach((g) => {
-      g.addEventListener("pointerenter", () => show(g));
-      g.addEventListener("pointerleave", hide);
-      g.addEventListener("focus", () => show(g));
-      g.addEventListener("blur", hide);
+      g.addEventListener("pointerenter", () => show(g)); g.addEventListener("pointerleave", hide);
+      g.addEventListener("focus", () => show(g)); g.addEventListener("blur", hide);
       g.addEventListener("click", () => openSheet(Number(g.dataset.open), g));
       g.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openSheet(Number(g.dataset.open), g); } });
     });
   }
 
-  /* ---------- new-analysis screen ---------- */
-  function decode(buf) {
-    const b = new Uint8Array(buf);
-    if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) return new TextDecoder("utf-8").decode(b.subarray(3));
-    if (b[0] === 0xff && b[1] === 0xfe) return new TextDecoder("utf-16le").decode(b.subarray(2));
-    if (b[0] === 0xfe && b[1] === 0xff) return new TextDecoder("utf-16be").decode(b.subarray(2));
-    try { return new TextDecoder("utf-8", { fatal: true }).decode(b); } catch (e) { /* not UTF-8: try the Korean code page next */ }
-    try { return new TextDecoder("euc-kr", { fatal: true }).decode(b); } catch (e) { /* neither: reported below */ }
-    throw new Error("파일의 글자 인코딩을 알 수 없음. 메모장이나 엑셀에서 'UTF-8' 로 다시 저장한 뒤 열 것.");
-  }
-
-  function bindNew() {
-    const ta = $("input");
-    const detect = () => {
-      const text = ta.value;
-      if (!text.trim()) { $("detect").textContent = ""; return; }
-      try {
-        const [entries, source] = ABCHECK.readInput(text, state.fileName);
-        $("detect").textContent = `${source} · 서열 ${entries.length}개 감지`;
-      } catch (e) { $("detect").textContent = "아직 읽을 수 없는 형식: " + e.message; }
-    };
-    const run = () => {
-      state.input = ta.value;
-      const ph = parseFloat($("ph").value);
-      if (analyze(ta.value, state.fileName, ph, false)) {
-        const rej = state.payload.sequences.filter((s) => !s.input_ok).length;
-        toast(`서열 ${state.payload.count}건 분석${rej ? ` · 입력 오류 ${rej}건 제외` : ""}`);
-        go("all");
-      } else { render(); $("input").focus(); }
-    };
-    const openFile = (f) => {
-      if (!f) return;
-      if (/\.xlsx?$/i.test(f.name)) { state.inputError = "엑셀 파일은 바로 읽지 않음. 엑셀에서 '파일 → 다른 이름으로 저장 → CSV UTF-8' 로 저장한 .csv 를 열 것."; render(); return; }
-      f.arrayBuffer().then((buf) => {
-        let text;
-        try { text = decode(buf); } catch (e) { state.inputError = e.message; render(); return; }
-        state.input = text; state.fileName = f.name; ta.value = text;
-        run();
-      }, (e) => { console.error("abcheck: reading " + f.name + " failed", e); state.inputError = f.name + " 을 읽지 못함."; render(); });
-    };
-    let timer = 0;
-    ta.addEventListener("input", () => { state.input = ta.value; state.fileName = ""; clearTimeout(timer); timer = setTimeout(detect, 200); });
-    ta.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); run(); } });
-    ta.addEventListener("dragover", (ev) => { ev.preventDefault(); ta.classList.add("drag"); });
-    ta.addEventListener("dragleave", () => ta.classList.remove("drag"));
-    ta.addEventListener("drop", (ev) => { ev.preventDefault(); ta.classList.remove("drag"); openFile(ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]); });
-    $("file").addEventListener("change", (ev) => { openFile(ev.target.files && ev.target.files[0]); ev.target.value = ""; });
-    $("run").addEventListener("click", run);
-    $("example").addEventListener("click", () => {
-      state.input = EXAMPLE; state.fileName = "";
-      if (analyze(EXAMPLE, "", parseFloat($("ph").value) || 7.4, true)) go("all");
-    });
-    $("clear").addEventListener("click", () => { state.input = ""; state.fileName = ""; state.inputError = ""; state.rejected = null; render(); $("input").focus(); });
-    detect();
-  }
-
-  /* ---------- search + theme ---------- */
+  /* ---------- drawer, search, keyboard, theme ---------- */
+  $("sheet-close").innerHTML = icon("x");
+  $("sheet-pick").innerHTML = icon("bookmark");
+  $("menu").innerHTML = icon("menu");
+  $("q-ic").innerHTML = icon("search", 16);
+  $("sheet-close").addEventListener("click", closeSheet);
+  $("scrim").addEventListener("click", () => { closeSheet(); closeMenu(); });
+  $("sheet-prev").addEventListener("click", () => stepSheet(-1));
+  $("sheet-next").addEventListener("click", () => stepSheet(1));
+  $("sheet-pick").addEventListener("click", () => { if (state.open !== null) togglePick(state.open); });
+  $("sheet-copy").addEventListener("click", () => { const r = state.rows[state.open]; if (r) copy(ABUI.toFasta([r]), `${r.id} FASTA 복사`); });
+  document.addEventListener("keydown", (ev) => {
+    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+    if (ev.key === "Escape") { closeSheet(); closeMenu(); if (document.activeElement === $("q")) $("q").blur(); return; }
+    if (ev.key === "/" && !typing && !ev.ctrlKey && !ev.metaKey) { ev.preventDefault(); $("q").focus(); return; }
+    if (!$("sheet").classList.contains("on") || typing) return;
+    if (ev.key === "ArrowRight" || ev.key === "ArrowDown") { ev.preventDefault(); stepSheet(1); }
+    else if (ev.key === "ArrowLeft" || ev.key === "ArrowUp") { ev.preventDefault(); stepSheet(-1); }
+  });
   let qTimer = 0;
   $("q").addEventListener("input", () => {
     clearTimeout(qTimer);
     qTimer = setTimeout(() => {
-      state.query = $("q").value; state.limit = 300;
-      $("q-clear").hidden = !state.query;
-      if (!["all", "review", "recheck", "errors", "compare", "properties"].includes(state.view)) go("all"); else render();
+      state.query = $("q").value; state.limit = PAGE;
+      if (LISTS[state.view] || state.view === "compare" || state.view === "properties") render(); else go("all");
     }, 150);
   });
-  $("q-clear").addEventListener("click", () => { $("q").value = ""; state.query = ""; $("q-clear").hidden = true; render(); $("q").focus(); });
 
-  function effectiveTheme() {
-    const set = document.documentElement.getAttribute("data-theme");
-    if (set === "dark" || set === "light") return set;
-    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  const THEMES = [["light", "sun", "라이트"], ["dark", "moon", "다크"], ["system", "monitor", "시스템"]];
+  function applyTheme(mode) {
+    if (mode === "system") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", mode);
+    $("theme").innerHTML = THEMES.map(([k, ic, l]) => `<button type="button" data-theme-set="${k}" aria-pressed="${k === mode}" aria-label="${l} 테마" title="${l}">${icon(ic, 16)}</button>`).join("");
   }
-  const savedTheme = store.get(THEME_KEY, null);
-  if (savedTheme === "dark" || savedTheme === "light") document.documentElement.setAttribute("data-theme", savedTheme);
-  $("theme").addEventListener("click", () => {
-    const next = effectiveTheme() === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    store.set(THEME_KEY, next);
+  $("theme").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-theme-set]");
+    if (!b) return;
+    store.set(K.theme, b.dataset.themeSet); applyTheme(b.dataset.themeSet);
   });
+  const savedTheme = store.get(K.theme, "system");
+  applyTheme(["light", "dark", "system"].includes(savedTheme) ? savedTheme : "system");
 
-  /* ---------- start in a working state: the synthetic example, analysed ---------- */
-  if (!analyze(EXAMPLE, "", 7.4, true)) console.error("abcheck: the built-in example failed to analyse", state.inputError, state.rejected);
+  const opCss = document.createElement("style");
+  opCss.textContent = ABUI.ONE_PAGE_CSS.replace(/@page\{[^}]*\}/, "");
+  document.head.appendChild(opCss);
+
+  /* ---------- start: the last analysis if there is one, otherwise the synthetic example ---------- */
+  loadRules();
+  const last = store.get(K.recent, [])[0];
+  let started = false;
+  if (last && Array.isArray(last.entries)) {
+    try { started = analyzeEntries(last.entries, last.source, last.ph, { recentId: last.id, picked: last.picked, at: last.at }); }
+    catch (e) { console.error("abcheck: the stored last analysis could not be restored", e); }
+  }
+  if (!started) {
+    const [entries, source] = ABCHECK.readInput(EXAMPLE, "");
+    if (!analyzeEntries(entries, source, 7.4, { example: true })) console.error("abcheck: the built-in example failed to analyse", state.rejected);
+  }
   route();
 })();
 </script>

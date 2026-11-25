@@ -1,7 +1,7 @@
 """Build the single-file browser app (web/abcheck.html) from the template and the engine.
 
-The artifact viewer only runs inline scripts, so the JavaScript engine and the example
-sequences are inlined into one HTML file. tests/test_web_app.py checks the committed file
+The artifact viewer only runs inline scripts, so the JavaScript engine, the app helpers,
+the bundled fonts and the example sequences are inlined into one HTML file. tests/test_web_app.py checks the committed file
 is current.
 
     python3 web/build.py          # write web/abcheck.html
@@ -11,6 +11,7 @@ is current.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import sys
 from pathlib import Path
@@ -20,6 +21,7 @@ ROOT = WEB.parent
 TEMPLATE = WEB / "app.html"
 ENGINE = WEB / "abcheck-engine.js"
 APPLIB = WEB / "app-lib.js"
+FONTS = WEB / "fonts"
 OUTPUT = WEB / "abcheck.html"
 CORPUS = ROOT / "data" / "synthetic" / "sequences.json"
 
@@ -35,17 +37,30 @@ def example_fasta() -> str:
     return "".join(f">{i}\n{records[i]}\n" for i in EXAMPLE_IDS)
 
 
+def font_faces() -> str:
+    """Pretendard 400/700 as data URIs: the page must make no outside request (OFL, see web/fonts)."""
+    rules = []
+    for weight, name in ((400, "Pretendard-Regular.subset.woff2"), (700, "Pretendard-Bold.subset.woff2")):
+        data = base64.b64encode((FONTS / name).read_bytes()).decode("ascii")
+        rules.append(
+            f'@font-face{{font-family:"Pretendard";font-weight:{weight};font-style:normal;font-display:swap;'
+            f'src:url(data:font/woff2;base64,{data}) format("woff2")}}'
+        )
+    return "\n".join(rules)
+
+
 def build() -> str:
     template = TEMPLATE.read_text(encoding="utf-8")
     engine = ENGINE.read_text(encoding="utf-8")
     applib = APPLIB.read_text(encoding="utf-8")
-    for marker in ("/*__ENGINE__*/", "/*__APPLIB__*/", '/*__EXAMPLE__*/""'):
+    for marker in ("/*__FONTS__*/", "/*__ENGINE__*/", "/*__APPLIB__*/", '/*__EXAMPLE__*/""'):
         if template.count(marker) != 1:
             raise SystemExit(f"web/app.html must contain {marker} exactly once")
     for name, code in (("engine", engine), ("app-lib", applib)):
         if "</script" in code.lower():
             raise SystemExit(f"{name} contains '</script' and cannot be inlined")
     return (template
+            .replace("/*__FONTS__*/", font_faces())
             .replace("/*__ENGINE__*/", engine)
             .replace("/*__APPLIB__*/", applib)
             .replace('/*__EXAMPLE__*/""', json.dumps(example_fasta(), ensure_ascii=False)))
