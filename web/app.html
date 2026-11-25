@@ -49,7 +49,7 @@ body {
 }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 40; background: var(--bg); }
 button, input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
-button { cursor: pointer; }
+button { cursor: pointer; line-height: inherit; }
 a { color: var(--brand); text-underline-offset: 3px; }
 :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
 h1, h2, h3 { margin: 0; line-height: 1.3; font-weight: 700; }
@@ -548,7 +548,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         try {
           const t = decode(f.buf);
           const [entries, source] = ABCHECK.readInput(t, f.name);
-          parts.push({ entries, source });
+          parts.push({ name: f.name, entries, source });
           if (loaded.length === 1) text = t;
         } catch (e) { return fail(`${f.name}: ${e.message}`, "파일을 고치거나 빼고 다시 열기"); }
       }
@@ -816,7 +816,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function recentRows() {
     const list = store.get(K.recent, []);
     if (!list.length) return "";
-    return `<section class="card"><div class="scroll"><table><thead><tr><th>최근 입력</th><th class="num">서열</th><th>시각</th><th></th></tr></thead><tbody>` +
+    return `<section class="card"><div class="scroll"><table><thead><tr><th>최근 입력</th><th class="num">서열</th><th class="num">시각</th><th></th></tr></thead><tbody>` +
       list.map((r, i) => `<tr><td>${esc(r.source)}</td><td class="num">${r.count}</td><td class="nw num">${whenShort(new Date(r.at))}</td>
         <td class="num"><button class="btn" type="button" data-load="${i}">불러오기</button></td></tr>`).join("") +
       `</tbody></table></div></section>`;
@@ -920,7 +920,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     state.openList = rows;
     let h = `<div class="titlebar"><h1>한 장</h1><span class="cnt num">${rows.length}건</span>
       <div class="row">
-        <button class="btn" type="button" id="op-add"${t.review ? "" : " disabled"}>검토 필요 ${t.review}건 넣기</button>
+        <button class="btn" type="button" id="op-add"${state.rows.some((r) => r.cats[0] === "review" && !state.picked.has(r.index)) ? "" : " disabled"}>검토 필요 ${t.review}건 넣기</button>
         <button class="btn" type="button" id="op-clear"${rows.length ? "" : " disabled"}>비우기</button>
         <button class="btn" type="button" id="op-tsv"${rows.length ? "" : " disabled"}>Excel용 복사</button>
         <button class="btn primary" type="button" id="op-save"${rows.length ? "" : " disabled"}>HTML 저장</button>

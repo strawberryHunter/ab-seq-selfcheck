@@ -254,12 +254,12 @@ def test_combine_entries_from_several_files():
     out = _node("""
       const a = ABCHECK.readInput(">a\\n" + entries[0][1] + "\\n", "x.fasta");
       const b = ABCHECK.readInput("id,sequence\\nb," + entries[2][1] + "\\n", "y.csv");
-      const one = ABUI.combineEntries([{entries: a[0], source: a[1]}]);
-      const two = ABUI.combineEntries([{entries: a[0], source: a[1]}, {entries: b[0], source: b[1]}]);
+      const one = ABUI.combineEntries([{name: "x.fasta", entries: a[0], source: a[1]}]);
+      const two = ABUI.combineEntries([{name: "x.fasta", entries: a[0], source: a[1]}, {name: "y.csv", entries: b[0], source: b[1]}]);
       let err = null; try { ABUI.combineEntries([]); } catch (e) { err = e.message; }
       console.log(JSON.stringify({one, two: {ids: two.entries.map(e => e[0]), source: two.source}, err}));""")
     assert out["one"]["source"] == "FASTA (x.fasta)"
-    assert out["two"] == {"ids": ["a", "b"], "source": "파일 2개"}
+    assert out["two"] == {"ids": ["a", "b"], "source": "x.fasta 외 1개"}
     assert out["err"]
 
 

@@ -310,12 +310,15 @@
     return { lo: lo, hi: hi, step: step, ticks: ticks };
   }
 
-  /** Merge several parsed inputs (one per file) into one analysis input. */
+  /** Merge several parsed inputs (one per file: {name, entries, source}) into one analysis
+      input. The source names the first file so a past analysis can be recognised later. */
   function combineEntries(parts) {
     if (!parts.length) throw new Error("combineEntries needs at least one input");
     var entries = [];
     parts.forEach(function (p) { entries = entries.concat(p.entries); });
-    return { entries: entries, source: parts.length === 1 ? parts[0].source : "파일 " + parts.length + "개" };
+    var source = parts.length === 1 ? parts[0].source
+      : (parts[0].name || "파일") + " 외 " + (parts.length - 1) + "개";
+    return { entries: entries, source: source };
   }
 
   /* ------------------------------------------------------------------ exports */
