@@ -1,0 +1,2023 @@
+/*
+ * abcheck-engine.js -- the abcheck analysis engine in plain JavaScript (ES2019, no deps).
+ *
+ * A line-by-line port of the Python package `abcheck/` so the tool can run in a browser.
+ * The output of ABCHECK.analyze(entries, ph) is the object Python produces with
+ *     json.loads(abcheck.render.as_json(abcheck.report.build_many(entries, ph)))
+ * and ABCHECK.toJSON(result) writes it byte-for-byte the way Python's json.dumps does
+ * (except the "generated" date). ABCHECK.readInput(text, filename) mirrors abcheck.cli's
+ * input parsing. scripts/js_parity.py checks all of this against Python.
+ *
+ * The Python source is the specification. Each section below names the Python function it
+ * mirrors; when you change a rule in Python, change it here too and run the parity script.
+ */
+(function (root, factory) {
+  "use strict";
+  var api = factory();
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  }
+  root.ABCHECK = api;
+})(typeof globalThis !== "undefined" ? globalThis
+  : typeof self !== "undefined" ? self
+  : typeof window !== "undefined" ? window : this, function () {
+  "use strict";
+
+  // ==========================================================================
+  // Python compatibility helpers
+  // ==========================================================================
+
+  // Characters for which Python's str.isspace() is true (used by strip/lstrip/split()).
+  // JavaScript's \s differs: it includes U+FEFF and lacks U+001C-U+001F and U+0085.
+  var PY_WHITESPACE = "\t\n\x0b\x0c\r\x1c\x1d\x1e\x1f \x85\xa0 " +
+    "           " +
+    "    　";
+
+  function pyIsSpace(ch) {
+    return ch.length === 1 && PY_WHITESPACE.indexOf(ch) >= 0;
+  }
+
+  // str.strip()
+  function pyStrip(s) {
+    var a = 0, b = s.length;
+    while (a < b && pyIsSpace(s.charAt(a))) a++;
+    while (b > a && pyIsSpace(s.charAt(b - 1))) b--;
+    return s.slice(a, b);
+  }
+
+  // str.lstrip()
+  function pyLStrip(s) {
+    var a = 0;
+    while (a < s.length && pyIsSpace(s.charAt(a))) a++;
+    return s.slice(a);
+  }
+
+  // str.split() with no arguments
+  function pySplitWhitespace(s) {
+    var out = [], cur = "";
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (pyIsSpace(ch)) {
+        if (cur) { out.push(cur); cur = ""; }
+      } else {
+        cur += ch;
+      }
+    }
+    if (cur) out.push(cur);
+    return out;
+  }
+
+  // str.splitlines() (keepends=False). Line boundaries are Python's, not just \n.
+  var PY_LINE_BREAKS = "\n\r\x0b\x0c\x1c\x1d\x1e\x85  ";
+  function pySplitLines(s) {
+    var out = [], start = 0, i = 0;
+    while (i < s.length) {
+      var ch = s.charAt(i);
+      if (PY_LINE_BREAKS.indexOf(ch) >= 0) {
+        out.push(s.slice(start, i));
+        if (ch === "\r" && s.charAt(i + 1) === "\n") i++;
+        start = i + 1;
+      }
+      i++;
+    }
+    if (start < s.length) out.push(s.slice(start));
+    return out;
+  }
+
+  // Python strings are sequences of code points; JS strings of UTF-16 units.
+  function codePoints(s) {
+    return Array.from(s);
+  }
+
+  // Code point order, as Python compares str.
+  function cmpCodePoint(a, b) {
+    var x = a.codePointAt(0), y = b.codePointAt(0);
+    return x < y ? -1 : x > y ? 1 : 0;
+  }
+
+  // Characters Python's repr() escapes (str.isprintable() is False): Unicode categories
+  // Cc, Cf, Cs, Co, Cn, Zl, Zp, Zs -- except the ASCII space.
+  var NON_PRINTABLE_RE = /[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}\p{Zs}]/u;
+
+  function hex(n, width) {
+    var h = n.toString(16);
+    while (h.length < width) h = "0" + h;
+    return h;
+  }
+
+  // repr(str) -- quote choice and escapes as in CPython's unicode_repr.
+  function pyReprStr(s) {
+    var quote = (s.indexOf("'") >= 0 && s.indexOf('"') < 0) ? '"' : "'";
+    var out = quote;
+    var cps = codePoints(s);
+    for (var i = 0; i < cps.length; i++) {
+      var ch = cps[i], cp = ch.codePointAt(0);
+      if (ch === quote || ch === "\\") out += "\\" + ch;
+      else if (ch === "\t") out += "\\t";
+      else if (ch === "\n") out += "\\n";
+      else if (ch === "\r") out += "\\r";
+      else if (cp < 0x20 || cp === 0x7f) out += "\\x" + hex(cp, 2);
+      else if (cp < 0x7f) out += ch;
+      else if (ch !== " " && NON_PRINTABLE_RE.test(ch)) {
+        if (cp <= 0xff) out += "\\x" + hex(cp, 2);
+        else if (cp <= 0xffff) out += "\\u" + hex(cp, 4);
+        else out += "\\U" + hex(cp, 8);
+      } else out += ch;
+    }
+    return out + quote;
+  }
+
+  // repr(float) / str(float): shortest round-trip digits, CPython's layout rules
+  // (fixed notation when -4 < exponent10 <= 16, else "1e-05" / "1.5e+16").
+  function pyFloatRepr(x) {
+    if (x !== x) return "nan";
+    if (x === Infinity) return "inf";
+    if (x === -Infinity) return "-inf";
+    if (x === 0) return (1 / x < 0) ? "-0.0" : "0.0";
+    var sign = x < 0 ? "-" : "";
+    var e = Math.abs(x).toExponential(); // shortest digits, e.g. "1.2345e-7"
+    var m = /^(\d)(?:\.(\d+))?e([+-]\d+)$/.exec(e);
+    var digits = m[1] + (m[2] || "");
+    var decpt = parseInt(m[3], 10) + 1; // value = 0.DIGITS * 10**decpt
+    var out;
+    if (decpt <= -4 || decpt > 16) {
+      var exp = decpt - 1;
+      var mant = digits.charAt(0) + (digits.length > 1 ? "." + digits.slice(1) : "");
+      var ae = Math.abs(exp);
+      out = mant + "e" + (exp < 0 ? "-" : "+") + (ae < 10 ? "0" + ae : String(ae));
+    } else if (decpt <= 0) {
+      out = "0." + new Array(1 - decpt).join("0") + digits;
+    } else if (decpt >= digits.length) {
+      out = digits + new Array(decpt - digits.length + 1).join("0") + ".0";
+    } else {
+      out = digits.slice(0, decpt) + "." + digits.slice(decpt);
+    }
+    return sign + out;
+  }
+
+  // round(x, n) for a float and n >= 0: correctly rounded from the exact binary value,
+  // ties to even (CPython's double_round via _Py_dg_dtoa mode 3). Number.toFixed is also
+  // exact but breaks exact ties away from zero, so ties are detected and fixed here.
+  function pyRound(x, n) {
+    if (!isFinite(x) || x === 0) return x;
+    var neg = x < 0, a = Math.abs(x);
+    if (a >= 1e21) return x; // toFixed gives up; such values are already integers here
+    var rounded = a.toFixed(n);
+    // Exact decimal expansion (100 digits suffice: a non-tie double is >1e-20 from a tie).
+    var exact = a.toFixed(Math.min(100, n + 60));
+    var dot = exact.indexOf(".");
+    var tail = exact.slice(dot + 1 + n);
+    if (/^50*$/.test(tail)) {
+      var truncated = n === 0 ? exact.slice(0, dot) : exact.slice(0, dot + 1 + n);
+      var last = truncated.charCodeAt(truncated.length - 1) - 48;
+      if (last % 2 === 0) rounded = truncated; // half to even: keep the even digit
+    }
+    var r = parseFloat(rounded);
+    return neg ? -r : r;
+  }
+
+  // sum() of floats. Python 3.12+ uses Neumaier compensated summation (builtin_sum_impl).
+  function pySumFloats(values) {
+    var f = 0.0, c = 0.0;
+    for (var i = 0; i < values.length; i++) {
+      var x = values[i], t = f + x;
+      if (Math.abs(f) >= Math.abs(x)) c += (f - t) + x;
+      else c += (x - t) + f;
+      f = t;
+    }
+    if (c && isFinite(c)) f += c;
+    return f;
+  }
+
+  // Python's re.finditer over a JS regex: non-overlapping, scanning left to right from pos.
+  function finditer(re, s, pos) {
+    var g = new RegExp(re.source, "g");
+    g.lastIndex = pos || 0;
+    var out = [], m;
+    while ((m = g.exec(s)) !== null) {
+      out.push(m);
+      if (m[0].length === 0) g.lastIndex++;
+    }
+    return out;
+  }
+
+  // pattern.search(s, pos)
+  function search(re, s, pos) {
+    if (pos > s.length) return null;
+    var g = new RegExp(re.source, "g");
+    g.lastIndex = pos;
+    return g.exec(s);
+  }
+
+  // ==========================================================================
+  // abcheck/__init__.py
+  // ==========================================================================
+
+  var VERSION = "0.1.0";
+
+  var LIMITATION_NOTICE = [
+    "이 도구는 보존 잔기 앵커 기반 스크리닝 휴리스틱이다. ANARCI/IMGT 같은 numbering 엔진이 아니다.",
+    "CDR 경계는 Kabat 을 근사한 것이며, 번호를 매기지 않는다. 삽입/결실이 있는 서열에서는 경계가 밀릴 수 있다.",
+    "liability 플래그는 서열 모티프만 본다. 구조적 노출도(용매 접근성)를 보지 않으므로 실제 위험도는 다를 수 있다.",
+    "pI/GRAVY/net charge 는 서열 기반 추정치다. 실측값과 다를 수 있다.",
+    "다음 경우에는 ANARCI/IMGT 로 반드시 재확인할 것: " +
+    "confident=False 인 서열, CDR 길이가 통상 범위를 벗어난 서열, " +
+    "비(非)항체 또는 비정형 스캐폴드(나노바디·scFv·이중특이체 링커 포함)로 의심되는 서열, " +
+    "그리고 이 결과를 근거로 후보를 탈락시키려는 모든 경우."
+  ];
+
+  var NO_VERDICT_NOTICE =
+    "이 도구는 '개발 가능성 높음/낮음' 같은 종합 판정을 내리지 않는다. " +
+    "플래그와 그 근거만 제시한다. 판단은 사람이 한다.";
+
+  // ==========================================================================
+  // abcheck/validate.py
+  // ==========================================================================
+
+  var STANDARD_AA = "ACDEFGHIKLMNPQRSTVWY";
+  var AMBIGUOUS_AA = {
+    X: "불특정 잔기",
+    B: "Asp 또는 Asn",
+    Z: "Glu 또는 Gln",
+    J: "Leu 또는 Ile",
+    U: "셀레노시스테인",
+    O: "피롤리신"
+  };
+  var NUCLEOTIDE_LETTERS = "ACGTUN";
+  var NUCLEOTIDE_MIN_LENGTH = 30;
+  var NUCLEOTIDE_MIN_DISTINCT = 3;
+  var MIN_DOMAIN_LENGTH = 70;
+  var MAX_DOMAIN_LENGTH = 200;
+  var STRIPPABLE = " \t\r\n\x0b\x0c";
+  var GAP_CHARS = [".", "-"];
+  var EMPTY_MESSAGE = "서열이 비어 있다. 아미노산 한 글자 코드로 붙여넣어라.";
+
+  function isAmbiguous(ch) {
+    return Object.prototype.hasOwnProperty.call(AMBIGUOUS_AA, ch);
+  }
+
+  // validate.validate -- never throws; returns {ok, cleaned, errors, warnings}
+  function validate(raw) {
+    var errors = [], warnings = [];
+
+    if (raw === null || raw === undefined || !pyStrip(String(raw))) {
+      return { ok: false, cleaned: "", errors: [EMPTY_MESSAGE], warnings: [] };
+    }
+    var text = String(raw);
+
+    // --- FASTA header ---
+    var headerLines = pySplitLines(text).map(pyStrip).filter(function (ln) {
+      return ln.charAt(0) === ">";
+    });
+    if (headerLines.length) {
+      var sample = codePoints(headerLines[0]).slice(0, 40).join("");
+      errors.push(
+        "FASTA 헤더가 섞여 있다 (예: '" + sample + "'). " +
+        "'>' 로 시작하는 줄을 지우고 아미노산 서열만 남겨라. " +
+        "여러 서열을 FASTA 로 넣으려면 파일로 저장한 뒤 파일 경로를 넣으면 된다 " +
+        "(예: python3 -m abcheck.cli 후보.fasta)."
+      );
+      return { ok: false, cleaned: "", errors: errors, warnings: [] };
+    }
+
+    // --- strip whitespace, uppercase ---
+    var textCps = codePoints(text);
+    var cleaned = textCps.filter(function (ch) {
+      return STRIPPABLE.indexOf(ch) < 0;
+    }).join("").toUpperCase();
+    var chars = codePoints(cleaned);
+    if (chars.length !== textCps.length) {
+      warnings.push("공백과 줄바꿈은 제거하고 처리했다.");
+    }
+
+    // --- alignment gaps ---
+    var nGaps = chars.filter(function (ch) { return GAP_CHARS.indexOf(ch) >= 0; }).length;
+    if (nGaps && nGaps < chars.length / 2) {
+      chars = chars.filter(function (ch) { return GAP_CHARS.indexOf(ch) < 0; });
+      cleaned = chars.join("");
+      warnings.push("정렬 갭 문자('.', '-') " + nGaps + "개를 제거하고 처리했다.");
+    }
+
+    if (!chars.length) {
+      return { ok: false, cleaned: "", errors: [EMPTY_MESSAGE], warnings: [] };
+    }
+
+    // --- character check ---
+    var bad = [];
+    chars.forEach(function (ch, i) {
+      if (STANDARD_AA.indexOf(ch) < 0 || ch.length !== 1) bad.push([i + 1, ch]);
+    });
+    if (bad.length) {
+      var ambSet = {}, otherSet = {};
+      bad.forEach(function (b) {
+        if (isAmbiguous(b[1])) ambSet[b[1]] = true;
+        else otherSet[b[1]] = true;
+      });
+      var ambiguous = Object.keys(ambSet).sort(cmpCodePoint);
+      var others = Object.keys(otherSet).sort(cmpCodePoint);
+
+      if (ambiguous.length) {
+        var desc = ambiguous.map(function (ch) {
+          return ch + "(" + AMBIGUOUS_AA[ch] + ")";
+        }).join(", ");
+        errors.push(
+          "모호한 아미노산 코드가 있다: " + desc + ". " +
+          "이 도구는 모호 코드를 추측하지 않는다. 확정된 잔기로 바꿔라."
+        );
+      }
+      if (others.length) {
+        var spots = bad.slice(0, 5).filter(function (b) {
+          return others.indexOf(b[1]) >= 0;
+        }).map(function (b) {
+          return b[0] + "번째 '" + b[1] + "'";
+        }).join(", ");
+        errors.push(
+          "아미노산이 아닌 문자가 있다: " + others.map(pyReprStr).join(", ") +
+          " (" + spots + "). " +
+          "DNA 서열이나 숫자·구두점이 섞이지 않았는지 확인하라." +
+          (others.indexOf("*") >= 0
+            ? " '*' 는 번역 도구가 정지 코돈 자리에 붙이는 기호다. 지우고 다시 넣어라."
+            : "")
+        );
+      }
+      return { ok: false, cleaned: cleaned, errors: errors, warnings: warnings };
+    }
+
+    // --- nucleotide sequence entered by mistake ---
+    var distinct = {};
+    chars.forEach(function (ch) { distinct[ch] = true; });
+    var distinctKeys = Object.keys(distinct);
+    var onlyNucleotide = distinctKeys.every(function (ch) {
+      return NUCLEOTIDE_LETTERS.indexOf(ch) >= 0;
+    });
+    var nAcgt = distinctKeys.filter(function (ch) { return "ACGT".indexOf(ch) >= 0; }).length;
+    if (chars.length >= NUCLEOTIDE_MIN_LENGTH && onlyNucleotide &&
+        nAcgt >= NUCLEOTIDE_MIN_DISTINCT) {
+      errors.push(
+        "DNA/RNA 서열로 보인다 (A/C/G/T/U/N 으로만 이뤄진 " + chars.length + " 글자). " +
+        "이 도구는 아미노산 서열만 받는다. 번역한 단백질 서열을 넣어라."
+      );
+      return { ok: false, cleaned: cleaned, errors: errors, warnings: warnings };
+    }
+
+    // --- length check ---
+    var n = chars.length;
+    if (n < MIN_DOMAIN_LENGTH) {
+      errors.push(
+        "서열이 너무 짧다 (" + n + " 잔기). 가변도메인 하나는 보통 " + MIN_DOMAIN_LENGTH +
+        " 잔기 이상이다. " +
+        "CDR 조각만 넣은 것이 아닌지 확인하라 — 이 도구는 도메인 전체를 받는다."
+      );
+    } else if (n > MAX_DOMAIN_LENGTH) {
+      errors.push(
+        "서열이 너무 길다 (" + n + " 잔기). 이 도구는 VH 또는 VL 도메인 하나만 받는다 " +
+        "(허용 범위 " + MIN_DOMAIN_LENGTH + "-" + MAX_DOMAIN_LENGTH + " 잔기). " +
+        "scFv·Fab·전장 항체라면 VH 와 VL 을 각각 나눠서 넣어라."
+      );
+    }
+
+    if (errors.length) {
+      return { ok: false, cleaned: cleaned, errors: errors, warnings: warnings };
+    }
+    return { ok: true, cleaned: cleaned, errors: errors, warnings: warnings };
+  }
+
+  // ==========================================================================
+  // abcheck/annotate.py
+  // ==========================================================================
+
+  var WGXG_RE = /WG.G/;
+  var FGXG_RE = /FG.G/;
+  // J_TAIL_RES: zero-width lookaheads, matched at every position like re.finditer does
+  var J_TAIL_RES = [
+    ["H", /(?=[TS][LTMQIVA]VTVS)/],
+    ["L", /(?=T[KR][LV][ED][IV][KR])/],     // kappa J
+    ["L", /(?=T[KQRM][LVM][TS][VI][LV])/]   // lambda J
+  ];
+  var FR3_MOTIF_PATTERN = "[RKQ].[TSAV][IMLFV][STAN]";
+  var FR3_MOTIF_RE = new RegExp(FR3_MOTIF_PATTERN);
+
+  var CYS1_WINDOW_H = [15, 30], CYS1_EXPECTED_H = 22;
+  var CYS1_WINDOW_L = [16, 30], CYS1_EXPECTED_L = 23;
+  var CDR1_OFFSET_H = 9, CDR1_OFFSET_L = 1;
+  var CDR2_OFFSET_H = 14, CDR2_OFFSET_L = 15;
+  var CDR3_OFFSET_H = 3, CDR3_OFFSET_L = 1;
+  var CDR_L2_LENGTH = 7;
+  var FR2_CONTEXT_H = /W[VIA][RKQ]Q/;
+  var FR2_CONTEXT_L = /W[YF][QL]Q/;
+  var MIN_CDR1_LENGTH_H = 5, MIN_CDR1_LENGTH_L = 7;
+  var MIN_CDR_H2_BEFORE_MOTIF = 9;
+  var FR3_TO_CYS_GAP = 29;
+  var TYPICAL_LENGTHS = {
+    "CDR-H1": [5, 7],
+    "CDR-H2": [16, 20],
+    "CDR-H3": [3, 30],
+    "CDR-L1": [7, 17],
+    "CDR-L2": [7, 7],
+    "CDR-L3": [5, 15]
+  };
+  var CONSERVED_CYS_RE = /[YF]C/;
+
+  // CDR dataclass
+  function makeCdr(name, start, end, seq) {
+    return { name: name, start: start, end: end, seq: seq, length: end - start + 1 };
+  }
+
+  // Annotation dataclass. cdrs keeps insertion order like the Python dict.
+  function makeAnnotation(seq) {
+    return {
+      sequence: seq, chain: null, cdrs: {}, anchors: {},
+      confident: true, reasons: [], warnings: []
+    };
+  }
+
+  function cdrList(ann) {
+    return Object.keys(ann.cdrs).map(function (k) { return ann.cdrs[k]; });
+  }
+
+  function cdrsByStart(ann) {
+    return cdrList(ann).slice().sort(function (a, b) { return a.start - b.start; });
+  }
+
+  // Annotation.region_of
+  function regionOf(ann, position) {
+    var cdrs = cdrList(ann);
+    for (var i = 0; i < cdrs.length; i++) {
+      if (cdrs[i].start <= position && position <= cdrs[i].end) return cdrs[i].name;
+    }
+    return "framework";
+  }
+
+  // _last_match
+  function lastMatch(re, seq) {
+    var ms = finditer(re, seq, 0);
+    return ms.length ? ms[ms.length - 1].index + 1 : null;
+  }
+
+  // _first_match_from
+  function firstMatchFrom(re, seq, minPos) {
+    if (minPos < 1) minPos = 1;
+    var m = search(re, seq, minPos - 1);
+    return m ? m.index + 1 : null;
+  }
+
+  // _first_residue_from
+  function firstResidueFrom(seq, residue, minPos) {
+    var idx = seq.indexOf(residue, Math.max(minPos - 1, 0));
+    return idx >= 0 ? idx + 1 : null;
+  }
+
+  // _find_conserved_cys -> [position|null, foundByContext]
+  function findConservedCys(seq, minPos, limit) {
+    var start = Math.max(minPos - 2, 0);
+    var ms = finditer(CONSERVED_CYS_RE, seq, start);
+    for (var i = 0; i < ms.length; i++) {
+      var pos = ms[i].index + 2;
+      if (pos < minPos) continue;
+      if (pos >= limit) break;
+      return [pos, true];
+    }
+    var fallback = firstResidueFrom(seq, "C", minPos);
+    if (fallback !== null && fallback < limit) return [fallback, false];
+    return [null, false];
+  }
+
+  // _find_conserved_trp -> [position|null, foundByFr2Context]
+  function findConservedTrp(seq, minPos, context) {
+    var m = search(context, seq, Math.max(minPos - 1, 0));
+    if (m !== null && m.index + 1 >= minPos) return [m.index + 1, true];
+    return [firstResidueFrom(seq, "W", minPos), false];
+  }
+
+  // _cys_in_window -> [best|null, count]
+  function cysInWindow(seq, window, expected) {
+    var lo = window[0], hi = window[1];
+    var found = [];
+    var limit = Math.min(hi, seq.length);
+    for (var i = 0; i < limit; i++) {
+      if (seq.charAt(i) === "C" && i + 1 >= lo) found.push(i + 1);
+    }
+    if (!found.length) return [null, 0];
+    var best = found[0];
+    for (var j = 1; j < found.length; j++) {
+      var p = found[j];
+      var dp = Math.abs(p - expected), db = Math.abs(best - expected);
+      if (dp < db || (dp === db && p < best)) best = p;
+    }
+    return [best, found.length];
+  }
+
+  // detect_chain
+  function detectChain(seq) {
+    var wgxg = lastMatch(WGXG_RE, seq);
+    var fgxg = lastMatch(FGXG_RE, seq);
+    if (wgxg === null && fgxg === null) return [null, null];
+    if (fgxg === null) return ["H", wgxg];
+    if (wgxg === null) return ["L", fgxg];
+    return wgxg > fgxg ? ["H", wgxg] : ["L", fgxg];
+  }
+
+  // detect_chain_by_j_tail
+  function detectChainByJTail(seq) {
+    var best = null;
+    J_TAIL_RES.forEach(function (entry) {
+      var chain = entry[0];
+      var sticky = new RegExp(entry[1].source, "y");
+      for (var i = 0; i <= seq.length; i++) {
+        sticky.lastIndex = i;
+        if (!sticky.test(seq)) continue;
+        var motifPos = i + 1 - 4;
+        if (motifPos < 1 || i < seq.length * 0.6) continue;
+        if (best === null || motifPos > best[1]) best = [chain, motifPos];
+      }
+    });
+    return best ? best : [null, null];
+  }
+
+  // annotate (called with validate_input=False from report.build)
+  function annotate(seq) {
+    var ann = makeAnnotation(seq);
+
+    var det = detectChain(seq), chain = det[0], motifPos = det[1];
+    if (chain === null) {
+      det = detectChainByJTail(seq);
+      chain = det[0];
+      motifPos = det[1];
+      if (chain !== null) {
+        var found = seq.slice(motifPos - 1, motifPos + 3);
+        ann.warnings.push(
+          "말단 모티프(" + (chain === "H" ? "WGxG" : "FGxG") + ")가 " + found + " 로 치환돼 있어, " +
+          "뒤따르는 J 유전자 꼬리(" + seq.slice(motifPos + 3, motifPos + 9) + ")로 " +
+          motifPos + "번 위치와 체인(" + (chain === "H" ? "중쇄" : "경쇄") + ")을 잡았다."
+        );
+      }
+    }
+    if (chain === null) {
+      ann.chain = null;
+      ann.confident = false;
+      ann.reasons.push(
+        "말단 모티프를 찾지 못했다. 중쇄의 WGxG 또는 경쇄의 FGxG 가 없어서 " +
+        "체인 종류(H/L)조차 판별할 수 없다. 서열이 중간에서 잘렸거나, 가변도메인이 " +
+        "아니거나, 해당 보존 모티프가 치환된 경우다. CDR 위치는 추측하지 않는다."
+      );
+      return ann;
+    }
+
+    ann.chain = chain;
+    ann.anchors.terminal_motif = motifPos;
+
+    if (motifPos < seq.length * 0.5) {
+      ann.warnings.push(
+        "말단 모티프(" + (chain === "H" ? "WGxG" : "FGxG") + ")가 " + motifPos + "번째로 " +
+        "서열 전반부에 있다. C-말단이 아닌 자리에 우연히 걸린 모티프일 수 있다."
+      );
+    }
+
+    if (chain === "H") annotateHeavy(seq, ann);
+    else annotateLight(seq, ann);
+
+    checkLengths(ann);
+    return ann;
+  }
+
+  // _annotate_heavy
+  function annotateHeavy(seq, ann) {
+    var motifPos = ann.anchors.terminal_motif;
+
+    // --- Anchor 1: Cys22 ---
+    var cw = cysInWindow(seq, CYS1_WINDOW_H, CYS1_EXPECTED_H), cys1 = cw[0], nCys = cw[1];
+    if (cys1 === null) {
+      ann.confident = false;
+      ann.reasons.push(
+        "보존 Cys22 를 찾지 못했다. " + CYS1_WINDOW_H[0] + "-" + CYS1_WINDOW_H[1] + "번 구간에 " +
+        "Cys 가 없다. 이 Cys 는 도메인 내부 이황화결합의 한쪽이라 거의 항상 보존된다. " +
+        "N-말단이 잘렸거나 Cys 가 치환된 경우다. CDR-H1 위치는 추측하지 않는다."
+      );
+      return;
+    }
+    if (nCys > 1) {
+      ann.warnings.push(
+        CYS1_WINDOW_H[0] + "-" + CYS1_WINDOW_H[1] + "번 구간에 Cys 가 " + nCys + "개 있다. " +
+        "22번에 가장 가까운 " + cys1 + "번을 앵커로 썼다. 결과를 ANARCI/IMGT 로 재확인할 것."
+      );
+    }
+    ann.anchors.cys1 = cys1;
+
+    // --- Anchor 2: Trp36, CDR-H1 ---
+    var h1Start = cys1 + CDR1_OFFSET_H;
+    if (h1Start > seq.length) {
+      ann.confident = false;
+      ann.reasons.push(
+        "Cys22(" + cys1 + "번) 뒤로 서열이 " + (seq.length - cys1) + " 잔기밖에 없어 " +
+        "CDR-H1 시작 위치가 서열 범위를 벗어난다. 서열이 잘린 것으로 보인다."
+      );
+      return;
+    }
+
+    var tr = findConservedTrp(seq, h1Start + MIN_CDR1_LENGTH_H, FR2_CONTEXT_H);
+    var trp = tr[0], byContext = tr[1];
+    if (trp !== null && !byContext) {
+      ann.warnings.push(
+        "보존 Trp36 을 FR2 문맥(W[VIA][RKQ]Q)으로 찾지 못해 " + trp + "번의 Trp 을 그대로 썼다. " +
+        "CDR-H1 안에 Trp 이 있으면 경계가 밀릴 수 있다. ANARCI/IMGT 로 재확인할 것."
+      );
+    }
+    if (trp === null || trp >= motifPos) {
+      ann.confident = false;
+      ann.reasons.push(
+        "보존 Trp36 을 찾지 못했다. CDR-H1 시작 추정 위치(" + h1Start + "번) 이후에 " +
+        "Trp 가 없다. 이 Trp 는 CDR-H1 의 끝을 정하는 앵커다. " +
+        "CDR-H1/H2/H3 위치 모두 추측하지 않는다."
+      );
+      return;
+    }
+    if (trp === h1Start) {
+      ann.confident = false;
+      ann.reasons.push(
+        "CDR-H1 시작 위치(" + h1Start + "번)가 곧 Trp 라서 CDR-H1 길이가 0 이 된다. " +
+        "Cys22 앵커를 잘못 집었을 가능성이 높다."
+      );
+      return;
+    }
+    ann.anchors.trp = trp;
+    ann.cdrs["CDR-H1"] = makeCdr("CDR-H1", h1Start, trp - 1, seq.slice(h1Start - 1, trp - 1));
+
+    // --- Anchor 3: FR3 motif, CDR-H2 ---
+    var h2Start = trp + CDR2_OFFSET_H;
+    if (h2Start > seq.length) {
+      ann.confident = false;
+      ann.reasons.push(
+        "Trp36(" + trp + "번) 뒤로 서열이 짧아 CDR-H2 시작 위치(" + h2Start + "번)가 " +
+        "서열 범위를 벗어난다. 서열이 잘린 것으로 보인다."
+      );
+      return;
+    }
+
+    var searchFrom = h2Start + MIN_CDR_H2_BEFORE_MOTIF;
+    var fr3 = firstMatchFrom(FR3_MOTIF_RE, seq, searchFrom);
+    if (fr3 !== null && fr3 >= motifPos) fr3 = null;
+
+    var cys2, cc;
+    if (fr3 !== null) {
+      cc = findConservedCys(seq, fr3, motifPos);
+      cys2 = cc[0];
+      byContext = cc[1];
+      // Cross-check the FR3-motif-to-Cys distance (29); re-derive the motif from the Cys.
+      if (cys2 !== null && cys2 - fr3 !== FR3_TO_CYS_GAP) {
+        var corrected = cys2 - FR3_TO_CYS_GAP;
+        if (corrected > h2Start) {
+          ann.confident = false;
+          ann.reasons.push(
+            "FR3 시작 모티프를 " + fr3 + "번에서 찾았지만, 보존 Cys(" + cys2 + "번)까지의 거리가 " +
+            (cys2 - fr3) + "로 통상값(" + FR3_TO_CYS_GAP + ")과 다르다. 모티프가 엉뚱한 자리에 " +
+            "걸린 것으로 보여 Cys 기준으로 " + corrected + "번으로 고쳐 잡았다. " +
+            "CDR-H2 경계를 ANARCI/IMGT 로 반드시 재확인할 것."
+          );
+          fr3 = corrected;
+        }
+      }
+    } else {
+      // Motif broken by somatic hypermutation: back-calculate from the conserved Cys.
+      cc = findConservedCys(seq, searchFrom + FR3_TO_CYS_GAP, motifPos);
+      cys2 = cc[0];
+      byContext = cc[1];
+      if (cys2 !== null) {
+        fr3 = cys2 - FR3_TO_CYS_GAP;
+        ann.confident = false;
+        ann.reasons.push(
+          "FR3 시작 모티프(" + FR3_MOTIF_PATTERN + ")를 찾지 못해, 보존 Cys(" + cys2 + "번)에서 " +
+          FR3_TO_CYS_GAP + "잔기 역산해 CDR-H2 의 끝을 " + (fr3 - 1) + "번으로 잡았다. " +
+          "체세포 과변이로 모티프가 깨진 서열에서 흔하다. 위치는 그대로 보고하지만 " +
+          "모티프를 직접 확인한 것보다 근거가 약하므로, CDR-H2 경계를 " +
+          "ANARCI/IMGT 로 반드시 재확인할 것."
+        );
+      }
+    }
+
+    if (cys2 === null || fr3 === null || fr3 <= h2Start) {
+      ann.confident = false;
+      ann.reasons.push(
+        "CDR-H2 의 끝을 정할 수 없다. FR3 시작 모티프(" + FR3_MOTIF_PATTERN + ")가 없고, " +
+        "보존 Cys 에서 역산할 수도 없다 (CDR-H2 시작 " + h2Start + "번). " +
+        "CDR-H2/H3 위치는 추측하지 않는다."
+      );
+      return;
+    }
+
+    if (!byContext) {
+      ann.warnings.push(
+        "보존 Cys92 를 문맥(YC/FC) 으로 찾지 못해 " + cys2 + "번의 Cys 를 그대로 썼다. " +
+        "FR3 에 여분 Cys 가 있으면 CDR-H3 시작이 밀릴 수 있다. ANARCI/IMGT 로 재확인할 것."
+      );
+    }
+
+    ann.anchors.fr3_motif = fr3;
+    ann.cdrs["CDR-H2"] = makeCdr("CDR-H2", h2Start, fr3 - 1, seq.slice(h2Start - 1, fr3 - 1));
+    ann.anchors.cys2 = cys2;
+
+    var h3Start = cys2 + CDR3_OFFSET_H;
+    if (h3Start > motifPos - 1) {
+      ann.confident = false;
+      ann.reasons.push(
+        "Cys92(" + cys2 + "번)와 말단 WGxG(" + motifPos + "번) 사이가 너무 좁아 " +
+        "CDR-H3 길이가 0 이하가 된다. 두 앵커 중 하나를 잘못 집었을 가능성이 높다."
+      );
+      return;
+    }
+    ann.cdrs["CDR-H3"] = makeCdr("CDR-H3", h3Start, motifPos - 1,
+      seq.slice(h3Start - 1, motifPos - 1));
+  }
+
+  // _annotate_light
+  function annotateLight(seq, ann) {
+    var motifPos = ann.anchors.terminal_motif;
+
+    // --- Anchor 1: Cys23 ---
+    var cw = cysInWindow(seq, CYS1_WINDOW_L, CYS1_EXPECTED_L), cys1 = cw[0], nCys = cw[1];
+    if (cys1 === null) {
+      ann.confident = false;
+      ann.reasons.push(
+        "보존 Cys23 을 찾지 못했다. " + CYS1_WINDOW_L[0] + "-" + CYS1_WINDOW_L[1] + "번 구간에 " +
+        "Cys 가 없다. N-말단이 잘렸거나 Cys 가 치환된 경우다. " +
+        "CDR-L1 위치는 추측하지 않는다."
+      );
+      return;
+    }
+    if (nCys > 1) {
+      ann.warnings.push(
+        CYS1_WINDOW_L[0] + "-" + CYS1_WINDOW_L[1] + "번 구간에 Cys 가 " + nCys + "개 있다. " +
+        "23번에 가장 가까운 " + cys1 + "번을 앵커로 썼다. 결과를 ANARCI/IMGT 로 재확인할 것."
+      );
+    }
+    ann.anchors.cys1 = cys1;
+
+    // --- Anchor 2: Trp35, CDR-L1 ---
+    var l1Start = cys1 + CDR1_OFFSET_L;
+    var tr = findConservedTrp(seq, l1Start + MIN_CDR1_LENGTH_L, FR2_CONTEXT_L);
+    var trp = tr[0], byContext = tr[1];
+    if (trp !== null && !byContext) {
+      ann.warnings.push(
+        "보존 Trp35 를 FR2 문맥(W[YF][QL]Q)으로 찾지 못해 " + trp + "번의 Trp 을 그대로 썼다. " +
+        "CDR-L1 안에 Trp 이 있으면 경계가 밀릴 수 있다. ANARCI/IMGT 로 재확인할 것."
+      );
+    }
+    if (trp === null || trp >= motifPos) {
+      ann.confident = false;
+      ann.reasons.push(
+        "보존 Trp35 를 찾지 못했다. CDR-L1 시작 추정 위치(" + l1Start + "번) 이후에 " +
+        "Trp 가 없다. 이 Trp 는 CDR-L1 의 끝을 정하는 앵커다. " +
+        "CDR-L1/L2/L3 위치 모두 추측하지 않는다."
+      );
+      return;
+    }
+    if (trp === l1Start) {
+      ann.confident = false;
+      ann.reasons.push(
+        "CDR-L1 시작 위치(" + l1Start + "번)가 곧 Trp 라서 CDR-L1 길이가 0 이 된다. " +
+        "Cys23 앵커를 잘못 집었을 가능성이 높다."
+      );
+      return;
+    }
+    ann.anchors.trp = trp;
+    ann.cdrs["CDR-L1"] = makeCdr("CDR-L1", l1Start, trp - 1, seq.slice(l1Start - 1, trp - 1));
+
+    // --- CDR-L2 (fixed at 7 residues) ---
+    var l2Start = trp + CDR2_OFFSET_L;
+    var l2End = l2Start + CDR_L2_LENGTH - 1;
+    if (l2End > seq.length || l2End >= motifPos) {
+      ann.confident = false;
+      ann.reasons.push(
+        "Trp35(" + trp + "번) 기준으로 잡은 CDR-L2 구간(" + l2Start + "-" + l2End + "번)이 " +
+        "서열 범위 또는 말단 FGxG 를 넘는다. 서열이 잘렸거나 Trp 앵커를 " +
+        "잘못 집은 것으로 보인다. CDR-L2/L3 위치는 추측하지 않는다."
+      );
+      return;
+    }
+    ann.cdrs["CDR-L2"] = makeCdr("CDR-L2", l2Start, l2End, seq.slice(l2Start - 1, l2End));
+
+    // --- Anchor 3: Cys88, CDR-L3 ---
+    var cc = findConservedCys(seq, l2End + 1, motifPos);
+    var cys2 = cc[0];
+    byContext = cc[1];
+    if (!byContext && cys2 !== null) {
+      ann.warnings.push(
+        "보존 Cys88 을 문맥(YC/FC) 으로 찾지 못해 " + cys2 + "번의 Cys 를 그대로 썼다. " +
+        "FR3 에 여분 Cys 가 있으면 CDR-L3 시작이 밀릴 수 있다. ANARCI/IMGT 로 재확인할 것."
+      );
+    }
+    if (cys2 === null || cys2 >= motifPos) {
+      ann.confident = false;
+      ann.reasons.push(
+        "보존 Cys88 을 찾지 못했다. CDR-L2 종료(" + l2End + "번) 이후 말단 FGxG 전까지 " +
+        "Cys 가 없다. 이 Cys 는 CDR-L3 시작을 정하는 앵커다. " +
+        "CDR-L3 위치는 추측하지 않는다."
+      );
+      return;
+    }
+    ann.anchors.cys2 = cys2;
+
+    var l3Start = cys2 + CDR3_OFFSET_L;
+    if (l3Start > motifPos - 1) {
+      ann.confident = false;
+      ann.reasons.push(
+        "Cys88(" + cys2 + "번)과 말단 FGxG(" + motifPos + "번) 사이가 너무 좁아 " +
+        "CDR-L3 길이가 0 이하가 된다. 두 앵커 중 하나를 잘못 집었을 가능성이 높다."
+      );
+      return;
+    }
+    ann.cdrs["CDR-L3"] = makeCdr("CDR-L3", l3Start, motifPos - 1,
+      seq.slice(l3Start - 1, motifPos - 1));
+  }
+
+  // _check_lengths (iterates CDRs sorted by name)
+  function checkLengths(ann) {
+    Object.keys(ann.cdrs).sort().forEach(function (name) {
+      var cdr = ann.cdrs[name];
+      var lo = TYPICAL_LENGTHS[name][0], hi = TYPICAL_LENGTHS[name][1];
+      if (!(lo <= cdr.length && cdr.length <= hi)) {
+        ann.confident = false;
+        var bound = cdr.length < lo ? "짧다" : "길다";
+        ann.reasons.push(
+          name + " 길이가 " + cdr.length + " 잔기로 통상 범위(" + lo + "-" + hi + ")보다 " + bound + ". " +
+          "앵커 자체는 찾았지만 경계가 밀렸을 수 있다. " +
+          "ANARCI/IMGT 로 경계를 재확인할 것."
+        );
+      }
+    });
+  }
+
+  // ==========================================================================
+  // abcheck/liabilities.py
+  // ==========================================================================
+
+  var RISK_LEVELS = ["낮음", "중간", "높음"];
+  var UNDETERMINED = "구간 미확정";
+
+  // _shift
+  function shiftLevel(level, step) {
+    var idx = RISK_LEVELS.indexOf(level);
+    return RISK_LEVELS[Math.max(0, Math.min(RISK_LEVELS.length - 1, idx + step))];
+  }
+
+  // MOTIF_SPECS (order matters: within a category the riskier motif comes first)
+  var MOTIF_SPECS = [
+    {
+      kind: "glycosylation", pattern: /N[^P][ST]/, base_risk: "높음", label: "N-결합 당화 서열",
+      rationale:
+        "N-X-S/T (X≠Pro) 는 N-결합 당화 수용 서열이다. 당화가 일어나면 " +
+        "불균일성(heterogeneity)이 생기고 배치 간 재현성이 떨어진다.",
+      top_within_kind: true
+    },
+    {
+      kind: "deamidation", pattern: /NG/, base_risk: "높음", label: "deamidation (NG)",
+      rationale:
+        "Asn-Gly 는 deamidation 속도가 가장 빠른 조합이다. Asn 이 Asp/isoAsp 로 " +
+        "바뀌면 전하와 구조가 변해 결합력 손실로 이어질 수 있다.",
+      top_within_kind: true
+    },
+    {
+      kind: "deamidation", pattern: /N[STNH]/, base_risk: "중간", label: "deamidation (NS/NT/NN/NH)",
+      rationale:
+        "Asn 뒤 잔기에 따라 deamidation 이 일어날 수 있다. NG 보다는 느리지만 " +
+        "장기 보관 안정성에서 확인이 필요하다.",
+      top_within_kind: false
+    },
+    {
+      kind: "isomerization", pattern: /DG/, base_risk: "높음", label: "isomerization (DG)",
+      rationale:
+        "Asp-Gly 는 isomerization 속도가 가장 빠른 조합이다. Asp 가 isoAsp 로 " +
+        "바뀌면 주쇄가 한 원자 길어져 국소 구조가 틀어진다.",
+      top_within_kind: true
+    },
+    {
+      kind: "isomerization", pattern: /D[STD]/, base_risk: "중간", label: "isomerization (DS/DT/DD)",
+      rationale:
+        "Asp 뒤 잔기에 따라 isomerization 이 일어날 수 있다. DG 보다는 느리지만 " +
+        "가속 안정성 시험에서 확인이 필요하다.",
+      top_within_kind: false
+    },
+    {
+      kind: "fragmentation", pattern: /DP/, base_risk: "중간", label: "fragmentation (DP)",
+      rationale:
+        "Asp-Pro 펩타이드 결합은 산성 조건에서 쉽게 끊어진다. 저장 완충액 pH 가 " +
+        "낮으면 단편화가 나타날 수 있다.",
+      top_within_kind: true
+    },
+    {
+      kind: "oxidation", pattern: /M/, base_risk: "낮음", label: "산화 (Met)",
+      rationale:
+        "Met 은 산화되기 쉽다. 노출된 Met 이 산화되면 결합력이나 안정성이 떨어질 수 있다.",
+      top_within_kind: false
+    },
+    {
+      kind: "oxidation", pattern: /W/, base_risk: "낮음", label: "산화 (Trp)",
+      rationale:
+        "Trp 은 빛·금속 이온에 의해 산화될 수 있다. 보존 Trp 앵커(Trp36, WGxG 의 Trp)는 " +
+        "대개 묻혀 있어 위험이 낮지만, 검출 자체는 숨기지 않는다.",
+      top_within_kind: false
+    }
+  ];
+
+  // _region_name -> [region, inCdr]
+  function regionName(ann, start, end) {
+    var cdrs = cdrList(ann);
+    if (!cdrs.length) return [UNDETERMINED, false];
+    for (var i = 0; i < cdrs.length; i++) {
+      if (start <= cdrs[i].end && end >= cdrs[i].start) return [cdrs[i].name, true];
+    }
+    return ["framework", false];
+  }
+
+  // _adjust -> [risk, note]
+  function adjust(base, inCdr, region) {
+    if (region === UNDETERMINED) {
+      return [base,
+        "CDR 주석이 실패해 구간을 구분할 수 없다. 기본 등급을 그대로 쓴다 — " +
+        "CDR 안일 수도 있으니 과소평가하지 말 것."];
+    }
+    var adjusted;
+    if (inCdr) {
+      adjusted = shiftLevel(base, +1);
+      if (adjusted === base) {
+        return [adjusted, region + " 안이고 기본 등급이 이미 최고(" + base + ")라 그대로 둔다."];
+      }
+      return [adjusted, region + " 안이라 기본 " + base + " 에서 한 단계 올렸다 (결합에 직접 영향)."];
+    }
+    adjusted = shiftLevel(base, -1);
+    if (adjusted === base) {
+      return [adjusted, "framework 이고 기본 등급이 이미 최저(" + base + ")라 그대로 둔다."];
+    }
+    return [adjusted, "framework 이라 기본 " + base + " 에서 한 단계 내렸다 (결합 영향이 간접적)."];
+  }
+
+  // find_liabilities -> {hits, domain_flags, warnings}
+  function findLiabilities(ann) {
+    var seq = ann.sequence;
+    var report = { hits: [], domain_flags: [], warnings: [] };
+
+    if (!cdrList(ann).length) {
+      report.warnings.push(
+        "CDR 주석이 실패해 CDR/framework 구간을 구분할 수 없다. " +
+        "모든 모티프를 '구간 미확정'으로 보고하며 구간별 위험도 조정을 적용하지 않았다."
+      );
+    }
+
+    var claimed = {};
+    MOTIF_SPECS.forEach(function (spec) {
+      var taken = claimed[spec.kind] || (claimed[spec.kind] = {});
+      finditer(spec.pattern, seq, 0).forEach(function (m) {
+        var start = m.index + 1, end = m.index + m[0].length;
+        var p;
+        for (p = start; p <= end; p++) {
+          if (taken[p]) return;
+        }
+        for (p = start; p <= end; p++) taken[p] = true;
+
+        var rg = regionName(ann, start, end);
+        var adj = adjust(spec.base_risk, rg[1], rg[0]);
+        report.hits.push({
+          kind: spec.kind, label: spec.label, match: m[0], start: start, end: end,
+          region: rg[0], in_cdr: rg[1], risk: adj[0], base_risk: spec.base_risk,
+          rationale: spec.rationale, note: adj[1], top_within_kind: spec.top_within_kind
+        });
+      });
+    });
+
+    // sort key (start, kind); Array.prototype.sort is stable like Python's sort
+    report.hits.sort(function (a, b) {
+      if (a.start !== b.start) return a.start - b.start;
+      return a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0;
+    });
+    addCysteineFlag(seq, ann, report);
+    return report;
+  }
+
+  // _add_cysteine_flag
+  function addCysteineFlag(seq, ann, report) {
+    var positions = [];
+    for (var i = 0; i < seq.length; i++) {
+      if (seq.charAt(i) === "C") positions.push(i + 1);
+    }
+    var count = positions.length;
+    if (count % 2 === 0) return;
+
+    var hasCdrs = cdrList(ann).length > 0;
+    var regions = positions.map(function (p) { return hasCdrs ? regionOf(ann, p) : UNDETERMINED; });
+    var inCdr = positions.filter(function (p, k) { return regions[k].indexOf("CDR") === 0; });
+    var risk = inCdr.length ? "높음" : "중간";
+
+    var rationale =
+      "도메인 내 Cys 가 " + count + "개로 홀수다. 가변도메인은 보존 Cys 한 쌍이 " +
+      "도메인 내부 이황화결합을 이루므로 개수는 보통 짝수다. 홀수면 짝을 못 이룬 " +
+      "Cys 가 있다는 뜻이고, 이는 응집·이분자 가교·불균일한 이황화 짝짓기를 일으킬 수 있다.";
+    if (inCdr.length) {
+      rationale +=
+        " 특히 CDR 안의 Cys(" + inCdr.join(", ") + "번)는 " +
+        "결합 부위에 있어 위험도가 더 높다.";
+    }
+
+    report.domain_flags.push({
+      kind: "unpaired_cysteine",
+      label: "비결합 Cys 가능성",
+      risk: risk,
+      cysteine_count: count,
+      positions: positions,
+      regions: regions,
+      rationale: rationale
+    });
+  }
+
+  // LiabilityReport.counts_by_risk (high first)
+  function countsByRisk(report) {
+    var out = {};
+    RISK_LEVELS.slice().reverse().forEach(function (lvl) {
+      out[lvl] = report.hits.filter(function (h) { return h.risk === lvl; }).length;
+    });
+    return out;
+  }
+
+  // ==========================================================================
+  // abcheck/properties.py
+  // ==========================================================================
+
+  var SIDE_CHAIN_PKA = { D: 3.9, E: 4.1, C: 8.5, Y: 10.1, H: 6.5, K: 10.8, R: 12.5 };
+  var POSITIVE_RESIDUES = "KRH";
+  var NEGATIVE_RESIDUES = "DECY";
+  var PKA_N_TERMINUS = 8.6;
+  var PKA_C_TERMINUS = 3.6;
+  var KYTE_DOOLITTLE = {
+    A: 1.8, R: -4.5, N: -3.5, D: -3.5, C: 2.5,
+    Q: -3.5, E: -3.5, G: -0.4, H: -3.2, I: 4.5,
+    L: 3.8, K: -3.9, M: 1.9, F: 2.8, P: -1.6,
+    S: -0.8, T: -0.7, W: -0.9, Y: -1.3, V: 4.2
+  };
+  var DEFAULT_PH = 7.4;
+  var PI_LOW = 0.0, PI_HIGH = 14.0, PI_TOLERANCE = 1e-6, PI_MAX_ITERATIONS = 200;
+
+  function has(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key);
+  }
+
+  // net_charge
+  function netCharge(seq, ph, includeTermini) {
+    if (includeTermini === undefined) includeTermini = true;
+    seq = seq.toUpperCase();
+    var charge = 0.0;
+    if (includeTermini && seq) {
+      charge += 1.0 / (1.0 + Math.pow(10, ph - PKA_N_TERMINUS));
+      charge -= 1.0 / (1.0 + Math.pow(10, PKA_C_TERMINUS - ph));
+    }
+    for (var i = 0; i < seq.length; i++) {
+      var r = seq.charAt(i);
+      if (!has(SIDE_CHAIN_PKA, r)) continue;
+      var pka = SIDE_CHAIN_PKA[r];
+      if (POSITIVE_RESIDUES.indexOf(r) >= 0) charge += 1.0 / (1.0 + Math.pow(10, ph - pka));
+      else if (NEGATIVE_RESIDUES.indexOf(r) >= 0) charge -= 1.0 / (1.0 + Math.pow(10, pka - ph));
+    }
+    return charge;
+  }
+
+  // isoelectric_point (bisection)
+  function isoelectricPoint(seq, includeTermini) {
+    if (includeTermini === undefined) includeTermini = true;
+    seq = seq.toUpperCase();
+    if (!seq) return null;
+    var hasGroup = includeTermini || seq.split("").some(function (r) { return has(SIDE_CHAIN_PKA, r); });
+    if (!hasGroup) return null;
+
+    var low = PI_LOW, high = PI_HIGH;
+    var chargeLow = netCharge(seq, low, includeTermini);
+    var chargeHigh = netCharge(seq, high, includeTermini);
+    if (chargeLow * chargeHigh > 0) {
+      return Math.abs(chargeLow) < Math.abs(chargeHigh) ? low : high;
+    }
+    for (var it = 0; it < PI_MAX_ITERATIONS; it++) {
+      var mid = (low + high) / 2.0;
+      var chargeMid = netCharge(seq, mid, includeTermini);
+      if (Math.abs(chargeMid) < PI_TOLERANCE || (high - low) < PI_TOLERANCE) return mid;
+      if (chargeMid > 0) low = mid;
+      else high = mid;
+    }
+    return (low + high) / 2.0;
+  }
+
+  // gravy
+  function gravy(seq) {
+    seq = seq.toUpperCase();
+    var values = [];
+    for (var i = 0; i < seq.length; i++) {
+      if (has(KYTE_DOOLITTLE, seq.charAt(i))) values.push(KYTE_DOOLITTLE[seq.charAt(i)]);
+    }
+    if (!values.length) return null;
+    return pySumFloats(values) / values.length;
+  }
+
+  // compute + Properties.as_dict
+  function propertiesDict(label, seq, ph) {
+    seq = seq.toUpperCase();
+    var pi = isoelectricPoint(seq);
+    var gr = gravy(seq);
+    return {
+      label: label,
+      sequence: seq,
+      length: seq.length,
+      pI: pi === null ? null : pyRound(pi, 2),
+      GRAVY: gr === null ? null : pyRound(gr, 3),
+      net_charge: pyRound(netCharge(seq, ph), 2),
+      pH: ph
+    };
+  }
+
+  // compute_all
+  function computeAll(sequence, ann, ph) {
+    var result = {};
+    result["도메인 전체"] = propertiesDict("도메인 전체", sequence, ph);
+    cdrsByStart(ann).forEach(function (cdr) {
+      result[cdr.name] = propertiesDict(cdr.name, cdr.seq, ph);
+    });
+    return result;
+  }
+
+  // ==========================================================================
+  // abcheck/triage.py
+  // ==========================================================================
+
+  var STATUS_REVIEW = "검토 필요";
+  var STATUS_CLEAR = "기준 해당 없음";
+  var STATUS_UNKNOWN = "판정 불가";
+  var TRIAGE_NOTICE =
+    "'검토 필요'는 아래 선별 규칙에 걸렸다는 뜻이지, 이 항체가 나쁘다는 뜻이 아니다. " +
+    "'기준 해당 없음'도 안전하다는 뜻이 아니라 이 규칙에 걸리지 않았다는 뜻일 뿐이다. " +
+    "규칙은 연구자가 정한 것이고, 도구는 그대로 적용만 한다.";
+
+  // _cdr_high_risk
+  function cdrHighRisk(report) {
+    if (!report.liabilities) return [];
+    var reasons = [];
+    report.liabilities.hits.forEach(function (hit) {
+      if (!hit.in_cdr) return;
+      if (hit.risk === "높음" && hit.top_within_kind) {
+        var label = hit.label.indexOf("(" + hit.match + ")") >= 0
+          ? hit.label : hit.label + " (" + hit.match + ")";
+        reasons.push(hit.region + " " + hit.start + "번에 " + label + " — 위험도 높음");
+      }
+    });
+    return reasons;
+  }
+
+  // _domain_flag_high_risk
+  function domainFlagHighRisk(report) {
+    if (!report.liabilities) return [];
+    return report.liabilities.domain_flags.filter(function (f) {
+      return f.risk === "높음";
+    }).map(function (f) {
+      return f.label + " — 위험도 " + f.risk + " (Cys " + f.cysteine_count + "개, 홀수)";
+    });
+  }
+
+  var DEFAULT_RULES = [
+    {
+      key: "cdr-high",
+      description:
+        "CDR 안에 위험도 '높음'이면서 각 분류의 최고 위험 모티프" +
+        "(N-결합 당화, NG, DG, DP)가 1건 이상 있으면 검토 필요",
+      check: cdrHighRisk
+    },
+    {
+      key: "domain-high",
+      description: "비결합 Cys 등 도메인 플래그가 위험도 '높음'이면 검토 필요",
+      check: domainFlagHighRisk
+    }
+  ];
+
+  // TriageResult.as_dict
+  function triageResult(status, reasons, evaluable, note) {
+    return {
+      status: status,
+      reasons: reasons || [],
+      evaluable: evaluable === undefined ? true : evaluable,
+      note: note || "",
+      notice: TRIAGE_NOTICE
+    };
+  }
+
+  // evaluate
+  function evaluate(report) {
+    if (!report.ok) {
+      return triageResult(STATUS_UNKNOWN, [], false,
+        "입력이 검증을 통과하지 못해 규칙을 적용할 수 없다.");
+    }
+    if (!report.annotation || !cdrList(report.annotation).length) {
+      return triageResult(STATUS_UNKNOWN, [], false,
+        "CDR 주석이 실패해 CDR 과 framework 를 가를 수 없다. " +
+        "'CDR 안의 높음' 규칙을 적용할 수 없으므로 사람이 직접 확인해야 한다.");
+    }
+    var reasons = [];
+    DEFAULT_RULES.forEach(function (rule) {
+      reasons.push.apply(reasons, rule.check(report));
+    });
+    if (reasons.length) return triageResult(STATUS_REVIEW, reasons);
+    if (!report.annotation.confident) {
+      return triageResult(STATUS_UNKNOWN, [], true,
+        "규칙에는 걸리지 않았지만 주석 신뢰도가 낮아(confident=False) CDR 경계가 " +
+        "밀렸을 수 있다. 경계가 맞다는 보장이 없으므로 '기준 해당 없음'이라고 할 수 " +
+        "없다. ANARCI/IMGT 로 경계를 확인한 뒤 판단할 것.");
+    }
+    return triageResult(STATUS_CLEAR);
+  }
+
+  function ruleDescriptions() {
+    return DEFAULT_RULES.map(function (r) { return r.description; });
+  }
+
+  // ==========================================================================
+  // abcheck/report.py
+  // ==========================================================================
+
+  // build -> internal SequenceReport-like object
+  function build(seqId, sequence, ph) {
+    var validation = validate(sequence);
+    var report;
+    if (!validation.ok) {
+      report = {
+        seq_id: seqId, sequence: validation.cleaned, ok: false,
+        errors: validation.errors.slice(), warnings: validation.warnings.slice(),
+        annotation: null, liabilities: null, properties: {}, triage: null
+      };
+      report.triage = evaluate(report);
+      return report;
+    }
+    var cleaned = validation.cleaned;
+    var ann = annotate(cleaned);
+    var lia = findLiabilities(ann);
+    var props = computeAll(cleaned, ann, ph);
+    report = {
+      seq_id: seqId, sequence: cleaned, ok: true, errors: [],
+      warnings: validation.warnings.slice(), annotation: ann, liabilities: lia,
+      properties: props, triage: null
+    };
+    report.triage = evaluate(report);
+    return report;
+  }
+
+  function reportChain(report) {
+    return report.annotation ? report.annotation.chain : null;
+  }
+
+  function reportConfident(report) {
+    return Boolean(report.annotation && report.annotation.confident);
+  }
+
+  // SequenceReport.as_dict
+  function reportAsDict(report) {
+    var payload = {
+      id: report.seq_id,
+      tool: { name: "abcheck", version: VERSION },
+      input_ok: report.ok,
+      errors: report.errors.slice(),
+      warnings: report.warnings.slice(),
+      limitations: LIMITATION_NOTICE.slice(),
+      no_verdict: NO_VERDICT_NOTICE
+    };
+    if (report.triage) payload.triage = cloneTriage(report.triage);
+    if (!report.ok) return payload;
+
+    var ann = report.annotation;
+    payload.sequence = report.sequence;
+    payload.length = report.sequence.length;
+    var cdrs = {};
+    cdrsByStart(ann).forEach(function (cdr) {
+      cdrs[cdr.name] = { start: cdr.start, end: cdr.end, length: cdr.length, seq: cdr.seq };
+    });
+    var anchors = {};
+    Object.keys(ann.anchors).forEach(function (k) { anchors[k] = ann.anchors[k]; });
+    payload.annotation = {
+      chain: ann.chain,
+      confident: ann.confident,
+      reasons: ann.reasons.slice(),
+      warnings: ann.warnings.slice(),
+      anchors: anchors,
+      coordinates: "1-based, 양끝 포함",
+      cdrs: cdrs
+    };
+
+    var lia = report.liabilities;
+    payload.liabilities = {
+      warnings: lia.warnings.slice(),
+      counts_by_risk: countsByRisk(lia),
+      hits: lia.hits.map(function (h) {
+        return {
+          kind: h.kind, label: h.label, match: h.match, start: h.start, end: h.end,
+          region: h.region, in_cdr: h.in_cdr, risk: h.risk, base_risk: h.base_risk,
+          rationale: h.rationale, risk_note: h.note
+        };
+      }),
+      domain_flags: lia.domain_flags.map(cloneFlag)
+    };
+
+    var props = {};
+    Object.keys(report.properties).forEach(function (k) {
+      props[k] = Object.assign({}, report.properties[k]);
+    });
+    payload.properties = props;
+    return payload;
+  }
+
+  function cloneTriage(t) {
+    return {
+      status: t.status, reasons: t.reasons.slice(), evaluable: t.evaluable,
+      note: t.note, notice: t.notice
+    };
+  }
+
+  function cloneFlag(f) {
+    return {
+      kind: f.kind, label: f.label, risk: f.risk, cysteine_count: f.cysteine_count,
+      positions: f.positions.slice(), regions: f.regions.slice(), rationale: f.rationale
+    };
+  }
+
+  var SUMMARY_REGIONS = ["CDR1", "CDR2", "CDR3", "framework"];
+  var SUMMARY_NOTE =
+    "아래는 건수 집계일 뿐이며 종합 판정이 아니다. 건수가 적다고 안전한 것도, " +
+    "많다고 탈락시킬 근거도 되지 않는다. 각 서열의 상세 항목과 근거를 함께 볼 것.";
+  var UNASSIGNED_REGION = "framework";
+  var CHAIN_GROUP_TITLES = { H: "중쇄 (VH)", L: "경쇄 (VL)", None: "체인 판별 실패 · 입력 오류" };
+
+  // cdr_labels
+  function cdrLabels(chain) {
+    if (chain === "H" || chain === "L") {
+      return [1, 2, 3].map(function (i) { return "CDR-" + chain + i; });
+    }
+    return ["CDR1", "CDR2", "CDR3"];
+  }
+
+  // _slot_of
+  function slotOf(region) {
+    if (region.indexOf("CDR-") === 0 && /[0-9]$/.test(region)) {
+      return "CDR" + region.charAt(region.length - 1);
+    }
+    if (region === UNDETERMINED) return UNASSIGNED_REGION;
+    return "framework";
+  }
+
+  // _empty_counts
+  function emptyCounts() {
+    var out = {};
+    RISK_LEVELS.slice().reverse().forEach(function (lvl) { out[lvl] = 0; });
+    return out;
+  }
+
+  function emptyRegionCounts() {
+    var out = {};
+    SUMMARY_REGIONS.forEach(function (r) { out[r] = emptyCounts(); });
+    return out;
+  }
+
+  // summarize
+  function summarize(reports) {
+    var rows = [];
+    var totals = emptyRegionCounts();
+    var flagTotal = 0;
+
+    reports.forEach(function (report) {
+      var regions = emptyRegionCounts();
+      var unassigned = false;
+
+      if (report.ok && report.liabilities) {
+        report.liabilities.hits.forEach(function (hit) {
+          if (hit.region === UNDETERMINED) unassigned = true;
+          var slot = slotOf(hit.region);
+          regions[slot][hit.risk] += 1;
+          totals[slot][hit.risk] += 1;
+        });
+      }
+
+      var flags = (report.ok && report.liabilities ? report.liabilities.domain_flags : [])
+        .map(function (f) { return { label: f.label, risk: f.risk }; });
+      flagTotal += flags.length;
+
+      rows.push({
+        id: report.seq_id,
+        input_ok: report.ok,
+        chain: reportChain(report),
+        confident: reportConfident(report),
+        annotated: Boolean(report.annotation && cdrList(report.annotation).length),
+        regions_unassigned: unassigned,
+        regions: regions,
+        domain_flags: flags,
+        triage: report.triage ? cloneTriage(report.triage) : null
+      });
+    });
+
+    return {
+      note: SUMMARY_NOTE,
+      regions: SUMMARY_REGIONS.slice(),
+      risk_levels: RISK_LEVELS.slice().reverse(),
+      rows: rows,
+      totals: totals,
+      domain_flag_total: flagTotal,
+      triage_rules: ruleDescriptions(),
+      triage_notice: TRIAGE_NOTICE,
+      review_count: rows.filter(function (r) {
+        return r.triage && r.triage.status === "검토 필요";
+      }).length,
+      groups: groupByChain(rows)
+    };
+  }
+
+  // _group_by_chain
+  function groupByChain(rows) {
+    var groups = [];
+    ["H", "L", null].forEach(function (chain) {
+      var members = rows.filter(function (r) {
+        return (r.input_ok ? r.chain : null) === chain;
+      });
+      if (!members.length) return;
+
+      var totals = emptyRegionCounts();
+      members.forEach(function (row) {
+        SUMMARY_REGIONS.forEach(function (region) {
+          Object.keys(row.regions[region]).forEach(function (level) {
+            totals[region][level] += row.regions[region][level];
+          });
+        });
+      });
+
+      groups.push({
+        chain: chain,
+        title: CHAIN_GROUP_TITLES[chain === null ? "None" : chain],
+        cdr_labels: cdrLabels(chain),
+        rows: members,
+        totals: totals,
+        domain_flag_total: members.reduce(function (n, r) { return n + r.domain_flags.length; }, 0)
+      });
+    });
+    return groups;
+  }
+
+  // ==========================================================================
+  // abcheck/render.py -- as_json
+  // ==========================================================================
+
+  function todayIso() {
+    var d = new Date();
+    var mm = String(d.getMonth() + 1), dd = String(d.getDate());
+    return d.getFullYear() + "-" + (mm.length < 2 ? "0" + mm : mm) + "-" + (dd.length < 2 ? "0" + dd : dd);
+  }
+
+  // build_many + the payload of as_json, as a plain object
+  function analyze(entries, ph) {
+    if (ph === undefined) ph = DEFAULT_PH;
+    var reports = entries.map(function (e) { return build(e[0], e[1], ph); });
+    return {
+      tool: { name: "abcheck", version: VERSION },
+      generated: todayIso(),
+      coordinates: "CDR 위치는 1-based, 양끝 포함",
+      limitations: LIMITATION_NOTICE.slice(),
+      no_verdict: NO_VERDICT_NOTICE,
+      count: reports.length,
+      summary: summarize(reports),
+      sequences: reports.map(reportAsDict)
+    };
+  }
+
+  // Keys whose values Python stores as float. JS numbers carry no int/float distinction,
+  // so the serializer needs to know which integral values to print as "7.0".
+  var FLOAT_KEYS = { pI: true, GRAVY: true, net_charge: true, pH: true };
+
+  // json.dumps(..., ensure_ascii=False) string escaping
+  function pyJsonString(s) {
+    return '"' + s.replace(/[\x00-\x1f\\"]/g, function (ch) {
+      switch (ch) {
+        case "\\": return "\\\\";
+        case '"': return '\\"';
+        case "\b": return "\\b";
+        case "\f": return "\\f";
+        case "\n": return "\\n";
+        case "\r": return "\\r";
+        case "\t": return "\\t";
+        default: return "\\u" + hex(ch.charCodeAt(0), 4);
+      }
+    }) + '"';
+  }
+
+  function pyJsonFloat(x) {
+    if (x !== x) return "NaN";
+    if (x === Infinity) return "Infinity";
+    if (x === -Infinity) return "-Infinity";
+    return pyFloatRepr(x);
+  }
+
+  // json.dumps(obj, ensure_ascii=False, indent=indent) -- Python's layout and number format
+  function toJSON(value, indent) {
+    if (indent === undefined) indent = 2;
+    var pad = new Array(indent + 1).join(" ");
+
+    function enc(v, level, isFloat) {
+      if (v === null || v === undefined) return "null";
+      if (v === true) return "true";
+      if (v === false) return "false";
+      if (typeof v === "number") {
+        if (isFloat || !Number.isInteger(v)) return pyJsonFloat(v);
+        return String(v);
+      }
+      if (typeof v === "string") return pyJsonString(v);
+      var inner = "\n" + new Array(level + 2).join(pad);
+      var outer = "\n" + new Array(level + 1).join(pad);
+      if (Array.isArray(v)) {
+        if (!v.length) return "[]";
+        return "[" + inner + v.map(function (x) { return enc(x, level + 1, false); })
+          .join("," + inner) + outer + "]";
+      }
+      var keys = Object.keys(v);
+      if (!keys.length) return "{}";
+      return "{" + inner + keys.map(function (k) {
+        return pyJsonString(k) + ": " + enc(v[k], level + 1, has(FLOAT_KEYS, k));
+      }).join("," + inner) + outer + "}";
+    }
+    return enc(value, 0, false);
+  }
+
+  // as_json(build_many(entries, ph)) -- the exact text Python writes (generated = today)
+  function analyzeJSON(entries, ph) {
+    return toJSON(analyze(entries, ph), 2) + "\n";
+  }
+
+  // ==========================================================================
+  // abcheck/cli.py -- input parsing (text only; decoding is the browser's job)
+  // ==========================================================================
+
+  var JSON_SUFFIXES = [".json"];
+  var FASTA_SUFFIXES = [".fasta", ".fa", ".faa", ".fas"];
+  var TABLE_SUFFIXES = { ".csv": ",", ".tsv": "\t" };
+  var EXCEL_SUFFIXES = [".xlsx", ".xls"];
+  var SEQUENCE_HEADERS = ["sequence", "seq", "aa", "aa_sequence", "amino_acid", "서열", "아미노산 서열"];
+  var ID_HEADERS = ["id", "name", "seq_id", "sequence_id", "이름", "후보", "번호"];
+
+  // read_fasta
+  function readFasta(text) {
+    var entries = [], seqId = null, chunks = [];
+    pySplitLines(text).forEach(function (line) {
+      line = pyStrip(line);
+      if (!line) return;
+      if (line.charAt(0) === ">") {
+        if (seqId !== null) entries.push([seqId, chunks.join("")]);
+        seqId = line.length > 1 ? pySplitWhitespace(line.slice(1))[0] : "seq" + (entries.length + 1);
+        chunks = [];
+      } else {
+        chunks.push(line);
+      }
+    });
+    if (seqId !== null) entries.push([seqId, chunks.join("")]);
+    return entries;
+  }
+
+  // --- a JSON decoder that behaves like Python's json.loads, so that values keep their
+  // Python type (int / float / dict) for str(), and errors carry Python's message and
+  // position. Objects decode to {type: "dict", map: Map}; ints to {type: "int", text}.
+
+  function JSONDecodeError(msg, cps, pos) {
+    var lineno = 1, lastNl = -1;
+    for (var i = 0; i < pos; i++) {
+      if (cps[i] === "\n") { lineno++; lastNl = i; }
+    }
+    var err = new Error(msg + ": line " + lineno + " column " + (pos - lastNl) + " (char " + pos + ")");
+    err.jsonMsg = msg;
+    err.pos = pos;
+    err.lineno = lineno;
+    err.colno = pos - lastNl;
+    err.isJSONDecodeError = true;
+    return err;
+  }
+
+  function StopIteration(idx) {
+    var e = new Error("StopIteration");
+    e.stopIteration = idx;
+    return e;
+  }
+
+  var NUMBER_RE = /(-?(?:0|[1-9][0-9]*))(\.[0-9]+)?([eE][-+]?[0-9]+)?/y;
+
+  function pyJsonLoads(text) {
+    var s = codePoints(text);
+    var n = s.length;
+    var isWs = function (c) { return c === " " || c === "\t" || c === "\n" || c === "\r"; };
+    var startsWith = function (idx, word) {
+      for (var k = 0; k < word.length; k++) if (s[idx + k] !== word.charAt(k)) return false;
+      return true;
+    };
+
+    function scanString(end) { // scanstring(s, end, strict=True); end is just past the quote
+      var begin = end - 1, chunks = "";
+      while (true) {
+        var next = end, c = null;
+        for (; next < n; next++) {
+          c = s[next];
+          if (c === '"' || c === "\\") break;
+          if (c.codePointAt(0) <= 0x1f) throw JSONDecodeError("Invalid control character at", s, next);
+        }
+        if (next >= n) throw JSONDecodeError("Unterminated string starting at", s, begin);
+        chunks += s.slice(end, next).join("");
+        if (c === '"') return [chunks, next + 1];
+        next++; // skip backslash
+        if (next === n) throw JSONDecodeError("Unterminated string starting at", s, begin);
+        c = s[next];
+        if (c !== "u") {
+          end = next + 1;
+          var map = { '"': '"', "\\": "\\", "/": "/", b: "\b", f: "\f", n: "\n", r: "\r", t: "\t" };
+          if (!has(map, c)) throw JSONDecodeError("Invalid \\escape", s, end - 2);
+          chunks += map[c];
+        } else {
+          next++;
+          end = next + 4;
+          if (end >= n) throw JSONDecodeError("Invalid \\uXXXX escape", s, next - 1);
+          var hexs = s.slice(next, end).join("");
+          if (!/^[0-9a-fA-F]{4}$/.test(hexs)) throw JSONDecodeError("Invalid \\uXXXX escape", s, end - 5);
+          var cp = parseInt(hexs, 16);
+          if (cp >= 0xd800 && cp <= 0xdbff && end + 6 < n && s[end] === "\\" && s[end + 1] === "u") {
+            var hex2 = s.slice(end + 2, end + 6).join("");
+            if (!/^[0-9a-fA-F]{4}$/.test(hex2)) throw JSONDecodeError("Invalid \\uXXXX escape", s, end + 1);
+            var c2 = parseInt(hex2, 16);
+            if (c2 >= 0xdc00 && c2 <= 0xdfff) {
+              cp = 0x10000 + (((cp - 0xd800) << 10) | (c2 - 0xdc00));
+              end += 6;
+            }
+          }
+          chunks += String.fromCodePoint(cp);
+        }
+      }
+    }
+
+    function parseObject(idx) {
+      var map = new Map();
+      while (idx < n && isWs(s[idx])) idx++;
+      if (idx >= n || s[idx] !== "}") {
+        while (true) {
+          if (idx >= n || s[idx] !== '"') {
+            throw JSONDecodeError("Expecting property name enclosed in double quotes", s, idx);
+          }
+          var kr = scanString(idx + 1), key = kr[0];
+          idx = kr[1];
+          while (idx < n && isWs(s[idx])) idx++;
+          if (idx >= n || s[idx] !== ":") throw JSONDecodeError("Expecting ':' delimiter", s, idx);
+          idx++;
+          while (idx < n && isWs(s[idx])) idx++;
+          var vr = scanOnce(idx);
+          map.set(key, vr[0]);
+          idx = vr[1];
+          while (idx < n && isWs(s[idx])) idx++;
+          if (idx < n && s[idx] === "}") break;
+          if (idx >= n || s[idx] !== ",") throw JSONDecodeError("Expecting ',' delimiter", s, idx);
+          var commaIdx = idx;
+          idx++;
+          while (idx < n && isWs(s[idx])) idx++;
+          if (idx < n && s[idx] === "}") {
+            throw JSONDecodeError("Illegal trailing comma before end of object", s, commaIdx);
+          }
+        }
+      }
+      return [{ type: "dict", map: map }, idx + 1];
+    }
+
+    function parseArray(idx) {
+      var list = [];
+      while (idx < n && isWs(s[idx])) idx++;
+      if (idx >= n || s[idx] !== "]") {
+        while (true) {
+          var vr = scanOnce(idx);
+          list.push(vr[0]);
+          idx = vr[1];
+          while (idx < n && isWs(s[idx])) idx++;
+          if (idx < n && s[idx] === "]") break;
+          if (idx >= n || s[idx] !== ",") throw JSONDecodeError("Expecting ',' delimiter", s, idx);
+          var commaIdx = idx;
+          idx++;
+          while (idx < n && isWs(s[idx])) idx++;
+          if (idx < n && s[idx] === "]") {
+            throw JSONDecodeError("Illegal trailing comma before end of array", s, commaIdx);
+          }
+        }
+      }
+      return [list, idx + 1];
+    }
+
+    function scanOnce(idx) {
+      if (idx >= n) throw StopIteration(idx);
+      var c = s[idx];
+      if (c === '"') return scanString(idx + 1);
+      if (c === "{") return parseObject(idx + 1);
+      if (c === "[") return parseArray(idx + 1);
+      if (c === "n" && startsWith(idx, "null")) return [null, idx + 4];
+      if (c === "t" && startsWith(idx, "true")) return [true, idx + 4];
+      if (c === "f" && startsWith(idx, "false")) return [false, idx + 5];
+      if (c === "N" && startsWith(idx, "NaN")) return [{ type: "float", value: NaN }, idx + 3];
+      if (c === "I" && startsWith(idx, "Infinity")) return [{ type: "float", value: Infinity }, idx + 8];
+      if (c === "-" && startsWith(idx, "-Infinity")) return [{ type: "float", value: -Infinity }, idx + 9];
+      // number: match on the ASCII-only tail (number syntax is ASCII)
+      var tail = "";
+      for (var k = idx; k < n && k < idx + 100000; k++) {
+        if (s[k].length !== 1 || "0123456789+-.eE".indexOf(s[k]) < 0) break;
+        tail += s[k];
+      }
+      NUMBER_RE.lastIndex = 0;
+      var m = NUMBER_RE.exec(tail);
+      if (!m) throw StopIteration(idx);
+      if (m[2] || m[3]) return [{ type: "float", value: Number(m[0]) }, idx + m[0].length];
+      var digits = m[1].charAt(0) === "-" ? m[1].length - 1 : m[1].length;
+      if (digits > 4300) {
+        var e = new Error("Exceeds the limit (4300 digits) for integer string conversion: value has " +
+          digits + " digits; use sys.set_int_max_str_digits() to increase the limit");
+        e.isValueError = true;
+        throw e;
+      }
+      return [{ type: "int", text: m[1] === "-0" ? "0" : m[1] }, idx + m[0].length];
+    }
+
+    if (n && s[0] === "﻿") throw JSONDecodeError("Unexpected UTF-8 BOM (decode using utf-8-sig)", s, 0);
+    var idx = 0;
+    while (idx < n && isWs(s[idx])) idx++;
+    var result;
+    try {
+      result = scanOnce(idx);
+    } catch (e) {
+      if (e.stopIteration !== undefined) throw JSONDecodeError("Expecting value", s, e.stopIteration);
+      throw e;
+    }
+    var end = result[1];
+    while (end < n && isWs(s[end])) end++;
+    if (end !== n) throw JSONDecodeError("Extra data", s, end);
+    return result[0];
+  }
+
+  // str(value) for a value decoded by pyJsonLoads
+  function pyStr(v) {
+    if (typeof v === "string") return v;
+    return pyRepr(v);
+  }
+
+  function pyRepr(v) {
+    if (v === null) return "None";
+    if (v === true) return "True";
+    if (v === false) return "False";
+    if (typeof v === "string") return pyReprStr(v);
+    if (Array.isArray(v)) return "[" + v.map(pyRepr).join(", ") + "]";
+    if (v.type === "int") return v.text;
+    if (v.type === "float") return pyFloatRepr(v.value);
+    var parts = [];
+    v.map.forEach(function (val, key) { parts.push(pyReprStr(key) + ": " + pyRepr(val)); });
+    return "{" + parts.join(", ") + "}";
+  }
+
+  // read_corpus_json
+  function readCorpusJson(text) {
+    var data;
+    try {
+      data = pyJsonLoads(text);
+    } catch (e) {
+      if (e.isJSONDecodeError) {
+        throw new Error(
+          "JSON 형식이 깨져 있다 (" + e.lineno + "번째 줄 " + e.colno + "번째 글자 근처). " +
+          "쉼표·따옴표·괄호가 빠지지 않았는지 확인하라."
+        );
+      }
+      throw e;
+    }
+    var isDict = function (v) { return v !== null && typeof v === "object" && v.type === "dict"; };
+    var items = isDict(data) ? (data.map.has("sequences") ? data.map.get("sequences") : data) : data;
+    if (!Array.isArray(items)) {
+      throw new Error(
+        "JSON 형식을 알 수 없다. {\"sequences\": [{\"id\": ..., \"sequence\": ...}]} " +
+        "또는 같은 모양의 리스트여야 한다."
+      );
+    }
+    var entries = [];
+    items.forEach(function (item, k) {
+      var i = k + 1;
+      if (typeof item === "string") {
+        entries.push(["seq" + i, item]);
+        return;
+      }
+      if (!isDict(item) || !item.map.has("sequence")) {
+        throw new Error(i + "번째 항목에 'sequence' 키가 없다.");
+      }
+      var id = item.map.has("id") ? pyStr(item.map.get("id")) : "seq" + i;
+      entries.push([id, pyStr(item.map.get("sequence"))]);
+    });
+    return entries;
+  }
+
+  // csv.reader(io.StringIO(text), delimiter=...) with the default excel dialect
+  // (the state machine of CPython's Modules/_csv.c, strict=False, no escapechar).
+  var FIELD_LIMIT = 131072; // csv.field_size_limit()
+
+  function csvError(msg) {
+    var err = new Error(msg);
+    err.isCsvError = true;
+    return err;
+  }
+
+  function csvReader(text, delimiter) {
+    // io.StringIO iterates lines split after "\n" only, keeping the "\n"
+    var lines = [], start = 0, p;
+    while ((p = text.indexOf("\n", start)) >= 0) {
+      lines.push(text.slice(start, p + 1));
+      start = p + 1;
+    }
+    if (start < text.length) lines.push(text.slice(start));
+
+    var START_RECORD = 0, START_FIELD = 1, IN_FIELD = 2, IN_QUOTED_FIELD = 3,
+      QUOTE_IN_QUOTED_FIELD = 4, EAT_CRNL = 5;
+    var EOL = null;
+    var rows = [], li = 0;
+    var state, fields, field, fieldLen;
+
+    function saveField() { fields.push(field); field = ""; fieldLen = 0; }
+    function addChar(c) {
+      if (fieldLen >= FIELD_LIMIT) throw csvError("field larger than field limit (" + FIELD_LIMIT + ")");
+      field += c;
+      fieldLen++;
+    }
+
+    function processChar(c) {
+      switch (state) {
+        case START_RECORD:
+          if (c === EOL) return;
+          if (c === "\n" || c === "\r") { state = EAT_CRNL; return; }
+          state = START_FIELD;
+          // falls through
+        case START_FIELD:
+          if (c === "\n" || c === "\r" || c === EOL) {
+            saveField();
+            state = c === EOL ? START_RECORD : EAT_CRNL;
+          } else if (c === '"') {
+            state = IN_QUOTED_FIELD;
+          } else if (c === delimiter) {
+            saveField();
+          } else {
+            addChar(c);
+            state = IN_FIELD;
+          }
+          return;
+        case IN_FIELD:
+          if (c === "\n" || c === "\r" || c === EOL) {
+            saveField();
+            state = c === EOL ? START_RECORD : EAT_CRNL;
+          } else if (c === delimiter) {
+            saveField();
+            state = START_FIELD;
+          } else {
+            addChar(c);
+          }
+          return;
+        case IN_QUOTED_FIELD:
+          if (c === EOL) return;
+          if (c === '"') state = QUOTE_IN_QUOTED_FIELD;
+          else addChar(c);
+          return;
+        case QUOTE_IN_QUOTED_FIELD:
+          if (c === '"') {
+            addChar(c);
+            state = IN_QUOTED_FIELD;
+          } else if (c === delimiter) {
+            saveField();
+            state = START_FIELD;
+          } else if (c === "\n" || c === "\r" || c === EOL) {
+            saveField();
+            state = c === EOL ? START_RECORD : EAT_CRNL;
+          } else {
+            addChar(c);
+            state = IN_FIELD;
+          }
+          return;
+        case EAT_CRNL:
+          if (c === "\n" || c === "\r") return;
+          if (c === EOL) { state = START_RECORD; return; }
+          throw csvError("new-line character seen in unquoted field - " +
+            "do you need to open the file with newline=''?");
+      }
+    }
+
+    // Reader_iternext
+    while (true) {
+      state = START_RECORD; fields = []; field = ""; fieldLen = 0;
+      var gotRecord = false;
+      do {
+        if (li >= lines.length) {
+          if (fieldLen !== 0 || state === IN_QUOTED_FIELD) {
+            saveField();
+            gotRecord = true;
+            break;
+          }
+          return rows;
+        }
+        var line = lines[li++];
+        codePoints(line).forEach(processChar);
+        processChar(EOL);
+        gotRecord = state === START_RECORD;
+      } while (state !== START_RECORD);
+      if (gotRecord) rows.push(fields);
+    }
+  }
+
+  // read_table
+  function readTable(text, delimiter) {
+    var rows = csvReader(text, delimiter).filter(function (r) {
+      return r.some(function (c) { return pyStrip(c) !== ""; });
+    });
+    if (!rows.length) return [];
+
+    var header = rows[0].map(function (c) { return pyStrip(c).toLowerCase(); });
+    var seqCol = null, idCol = null, body, i;
+    for (i = 0; i < header.length; i++) {
+      if (SEQUENCE_HEADERS.indexOf(header[i]) >= 0) { seqCol = i; break; }
+    }
+    if (seqCol !== null) {
+      for (i = 0; i < header.length; i++) {
+        if (ID_HEADERS.indexOf(header[i]) >= 0) { idCol = i; break; }
+      }
+      body = rows.slice(1);
+    } else if (rows[0].length === 2) {
+      seqCol = 1; idCol = 0; body = rows;
+    } else if (rows[0].length === 1) {
+      seqCol = 0; idCol = null; body = rows;
+    } else {
+      throw new Error(
+        "표에서 서열 열을 찾지 못했다. 첫 줄에 열 이름을 넣어라 — 서열 열은 " +
+        "'sequence' 또는 '서열', 이름 열은 'id' 또는 '이름'."
+      );
+    }
+
+    return body.map(function (row, k) {
+      var seq = seqCol < row.length ? pyStrip(row[seqCol]) : "";
+      var name = idCol !== null && idCol < row.length ? pyStrip(row[idCol]) : "";
+      return [name || "seq" + (k + 1), seq];
+    });
+  }
+
+  // pathlib's PurePath.suffix / .stem of the last path component
+  function pathParts(filename) {
+    var name = filename.replace(/[\\/]+$/, "");
+    name = name.slice(Math.max(name.lastIndexOf("/"), name.lastIndexOf("\\")) + 1);
+    var i = name.lastIndexOf(".");
+    if (i > 0 && i < name.length - 1) return { suffix: name.slice(i), stem: name.slice(0, i) };
+    return { suffix: "", stem: name };
+  }
+
+  // load_input, for text the browser has already decoded. With a filename, the file
+  // branch (suffix dispatch); without one, the pasted-text branch. Returns
+  // [entries, sourceDescription]; throws Error(Korean message) like Python's ValueError.
+  function readInput(text, filename) {
+    text = String(text);
+    if (filename) {
+      var parts = pathParts(String(filename));
+      var suffix = parts.suffix.toLowerCase();
+      if (EXCEL_SUFFIXES.indexOf(suffix) >= 0) {
+        throw new Error(
+          "엑셀 파일(.xlsx)은 바로 읽지 않는다. 엑셀에서 '파일 → 다른 이름으로 저장 → " +
+          "CSV UTF-8' 로 저장한 뒤 그 .csv 파일을 넣어라. 첫 줄에 'id,sequence' 처럼 " +
+          "열 이름이 있으면 된다."
+        );
+      }
+      // _read_text decodes with utf-8-sig / utf-16, both of which drop a leading BOM
+      if (text.charAt(0) === "﻿") text = text.slice(1);
+      if (has(TABLE_SUFFIXES, suffix)) {
+        return [readTable(text, TABLE_SUFFIXES[suffix]), "표 파일 (" + filename + ")"];
+      }
+      if (JSON_SUFFIXES.indexOf(suffix) >= 0) {
+        return [readCorpusJson(text), "코퍼스 JSON (" + filename + ")"];
+      }
+      if (FASTA_SUFFIXES.indexOf(suffix) >= 0 || pyLStrip(text).charAt(0) === ">") {
+        return [readFasta(text), "FASTA (" + filename + ")"];
+      }
+      return [[[parts.stem, text]], "서열 파일 (" + filename + ")"];
+    }
+    if (pyLStrip(text).charAt(0) === ">") return [readFasta(text), "붙여넣은 FASTA"];
+    return [[["입력 서열", text]], "붙여넣은 서열"];
+  }
+
+  return {
+    version: VERSION,
+    DEFAULT_PH: DEFAULT_PH,
+    analyze: analyze,
+    analyzeJSON: analyzeJSON,
+    toJSON: toJSON,
+    readInput: readInput,
+    // lower-level pieces, exposed for tests and for the UI
+    validate: validate,
+    annotate: annotate,
+    readFasta: readFasta,
+    readTable: readTable,
+    readCorpusJson: readCorpusJson,
+    _py: {
+      round: pyRound,
+      floatRepr: pyFloatRepr,
+      reprStr: pyReprStr,
+      sumFloats: pySumFloats,
+      strip: pyStrip,
+      splitLines: pySplitLines,
+      jsonLoads: pyJsonLoads,
+      str: pyStr
+    }
+  };
+});
