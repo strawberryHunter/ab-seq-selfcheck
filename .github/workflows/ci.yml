@@ -24,7 +24,7 @@ jobs:
       matrix:
         # Cover the whole requires-python = ">=3.9" range from pyproject.toml.
         # 3.9 matters: it is the python3 that ships with macOS.
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v5
@@ -40,6 +40,31 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -q
+
+  py39:
+    # 3.9 is the python3 that ships with macOS. setup-python has no 3.9 build for the current
+    # Ubuntu image, so install it with uv instead.
+    name: pytest (Python 3.9)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python (to run uv)
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Python 3.9 with uv
+        run: |
+          python -m pip install uv
+          uv python install 3.9
+          uv venv --python 3.9 .venv39
+          uv pip install --python .venv39 pytest
+
+      - name: Run tests
+        run: |
+          .venv39/bin/python --version
+          .venv39/bin/python -m pytest -q
 
   os:
     # Researchers run this on their own Windows and Mac machines, not on Linux.
