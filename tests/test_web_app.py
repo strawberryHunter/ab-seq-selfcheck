@@ -170,6 +170,39 @@ def test_custom_rule_sets_change_only_what_they_say():
 
 
 @needs_node
+def test_json_export_carries_the_active_rule_set():
+    out = _node("""
+      const payload = ABCHECK.analyze(entries, 7.4);
+      const before = ABCHECK.toJSON(payload);
+      const team = {id: "team", name: "팀 규칙", motifs: ["NG", "D[STD]", "W"], where: "cdr", minRisk: "중간", cys: "off"};
+      const same = ABUI.withRuleResults(payload, ABUI.DEFAULT_RULESET);
+      const added = ABUI.withRuleResults(payload, team);
+      const text = ABCHECK.toJSON(added);
+      const rows = ABUI.buildRows(payload, team);
+      console.log(JSON.stringify({
+        defaultIsEngineOutput: same === payload && ABCHECK.toJSON(same) === before,
+        payloadUntouched: ABCHECK.toJSON(payload) === before && !("rule_set" in payload) && !("rule_result" in payload.sequences[0]),
+        topKeys: Object.keys(added), seqKeys: Object.keys(added.sequences[0]),
+        ruleSet: added.rule_set,
+        engineTriageKept: added.sequences.every((s, i) => s.triage === payload.sequences[i].triage),
+        agreesWithScreen: added.sequences.every((s, i) => s.rule_result.status === rows[i].status
+          && JSON.stringify(s.rule_result.reasons) === JSON.stringify(rows[i].reasons)),
+        differsFromEngine: added.sequences.filter(s => s.rule_result.status !== s.triage.status).length,
+        rereadIds: ABCHECK.readInput(text, "result.json")[0].length === entries.length,
+        validJson: JSON.parse(text).rule_set.name}));""")
+    assert out["defaultIsEngineOutput"] and out["payloadUntouched"]
+    assert out["topKeys"] == ["tool", "generated", "coordinates", "limitations", "no_verdict", "count", "summary",
+                              "rule_set", "sequences"]
+    assert out["seqKeys"][out["seqKeys"].index("triage") + 1] == "rule_result"
+    assert out["ruleSet"] == {"name": "팀 규칙", "motifs": ["NG", "D[STD]", "W"], "where": "cdr", "min_risk": "중간",
+                              "cys": "off", "description": out["ruleSet"]["description"]}
+    assert out["ruleSet"]["description"]
+    assert out["engineTriageKept"] and out["agreesWithScreen"]
+    assert out["differsFromEngine"] > 0             # the case that used to be exported wrongly
+    assert out["rereadIds"] and out["validJson"] == "팀 규칙"
+
+
+@needs_node
 def test_rule_sets_are_validated_and_described():
     out = _node("""
       const errors = [{}, {name: "x", motifs: ["XX"], where: "cdr", minRisk: "높음", cys: "cdr"},

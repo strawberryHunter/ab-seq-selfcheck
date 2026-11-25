@@ -2737,6 +2737,36 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return rest.length ? rest.join("-").toLowerCase() : null;
   }
 
+  /**
+   * The object to save as JSON. With the default rule set it is the engine's payload itself,
+   * so the file equals the Python CLI's --json output. With another rule set the engine keys
+   * stay as they are and two are added: "rule_set" (which rules) at the top and "rule_result"
+   * (that set's status and reasons) next to each sequence's own "triage". The payload is not
+   * modified.
+   */
+  function withRuleResults(payload, ruleSet) {
+    var rs = normalizeRuleSet(ruleSet);
+    if (rs.id === DEFAULT_RULESET.id) return payload;
+    var out = {};
+    Object.keys(payload).forEach(function (k) {
+      if (k === "sequences") {
+        out.rule_set = { name: rs.name, motifs: rs.motifs.slice(), where: rs.where, min_risk: rs.minRisk, cys: rs.cys,
+                         description: describeRuleSet(rs) };
+        out.sequences = payload.sequences.map(function (s) {
+          var copy = {};
+          Object.keys(s).forEach(function (key) {
+            copy[key] = s[key];
+            if (key === "triage") copy.rule_result = applyRules(s, rs);
+          });
+          return copy;
+        });
+      } else {
+        out[k] = payload[k];
+      }
+    });
+    return out;
+  }
+
   /** An antibody's display name from one chain's name: the name without its chain token
       ("mAb02_VH" -> "mAb02", "SYN-VL-003" -> "SYN-003"). null when there is no chain token. */
   function pairName(id) {
@@ -2970,7 +3000,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     RISKS: RISKS, STATUS: STATUS, MOTIFS: MOTIFS, DEFAULT_RULESET: DEFAULT_RULESET, WHERE: WHERE, CYS: CYS,
     VALIDATION: VALIDATION, TABLE_HEAD: TABLE_HEAD, ONE_PAGE_CSS: ONE_PAGE_CSS,
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
-    applyRules: applyRules, categories: categories, buildRows: buildRows, tally: tally,
+    applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
     combineEntries: combineEntries, pastedKind: pastedKind, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
@@ -3317,7 +3347,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         : `<div class="ctitle why">${esc(why || "CDR 주석 실패")}</div>`;
       if (r.cdr3) {
         sub = why ? `<div class="csub" title="${esc(why)}">${esc(why)}</div>`
-          : `<div class="csub seq">${r.cdrs.slice(0, 2).map((c) => esc(c.name.slice(-2) + " " + c.seq)).join(" · ")}</div>`;
+          : `<div class="csub seq">${r.cdrs.slice(0, 2).map((c) => esc(c.name.slice(-2)) + " " + marked(c, r.hits)).join(" · ")}</div>`;
       }
     }
     return `<article class="card cand" data-i="${r.index}">
@@ -3677,7 +3707,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>Excel용 복사</dt><dd>지금 보이는 목록을 표로 복사</dd>
         <dt>메일용 복사</dt><dd>건수와 규칙 해당 내용을 글로 복사</dd>
         <dt>FASTA 복사</dt><dd>지금 보이는 목록의 서열. 판정 불가 목록을 ANARCI · IMGT 에 붙여넣을 때</dd>
-        <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준, JSON 은 엔진 원본(기본 규칙) 출력</dd>
+        <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준. JSON 은 엔진 원본 출력이고, 기본이 아닌 규칙 세트를 쓰는 중이면 rule_set · rule_result 항목이 더 붙음</dd>
         <dt>한 장</dt><dd>북마크로 고른 후보만 A4 한 장 HTML 로 저장. 브라우저에서 열어 인쇄</dd>
         <dt>짝 체인</dt><dd>이름이 체인 표시(VH · VL · HC · LC · heavy · light)만 다른 두 서열. 한 장에 함께 넣고 나란히 표시</dd>
         <dt>항체 단위</dt><dd>목록의 '항체' 를 누르면 짝 체인을 한 카드에 묶어 표시. 분류는 체인별로 따로 두고 합치지 않음</dd></dl></section>
@@ -3760,7 +3790,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     on("x-mail", "click", () => copy(ABUI.toMailText(state.rows, meta()), "메일용 글 복사"));
     on("x-fasta", "click", () => { const n = state.openList.filter((r) => r.inputOk).length; copy(ABUI.toFasta(state.openList), `FASTA ${n}건 복사`); });
     on("x-csv", "click", () => save(`abcheck-${stamp()}.csv`, ABUI.toCsv(state.openList, rules().name), "text/csv"));
-    on("x-json", "click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(state.payload), "application/json"));
+    on("x-json", "click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(ABUI.withRuleResults(state.payload, rules())), "application/json"));
     const slideCount = () => heroSlides(ABUI.tally(state.rows)).length;
     on("hero-prev", "click", () => { const n = slideCount(); state.hero = (Math.min(state.hero, n - 1) + n - 1) % n; render(); $("hero-prev").focus(); });
     on("hero-next", "click", () => { const n = slideCount(); state.hero = (Math.min(state.hero, n - 1) + 1) % n; render(); $("hero-next").focus(); });

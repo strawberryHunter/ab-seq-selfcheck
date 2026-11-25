@@ -335,6 +335,36 @@
     return rest.length ? rest.join("-").toLowerCase() : null;
   }
 
+  /**
+   * The object to save as JSON. With the default rule set it is the engine's payload itself,
+   * so the file equals the Python CLI's --json output. With another rule set the engine keys
+   * stay as they are and two are added: "rule_set" (which rules) at the top and "rule_result"
+   * (that set's status and reasons) next to each sequence's own "triage". The payload is not
+   * modified.
+   */
+  function withRuleResults(payload, ruleSet) {
+    var rs = normalizeRuleSet(ruleSet);
+    if (rs.id === DEFAULT_RULESET.id) return payload;
+    var out = {};
+    Object.keys(payload).forEach(function (k) {
+      if (k === "sequences") {
+        out.rule_set = { name: rs.name, motifs: rs.motifs.slice(), where: rs.where, min_risk: rs.minRisk, cys: rs.cys,
+                         description: describeRuleSet(rs) };
+        out.sequences = payload.sequences.map(function (s) {
+          var copy = {};
+          Object.keys(s).forEach(function (key) {
+            copy[key] = s[key];
+            if (key === "triage") copy.rule_result = applyRules(s, rs);
+          });
+          return copy;
+        });
+      } else {
+        out[k] = payload[k];
+      }
+    });
+    return out;
+  }
+
   /** An antibody's display name from one chain's name: the name without its chain token
       ("mAb02_VH" -> "mAb02", "SYN-VL-003" -> "SYN-003"). null when there is no chain token. */
   function pairName(id) {
@@ -568,7 +598,7 @@
     RISKS: RISKS, STATUS: STATUS, MOTIFS: MOTIFS, DEFAULT_RULESET: DEFAULT_RULESET, WHERE: WHERE, CYS: CYS,
     VALIDATION: VALIDATION, TABLE_HEAD: TABLE_HEAD, ONE_PAGE_CSS: ONE_PAGE_CSS,
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
-    applyRules: applyRules, categories: categories, buildRows: buildRows, tally: tally,
+    applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
     combineEntries: combineEntries, pastedKind: pastedKind, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
