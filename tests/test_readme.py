@@ -302,7 +302,7 @@ def test_readmes_link_to_each_other():
 def test_english_readme_carries_the_same_headline_numbers():
     """The headline figures must not drift between the two READMEs and VALIDATION.md."""
     validation = VALIDATION.read_text(encoding="utf-8")
-    for token in ["7,000", "0.35%", "16,427", "98.3%"]:
+    for token in ["7,000", "0.35%", "16,498", "98.7%"]:
         assert token in _readme_en(), f"README.md is missing {token}"
         assert token in _readme(), f"README.ko.md is missing {token}"
         assert token in validation, f"VALIDATION.md is missing {token}"

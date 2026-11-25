@@ -8,7 +8,9 @@ reason in Korean.
 Search rules
 ------------
 Chain type: decided by the terminal motif. `WGxG` means heavy (H), `FGxG` means light (L).
-If both are present, the one closer to the C-terminus wins. If neither is, detection fails.
+If both are present, the one closer to the C-terminus wins. If neither is, the J-gene tail
+after the motif is used (`…VTVSS` heavy, `…TKVEIK` kappa, `…TKLTVL` lambda), with a
+warning; if that is also absent, detection fails.
 
 VH
     Cys22      the Cys closest to position 22 within the 15..30 window
@@ -44,6 +46,17 @@ from .validate import ensure_valid
 
 WGXG_RE = re.compile(r"WG.G")
 FGXG_RE = re.compile(r"FG.G")
+#: Fallback when the terminal motif itself is mutated: the J-gene tail that follows it.
+#: In real repertoires complete domains end in ...WAQG-TLVTVSS, ...WSQG-TLVTVSS (heavy),
+#: ...FAQG-TRLEIK (kappa) or ...LGGG-TKLTVL (lambda) -- the W/F or the first G of the
+#: motif is substituted while the J tail stays germline. The motif sits right before the
+#: tail, so its position is the tail start minus 4. Kept strict on purpose: heavy needs
+#: VTVS, light needs a kappa or lambda J ending, so neither matches the other's tail.
+J_TAIL_RES = (
+    ("H", re.compile(r"(?=[TS][LTMQIVA]VTVS)")),
+    ("L", re.compile(r"(?=T[KR][LV][ED][IV][KR])")),          # kappa J
+    ("L", re.compile(r"(?=T[KQRM][LVM][TS][VI][LV])")),       # lambda J
+)
 #: FR3 start motif.
 #:
 #: The original design was [RK].[TSAV][IMLFV][STA]. Measured on 1,000 real-repertoire VH
@@ -284,6 +297,23 @@ def detect_chain(seq: str) -> tuple[str | None, int | None]:
     return ("H", wgxg) if wgxg > fgxg else ("L", fgxg)
 
 
+def detect_chain_by_j_tail(seq: str) -> tuple[str | None, int | None]:
+    """Fallback chain detection from the J-gene tail. Returns (chain, 1-based motif position).
+
+    Only the C-terminal end is searched, and the tail closest to the C-terminus wins, the
+    same rule as detect_chain.
+    """
+    best: tuple[str, int] | None = None
+    for chain, pattern in J_TAIL_RES:
+        for m in pattern.finditer(seq):
+            motif_pos = m.start() + 1 - 4
+            if motif_pos < 1 or m.start() < len(seq) * 0.6:
+                continue
+            if best is None or motif_pos > best[1]:
+                best = (chain, motif_pos)
+    return best if best else (None, None)
+
+
 # --------------------------------------------------------------------------
 # Main logic
 # --------------------------------------------------------------------------
@@ -297,6 +327,15 @@ def annotate(sequence: str, *, validate_input: bool = True) -> Annotation:
     ann = Annotation(sequence=seq)
 
     chain, motif_pos = detect_chain(seq)
+    if chain is None:
+        chain, motif_pos = detect_chain_by_j_tail(seq)
+        if chain is not None:
+            found = seq[motif_pos - 1 : motif_pos + 3]
+            ann.warnings.append(
+                f"말단 모티프({'WGxG' if chain == 'H' else 'FGxG'})가 {found} 로 치환돼 있어, "
+                f"뒤따르는 J 유전자 꼬리({seq[motif_pos + 3 : motif_pos + 9]})로 "
+                f"{motif_pos}번 위치와 체인({'중쇄' if chain == 'H' else '경쇄'})을 잡았다."
+            )
     if chain is None:
         ann.chain = None
         ann.confident = False

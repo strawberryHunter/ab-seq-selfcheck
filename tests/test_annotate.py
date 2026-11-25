@@ -409,3 +409,56 @@ def test_fallback_warns_when_fr2_context_is_absent(records):
     pos, by_context = _find_conserved_trp(seq, 20, FR2_CONTEXT_H)
     assert pos == 31
     assert by_context is False
+
+
+# --------------------------------------------------------------------------
+# Terminal motif mutated, J-gene tail intact (found on OAS data)
+# --------------------------------------------------------------------------
+
+def _with_end(seq: str, motif_pos: int, new_end: str) -> str:
+    """Replace everything from the terminal motif (1-based) with new_end."""
+    return seq[: motif_pos - 1] + new_end
+
+
+@pytest.mark.parametrize("end", ["WAQGTLVTVSS", "WSQGTLVTVSS", "WGRASLVTVSS", "SGQGTMVTVSS"])
+def test_heavy_with_mutated_wgxg_is_rescued_by_j_tail(records, end):
+    """Complete VH whose WGxG is substituted used to fail chain detection outright."""
+    rec = by_id(records, "SYN-VH-001")
+    ref = annotate(rec["sequence"])
+    seq = _with_end(rec["sequence"], ref.anchors["terminal_motif"], end)
+
+    ann = annotate(seq)
+    assert ann.chain == "H"
+    assert ann.anchors["terminal_motif"] == ref.anchors["terminal_motif"]
+    assert ann.cdrs["CDR-H3"].seq == ref.cdrs["CDR-H3"].seq
+    assert any("J 유전자 꼬리" in w for w in ann.warnings)
+
+
+@pytest.mark.parametrize("end", ["FAQGTRLEIK", "LGQGTKLEIK", "FAGGTKVTVL", "LGGGTKLTVL", "YGGGTKLTVL"])
+def test_light_with_mutated_fgxg_is_rescued_by_j_tail(records, end):
+    rec = by_id(records, "SYN-VL-001")
+    ref = annotate(rec["sequence"])
+    seq = _with_end(rec["sequence"], ref.anchors["terminal_motif"], end)
+
+    ann = annotate(seq)
+    assert ann.chain == "L"
+    assert ann.anchors["terminal_motif"] == ref.anchors["terminal_motif"]
+    assert ann.cdrs["CDR-L3"].seq == ref.cdrs["CDR-L3"].seq
+
+
+def test_j_tails_do_not_cross_chains():
+    """A heavy J tail must never read as light, and vice versa."""
+    from abcheck.annotate import detect_chain_by_j_tail
+
+    pad = "S" * 100
+    assert detect_chain_by_j_tail(pad + "WAQGTLVTVSS")[0] == "H"
+    assert detect_chain_by_j_tail(pad + "FAQGTRLEIK")[0] == "L"
+    assert detect_chain_by_j_tail(pad + "LGGGTKLTVL")[0] == "L"
+    assert detect_chain_by_j_tail(pad + "SSSSSSSSSS") == (None, None)
+
+
+def test_no_motif_and_no_j_tail_still_fails(records):
+    """SYN-VH-901 has a broken WGxG and a random FR4: still no chain, no guessed CDRs."""
+    ann = annotate(by_id(records, "SYN-VH-901")["sequence"])
+    assert ann.chain is None
+    assert not ann.cdrs

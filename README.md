@@ -29,8 +29,8 @@ unsorted B cells in human and mouse. The numbers are reproducible →
 | Metric | Result |
 |---|---|
 | Chain (H/L) assignment | **0 incorrect** / 6,984 |
-| CDR annotation success | 98.3% |
-| **CDR boundaries** vs ANARCI ground truth, germline family and IMGT length fixed (7 datasets, 16,427 comparisons) | **0.35% deviation** |
+| CDR annotation success | 98.7% |
+| **CDR boundaries** vs ANARCI ground truth, germline family and IMGT length fixed (7 datasets, 16,498 comparisons) | **0.35% deviation** |
 | FR3 motif → conserved Cys distance = 29 (measured before the cross-check existed) | 3,429 / 3,443 — all 14 exceptions were motifs matched in the wrong place |
 
 OAS ships ANARCI annotations (IMGT numbering) alongside each sequence, which makes
@@ -40,7 +40,7 @@ whether the *offset* between the two schemes is consistent. Within a germline fa
 and IMGT CDR length it is constant →
 [`scripts/compare_with_anarci.py`](scripts/compare_with_anarci.py)
 
-**Running on real data surfaced six bugs** that the synthetic test corpus could not
+**Running on real data surfaced seven bugs** that the synthetic test corpus could not
 have caught, because the synthetic data was built from the same assumptions as the
 code. One fix was **rejected once and reversed after comparing with ground truth** —
 a frequency distribution tells you what is common, not what is correct. The full

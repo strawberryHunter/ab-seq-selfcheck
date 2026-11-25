@@ -38,14 +38,14 @@ scripts are.
 
 | Dataset | Input validation | CDR annotation succeeded | Confident | Chain identification |
 |---|---|---|---|---|
-| Jaffe 2022 (human naive) | 100% | 99.9% | 99.8% | 999/1000 |
+| Jaffe 2022 (human naive) | 100% | **100%** | 99.9% | **1000/1000** |
 | Alsoiussi 2020 (mouse) | 100% | **100%** | 99.2% | **1000/1000** |
-| King 2020 | 100% | 99.1% | 94.7% | 994/1000 |
-| Ota 2024 | 100% | 99.0% | 94.9% | 991/1000 |
-| Phad 2022 | 100% | 99.0% | 93.0% | 990/1000 |
-| Setliff 2019 (HIV) | 100% | 99.9% | 97.7% | 999/1000 |
-| Sokal 2021 | 98.4% | 91.2% | 89.4% | 975/984 |
-| **Total** | **99.8%** | **98.3%** | **95.5%** | **6948/6984** |
+| King 2020 | 100% | 99.7% | 95.3% | 1000/1000 |
+| Ota 2024 | 100% | 99.9% | 95.8% | 1000/1000 |
+| Phad 2022 | 100% | 99.9% | 93.9% | 999/1000 |
+| Setliff 2019 (HIV) | 100% | **100%** | 97.8% | **1000/1000** |
+| Sokal 2021 | 98.4% | 91.6% | 89.8% | 981/984 |
+| **Total** | **99.8%** | **98.7%** | **96.0%** | **6980/6984** |
 
 ### CDR boundaries — compared with ANARCI ground truth
 
@@ -75,18 +75,18 @@ Human naive B, 500 pairs (2,996 comparisons):
 
 **Holding germline family and IMGT CDR length fixed, the mismatch rate is 0.00% (0/2,996).**
 
-All 7 datasets (400 pairs each, 16,427 comparisons):
+All 7 datasets (400 pairs each, 16,498 comparisons):
 
 | Dataset | Mismatch with family and length fixed |
 |---|---|
-| Jaffe 2022 (human naive) | **0.00%** (0/2,396) |
+| Jaffe 2022 (human naive) | **0.00%** (0/2,399) |
 | Alsoiussi 2020 (mouse) | **0.00%** (0/2,385) |
-| Setliff 2019 (HIV) | 0.25% (6/2,387) |
-| Sokal 2021 | 0.28% (6/2,169) |
-| King 2020 | 0.46% (11/2,369) |
-| Ota 2024 | 0.63% (15/2,363) |
-| Phad 2022 | 0.85% (20/2,358) |
-| **Total** | **0.35%** (58/16,427) |
+| Setliff 2019 (HIV) | 0.25% (6/2,390) |
+| Sokal 2021 | 0.28% (6/2,180) |
+| King 2020 | 0.46% (11/2,381) |
+| Ota 2024 | 0.63% (15/2,384) |
+| Phad 2022 | 0.84% (20/2,379) |
+| **Total** | **0.35%** (58/16,498) |
 
 The CDR1/CDR2 offsets differ between families because each family places its insertions
 differently, which changes the Kabat↔IMGT relationship. Within the same family and the same
@@ -101,13 +101,16 @@ In OAS paired data it is known which chain is the heavy chain, so this is **vali
 ground truth**.
 
 ```
-체인 판별 정확   6948 / 6984  (99.5%)   오판 0,  판별 실패 36
+체인 판별 정확    6980 / 6984  99.9%   (오판 0, 판별 실패 4)
 ```
 
-(Gloss: chain identified correctly 6948 / 6984 (99.5%), misclassified 0, identification failed 36.)
+(Gloss: chain identified correctly 6980 / 6984 (99.9%), misclassified 0, identification failed 4.)
 
-**It never gave a wrong answer.** All 36 cases it cannot handle are reported as
-"identification failed." They are truncated reads missing the terminal motif (`WGxG`/`FGxG`).
+**It never gave a wrong answer.** The 4 cases it cannot handle are reported as
+"identification failed": reads truncated before the terminal motif.
+
+This used to be 36, and this document used to say all 36 were truncated reads. That was
+wrong: most were complete domains whose terminal motif was mutated (bug 7 below).
 
 ### Internal consistency — FR3↔conserved Cys distance
 
@@ -120,33 +123,33 @@ it, the annotator re-anchors from the Cys and marks the sequence `low confidence
 still prints the distance:
 
 ```
-FR3↔보존Cys 29잔기  3442/3442  100.0%
+FR3↔보존Cys 29잔기  3453/3453  100.0%
 ```
 
 That 100% is **produced by the cross-check, not measured** — it only shows the check is wired
-in. The evidence for the distance is the 3,429/3,443 above. (With the current code the script
-counts 3,442 VH with a CDR-H2, one fewer than at the time of that measurement.)
+in. The evidence for the distance is the 3,429/3,443 above. (The current count, 3,453, is
+higher because bug 7's fix recovered heavy chains that used to fail chain detection.)
 
-### Reasons for low confidence (297 of the 6,984 that passed validation)
+### Reasons for low confidence (267 of the 6,984 that passed validation)
 
 16 more sequences were rejected by input validation (too short). Counts are sequences per
-reason; 15 sequences have more than one reason, so the column sums to 314.
+reason; 15 sequences have more than one reason, so the column sums to 284.
 
 | Count | Reason | Nature |
 |---|---|---|
 | 144 | FR3 motif not found; back-calculated from Cys | Hypermutation. Position recovered but flagged conservatively |
-| 39 | Conserved Cys23 not found | N-terminally truncated read |
-| 36 | Terminal motif not found | C-terminally truncated read |
-| 25 | Conserved Cys22 not found | N-terminally truncated read |
+| 40 | Conserved Cys23 not found | N-terminally truncated read |
+| 26 | Conserved Cys22 not found | N-terminally truncated read |
 | 16 | CDR-H1 longer than 7 | Conserved Trp mutated, so a later Trp was taken |
 | 14 | FR3 motif disagrees with the Cys distance → re-anchored | Caught by the cross-check |
 | 15 | CDR-H2 out of range (13 short, 2 long) | Atypical germline |
 | 13 | End of CDR-H2 cannot be determined | Both anchors failed |
 | 5 | Conserved Trp not found / CDR out of sequence | Conserved Trp mutated or truncated read |
 | 7 | Other CDR lengths out of range (L1 4, H3 2, L3 1) | Atypical germline or shifted anchor |
+| 4 | Terminal motif and J tail not found | C-terminally truncated read |
 
-**Cell type decides the outcome.** Human naive B (almost no SHM) reaches 99.8%; heavily
-hypermutated memory/plasma B cells reach 89–95%. The FR3 motif assumes germline conservation,
+**Cell type decides the outcome.** Human naive B (almost no SHM) reaches 99.9%; heavily
+hypermutated memory/plasma B cells reach 90–96%. The FR3 motif assumes germline conservation,
 and hypermutation breaks that assumption.
 
 ---
@@ -225,6 +228,38 @@ length fixed**.
 > keep from this: a distribution alone cannot tell "common" apart from "correct."
 
 Regression: `test_trp_anchor_uses_fr2_context_for_light_chain`
+
+### 7. Complete domains rejected because the terminal motif was mutated
+
+Splitting light chains by locus showed lambda annotation at 96.7% against kappa's 98.6%.
+Reading the failures one by one, most "terminal motif not found" cases were not truncated at
+all. They were complete domains ending in
+
+```
+...WAQG TLVTVSS   ...WSQG TLVTVSS   ...WGRA SLVTVSS        heavy
+...FAQG TRLEIK    ...LGQG TKLEIK                         kappa
+...FAGG TKVTVL    ...LGGG TKLTVL    ...YGGG TKLTVL         lambda
+```
+
+The W/F (or the first G) of `WGxG`/`FGxG` is substituted, while the J-gene tail after it
+stays germline. When neither motif is found, the annotator now locates it from that tail —
+`[TS]xVTVS` for heavy, `T[KR][LV][ED][IV][KR]` for kappa, `T[KQRM][LVM][TS][VI][LV]` for
+lambda — and leaves a warning. The tails are strict enough that a heavy tail never reads as
+light or the reverse.
+
+| | Before | After |
+|---|---|---|
+| Chain identification failed | 36 | **4** |
+| Misclassified | 0 | **0** |
+| CDR annotation succeeded | 98.3% | **98.7%** |
+| ANARCI boundary comparisons / mismatches | 16,427 / 58 | **16,498 / 58** |
+
+The 71 CDR boundaries recovered this way **all agree with ANARCI** (mismatches stayed at 58),
+so these sequences keep `confident` instead of being downgraded — the same measured-evidence
+rule as the FR2 Trp context above.
+
+Regression: `test_heavy_with_mutated_wgxg_is_rescued_by_j_tail`,
+`test_light_with_mutated_fgxg_is_rescued_by_j_tail`, `test_j_tails_do_not_cross_chains`
 
 ---
 
@@ -321,11 +356,11 @@ are flagged too. This is outside the design scope and is stated in the README an
 | Item | Value |
 |---|---|
 | Sequences measured | 7,000 (7 public datasets) |
-| **CDR boundaries (vs. ANARCI ground truth)** | **0.35% mismatch** (16,427 comparisons, 7 datasets) |
+| **CDR boundaries (vs. ANARCI ground truth)** | **0.35% mismatch** (16,498 comparisons, 7 datasets) |
 | Chain identification **misclassifications** | **0** |
-| CDR annotation succeeded | 98.3% |
-| Internal consistency (FR3↔Cys) | 100% |
-| Bugs found and fixed using real data | 6 |
+| CDR annotation succeeded | 98.7% |
+| FR3 motif → conserved Cys distance = 29 (before the cross-check) | 3,429 / 3,443 |
+| Bugs found and fixed using real data | 7 |
 | Fixes rejected once, then reversed after ground-truth comparison | 1 |
 
 The design goal of this tool was **to state the reason rather than guess when it cannot do
