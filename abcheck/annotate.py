@@ -15,7 +15,7 @@ VH
     Trp36      CDR-H1 시작 + 5 이후 첫 Trp (CDR-H1 안의 Trp 을 피하려고 최소 길이만큼 건너뛴다)
     CDR-H2     Trp36 + 14 에서 시작, FR3 모티프 직전까지
     FR3 모티프  CDR-H2 시작 + 9 이후 첫 `[RKQ].[TSAV][IMLFV][STAN]` 매치
-    Cys92      FR3 모티프 이후 첫 Cys
+    Cys92      FR3 모티프 이후 첫 `[YF]C` 의 Cys (없으면 첫 Cys 로 물러서고 경고)
     CDR-H3     Cys92 + 3 에서 시작, 말단 `WGxG` 직전까지
 
 VL
@@ -23,7 +23,7 @@ VL
     CDR-L1     Cys23 + 1 에서 시작, Trp35 직전까지
     Trp35      CDR-L1 시작 + 7 이후 첫 Trp (같은 이유로 최소 길이만큼 건너뛴다)
     CDR-L2     Trp35 + 15 에서 시작, 7 잔기 고정
-    Cys88      CDR-L2 이후 첫 Cys
+    Cys88      CDR-L2 이후 첫 `[YF]C` 의 Cys (없으면 첫 Cys 로 물러서고 경고)
     CDR-L3     Cys88 + 1 에서 시작, 말단 `FGxG` 직전까지
 
 "FR3 모티프 이후 첫 Cys"처럼 '첫'을 쓰는 것은 의도적이다. CDR-H3 안에 비결합 Cys 가
@@ -91,13 +91,24 @@ MIN_CDR1_LENGTH_L = 7
 MIN_CDR_H2_BEFORE_MOTIF = 9
 
 #: 통상 CDR 길이 범위 (스크리닝 기준; 엄격한 numbering 기준이 아니다)
+#:
+#: 이 범위는 "이 항체가 이상한가"가 아니라 **"주석을 믿을 수 있는가"** 의 기준이다.
+#: 정상 서열을 자꾸 '신뢰 불가' 로 떨어뜨리면 경고가 무뎌지므로, OAS 실제 서열
+#: 2,000건의 실측 분포에 맞춰 상한을 잡았다 (아래 괄호는 실측 min-max).
+#:   CDR-H1 5-7   (실측 5-7,  범위 밖 0건)
+#:   CDR-H2 16-20 (실측 16-20, 20 은 삽입이 있는 germline 계열)
+#:   CDR-H3 3-30  (실측 3-27,  사람은 26-27 잔기가 드물지 않다)
+#:   CDR-L1 7-17  (실측 8-17,  범위 밖 0건)
+#:   CDR-L2 7     (실측 전부 7)
+#:   CDR-L3 5-15  (실측 4-14 가 정상. 20 으로 나오던 건은 Cys 앵커 버그였고 고쳤다)
+#: 하한은 넓히지 않았다 — 앵커를 잘못 집으면 CDR 이 짧아지므로, 하한이 그 신호다.
 TYPICAL_LENGTHS: dict[str, tuple[int, int]] = {
     "CDR-H1": (5, 7),
-    "CDR-H2": (16, 19),
-    "CDR-H3": (3, 25),
+    "CDR-H2": (16, 20),
+    "CDR-H3": (3, 30),
     "CDR-L1": (7, 17),
     "CDR-L2": (7, 7),
-    "CDR-L3": (5, 13),
+    "CDR-L3": (5, 15),
 }
 
 
@@ -186,6 +197,34 @@ def _first_residue_from(seq: str, residue: str, min_pos: int) -> int | None:
     """min_pos(1-based) 이상에서 residue 가 처음 나오는 1-based 위치."""
     idx = seq.find(residue, max(min_pos - 1, 0))
     return idx + 1 if idx >= 0 else None
+
+
+#: 보존 Cys 바로 앞에 오는 잔기. OAS 실제 서열 1,991건에서 Y 83.2% + F 16.1% = 99.3%.
+#: 이 문맥을 쓰지 않고 "첫 Cys"만 보면, FR3 안에 여분 Cys 가 있는 서열(예: ...LTIS**C**...)에서
+#: 그 Cys 를 앵커로 잘못 집어 CDR3 가 10잔기 넘게 앞에서 시작한다. 실측 2,000건 중 7건이 그랬고,
+#: 그중 하나는 길이가 통상 범위 안이라 길이 검사로도 걸러지지 않았다.
+CONSERVED_CYS_RE = re.compile(r"[YF]C")
+
+
+def _find_conserved_cys(seq: str, min_pos: int, limit: int) -> tuple[int | None, bool]:
+    """min_pos 이상 limit 미만에서 보존 Cys 를 찾는다. (위치, 문맥으로 찾았는지)
+
+    먼저 `[YF]C` 문맥으로 찾고, 없으면 그냥 첫 Cys 로 물러선다. 물러선 경우를
+    호출부가 알 수 있게 두 번째 값으로 알린다 — 경고를 남기기 위함이다.
+    """
+    start = max(min_pos - 2, 0)
+    for m in CONSERVED_CYS_RE.finditer(seq, start):
+        pos = m.start() + 2
+        if pos < min_pos:
+            continue
+        if pos >= limit:
+            break
+        return pos, True
+
+    fallback = _first_residue_from(seq, "C", min_pos)
+    if fallback is not None and fallback < limit:
+        return fallback, False
+    return None, False
 
 
 def _cys_in_window(seq: str, window: tuple[int, int], expected: int) -> tuple[int | None, int]:
@@ -326,7 +365,12 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
     ann.cdrs["CDR-H2"] = CDR("CDR-H2", h2_start, fr3 - 1, seq[h2_start - 1:fr3 - 1])
 
     # --- 앵커 4: Cys92, CDR-H3 ---
-    cys2 = _first_residue_from(seq, "C", fr3)
+    cys2, by_context = _find_conserved_cys(seq, fr3, motif_pos)
+    if not by_context and cys2 is not None:
+        ann.warnings.append(
+            f"보존 Cys92 를 문맥(YC/FC) 으로 찾지 못해 {cys2}번의 Cys 를 그대로 썼다. "
+            "FR3 에 여분 Cys 가 있으면 CDR-H3 시작이 밀릴 수 있다. ANARCI/IMGT 로 재확인할 것."
+        )
     if cys2 is None or cys2 >= motif_pos:
         ann.confident = False
         ann.reasons.append(
@@ -403,7 +447,12 @@ def _annotate_light(seq: str, ann: Annotation) -> None:
     ann.cdrs["CDR-L2"] = CDR("CDR-L2", l2_start, l2_end, seq[l2_start - 1:l2_end])
 
     # --- 앵커 3: Cys88, CDR-L3 ---
-    cys2 = _first_residue_from(seq, "C", l2_end + 1)
+    cys2, by_context = _find_conserved_cys(seq, l2_end + 1, motif_pos)
+    if not by_context and cys2 is not None:
+        ann.warnings.append(
+            f"보존 Cys88 을 문맥(YC/FC) 으로 찾지 못해 {cys2}번의 Cys 를 그대로 썼다. "
+            "FR3 에 여분 Cys 가 있으면 CDR-L3 시작이 밀릴 수 있다. ANARCI/IMGT 로 재확인할 것."
+        )
     if cys2 is None or cys2 >= motif_pos:
         ann.confident = False
         ann.reasons.append(

@@ -103,11 +103,11 @@ FGXG_RE = re.compile(r"FG.G")
 # 주석기가 "통상 범위"로 볼 CDR 길이 (스크리닝 휴리스틱 기준; 엄격한 numbering 기준이 아니다)
 TYPICAL_LENGTHS = {
     "H1": (5, 7),
-    "H2": (16, 19),
-    "H3": (3, 25),
+    "H2": (16, 20),
+    "H3": (3, 30),
     "L1": (7, 17),
     "L2": (7, 7),
-    "L3": (5, 13),
+    "L3": (5, 15),
 }
 
 
@@ -156,7 +156,8 @@ def build_heavy_scaffold(rng: random.Random) -> HeavyScaffold:
         post_cys1=_draw(rng, FRAMEWORK_WEIGHTS, 8),
         fr2=_draw(rng, FRAMEWORK_WEIGHTS, 13),
         fr3_motif=motif,
-        fr3_rest=_draw(rng, FRAMEWORK_WEIGHTS, 21),
+        # 보존 Cys 앞은 실제 서열의 83% 가 YY 다. 주석기가 [YF]C 문맥을 쓰므로 맞춰 둔다.
+        fr3_rest=_draw(rng, FRAMEWORK_WEIGHTS, 19) + "YY",
         post_cys2=_draw(rng, FRAMEWORK_WEIGHTS, 2),
         fr4_rest=_draw(rng, FRAMEWORK_WEIGHTS, 7),
     )
@@ -166,7 +167,7 @@ def build_light_scaffold(rng: random.Random) -> LightScaffold:
     return LightScaffold(
         fr1=_draw(rng, FRAMEWORK_WEIGHTS, 22),
         fr2=_draw(rng, FRAMEWORK_WEIGHTS, 14),
-        fr3_rest=_draw(rng, FRAMEWORK_WEIGHTS, 31),
+        fr3_rest=_draw(rng, FRAMEWORK_WEIGHTS, 29) + "YY",
         fr4_rest=_draw(rng, FRAMEWORK_WEIGHTS, 7),
     )
 
@@ -341,6 +342,18 @@ def _first_index(pattern: re.Pattern[str], seq: str, min_pos1: int) -> int | Non
     return m.start() + 1 if m else None
 
 
+CONSERVED_CYS_RE = re.compile(r"[YF]C")
+
+
+def _first_conserved_cys(seq: str, min_pos: int) -> int | None:
+    """min_pos(1-based) 이상에서 첫 [YF]C 의 Cys 위치. abcheck.annotate 와 같은 규칙."""
+    for m in CONSERVED_CYS_RE.finditer(seq, max(min_pos - 2, 0)):
+        pos = m.start() + 2
+        if pos >= min_pos:
+            return pos
+    return None
+
+
 def _last_index(pattern: re.Pattern[str], seq: str) -> int | None:
     last = None
     for m in pattern.finditer(seq):
@@ -377,10 +390,10 @@ def verify_heavy(seq: str, cdrs: dict, anchors: dict) -> list[str]:
     if found != anchors["fr3_motif"]:
         problems.append(f"FR3 모티프 첫 매치가 CDR-H2 안에 걸렸다: {found} != {anchors['fr3_motif']}")
 
-    # Cys92: FR3 모티프 이후 첫 Cys
-    first_c = seq.find("C", anchors["fr3_motif"] - 1) + 1
+    # Cys92: FR3 모티프 이후 첫 [YF]C
+    first_c = _first_conserved_cys(seq, anchors["fr3_motif"])
     if first_c != anchors["cys2"]:
-        problems.append(f"FR3 모티프 이후 첫 Cys 위치가 다르다: {first_c} != {anchors['cys2']}")
+        problems.append(f"FR3 모티프 이후 첫 [YF]C 위치가 다르다: {first_c} != {anchors['cys2']}")
 
     return problems
 
@@ -404,9 +417,9 @@ def verify_light(seq: str, cdrs: dict, anchors: dict) -> list[str]:
         problems.append(f"CDR-L1 최소 길이 이후 첫 Trp 위치가 다르다: {first_w} != {anchors['trp']}")
 
     l2_end = cdrs["CDR-L2"][1]
-    first_c = seq.find("C", l2_end) + 1
+    first_c = _first_conserved_cys(seq, l2_end + 1)
     if first_c != anchors["cys2"]:
-        problems.append(f"CDR-L2 이후 첫 Cys 위치가 다르다: {first_c} != {anchors['cys2']}")
+        problems.append(f"CDR-L2 이후 첫 [YF]C 위치가 다르다: {first_c} != {anchors['cys2']}")
 
     return problems
 
@@ -486,6 +499,14 @@ def make_cases() -> list[Case]:
             notes=["염기성 CDR → 높은 pI"],
         ),
 
+        Case(
+            "SYN-VL-007", "L",
+            "FR3 안에 여분 Cys 가 있는 VL — 실제 서열에 있다(…LTIS<C>LQSEDFATYY<C>…). "
+            "'CDR-L2 이후 첫 Cys' 를 앵커로 쓰면 CDR-L3 가 10잔기 넘게 앞에서 시작한다",
+            (11, 7, 9),
+            fr_inserts={"fr3_rest": [(6, "C")]},
+            notes=["FR3 내 여분 Cys", "도메인 내 Cys 3개 → 홀수"],
+        ),
         Case(
             "SYN-VH-011", "H",
             "FR3 모티프가 QVTIS 로 시작하는 VH — IGHV2 계열에서 흔하다. "

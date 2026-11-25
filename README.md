@@ -47,7 +47,7 @@
 따옴표 안에 서열을 넣는다. 대소문자와 줄바꿈은 알아서 정리한다.
 
 ```bash
-python3 -m abcheck.cli "YITTIETSSFHYGRVRHEIEQCALLKGGLSRAHSIWALKLPYITVTHQSKDNREFVYFQEVGQYDKATLSVSESLQHSLQSSLPVVRVVKLCLGAPSGSYFGRVWGQGSSGGFQY"
+python3 -m abcheck.cli "YITTIETSSFHYGRVRHEIEQCALLKGGLSRAHSIWALKLPYITVTHQSKDNREFVYFQEVGQYDKATLSVSESLQHSLQSSLPVVRVVYYCKLAPSGSYFGRVWGQGLGSSGGF"
 ```
 
 CDR 위치, liability 플래그, 물성이 표로 나온다. 서열 아래 `^` 표시가 CDR 구간이다.
@@ -168,11 +168,13 @@ CDR 길이가 통상 범위를 벗어나면 위치는 그대로 보여주되 `co
 | CDR | 통상 길이 |
 |---|---|
 | CDR-H1 | 5-7 |
-| CDR-H2 | 16-19 |
-| CDR-H3 | 3-25 |
+| CDR-H2 | 16-20 |
+| CDR-H3 | 3-30 |
 | CDR-L1 | 7-17 |
 | CDR-L2 | 7 |
-| CDR-L3 | 5-13 |
+| CDR-L3 | 5-15 |
+
+이 범위는 "이 항체가 이상한가"가 아니라 **"주석을 믿을 수 있는가"**의 기준이다. OAS 실제 서열 2,000건의 실측 분포에 맞춰 상한을 잡았다. 하한은 넓히지 않았다 — 앵커를 잘못 집으면 CDR 이 짧아지므로 하한이 그 신호다.
 
 ### 2. liability 모티프
 

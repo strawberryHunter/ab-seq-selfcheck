@@ -106,7 +106,7 @@ jobs:
           python -c "
           import json
           payload = json.load(open('ci_output/report.json'))
-          assert payload['count'] == 21, payload['count']
+          assert payload['count'] == 22, payload['count']
           assert payload['limitations'], '한계 고지가 빠졌다'
           assert payload['summary']['groups'], '집계가 빠졌다'
           print('JSON 출력 확인')

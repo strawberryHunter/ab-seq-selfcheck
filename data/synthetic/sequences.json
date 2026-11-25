@@ -10,11 +10,11 @@
     ],
     "H2": [
       16,
-      19
+      20
     ],
     "H3": [
       3,
-      25
+      30
     ],
     "L1": [
       7,
@@ -26,16 +26,16 @@
     ],
     "L3": [
       5,
-      13
+      15
     ]
   },
-  "count": 21,
+  "count": 22,
   "sequences": [
     {
       "id": "SYN-VH-001",
       "chain": "H",
       "description": "정상 VH — 통상 길이 CDR, 주입한 liability 없음",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSRAHSIWALKLPYITVTHQSKDNREFVYFQEVGQYDKATLSVSESLQHSLQSSLPVVRVVKLCLGAPSGSYFGRVWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSRAHSIWALKLPYITVTHQSKDNREFVYFQEVGQYDKATLSVSESLQHSLQSSLPVVRVVYYCKLAPSGSYFGRVWGQGLGSSGGF",
       "length": 115,
       "synthetic": true,
       "notes": [],
@@ -74,7 +74,7 @@
       "id": "SYN-VH-002",
       "chain": "H",
       "description": "정상 VH — CDR-H3 가 긴 편(18 잔기)",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSLNPISWALKLPYITVTHQSELPHQYKGREYPRVASKATLSVSESLQHSLQSSLPVVRVVKLCLGSTILTAEFEATTYKKQNEWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSLNPISWALKLPYITVTHQSELPHQYKGREYPRVASKATLSVSESLQHSLQSSLPVVRVVYYCKLSTILTAEFEATTYKKQNEWGQGLGSSGGF",
       "length": 123,
       "synthetic": true,
       "notes": [],
@@ -113,7 +113,7 @@
       "id": "SYN-VL-001",
       "chain": "L",
       "description": "정상 VL — kappa 유사 길이 (L1 11, L3 9)",
-      "sequence": "AIIYYVTQTGKKSFTSTETQLVCYNIGGIKGPIGWFVTITAVYQKSTTVTYNQLGSSLHLITALARTSYRTLTQAALIRTRKTSSILCKTDIDKKYTFGQGRKSKLKT",
+      "sequence": "QYAIIYYVTQTGKKSFTSTETQCYNIGGIKGPIGWLVFVTITAVYQKSTTYNQLGSTVSLHLITALARTSYRTLTQAALIRTRKTYYCKTDIDKKYTFGQGSSILRKS",
       "length": 108,
       "synthetic": true,
       "notes": [],
@@ -151,7 +151,7 @@
       "id": "SYN-VL-002",
       "chain": "L",
       "description": "정상 VL — CDR-L1 이 짧은 편(8 잔기)",
-      "sequence": "AIIYYVTQTGKKSFTSTETQLVCIDAAAKLEWFVTITAVYQKSTTVTLTTGPFSLHLITALARTSYRTLTQAALIRTRKTSSILCYTYKFQDIIFGQGRKSKLKT",
+      "sequence": "QYAIIYYVTQTGKKSFTSTETQCIDAAAKLEWLVFVTITAVYQKSTTLTTGPFTVSLHLITALARTSYRTLTQAALIRTRKTYYCYTYKFQDIIFGQGSSILRKS",
       "length": 105,
       "synthetic": true,
       "notes": [],
@@ -189,7 +189,7 @@
       "id": "SYN-VH-003",
       "chain": "H",
       "description": "CDR-H2 에 NG — deamidation 최고 위험, CDR 내부라 위험도 상향",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSATNIEWALKLPYITVTHQSLSTAARNGGQQQGFDLKATLSVSESLQHSLQSSLPVVRVVKLCLGYNKQQQFYLKWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSATNIEWALKLPYITVTHQSLSTAARNGGQQQGFDLKATLSVSESLQHSLQSSLPVVRVVYYCKLYNKQQQFYLKWGQGLGSSGGF",
       "length": 115,
       "synthetic": true,
       "notes": [
@@ -230,7 +230,7 @@
       "id": "SYN-VH-004",
       "chain": "H",
       "description": "CDR-H1 에 N-glycosylation 서열(NLS) — CDR 내부 당화 위험",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSGNLSAAWALKLPYITVTHQSRGRVETRTKTGNARDEKATLSVSESLQHSLQSSLPVVRVVKLCLGTLSVGVDFITWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSGNLSAAWALKLPYITVTHQSRGRVETRTKTGNARDEKATLSVSESLQHSLQSSLPVVRVVYYCKLTLSVGVDFITWGQGLGSSGGF",
       "length": 116,
       "synthetic": true,
       "notes": [
@@ -271,7 +271,7 @@
       "id": "SYN-VL-003",
       "chain": "L",
       "description": "CDR-L3 에 NG — 경쇄 CDR 내 deamidation",
-      "sequence": "AIIYYVTQTGKKSFTSTETQLVCGSLPNYDIRIYWFVTITAVYQKSTTVTSLAGVSSLHLITALARTSYRTLTQAALIRTRKTSSILCLRANGEGADFGQGRKSKLKT",
+      "sequence": "QYAIIYYVTQTGKKSFTSTETQCGSLPNYDIRIYWLVFVTITAVYQKSTTSLAGVSTVSLHLITALARTSYRTLTQAALIRTRKTYYCLRANGEGADFGQGSSILRKS",
       "length": 108,
       "synthetic": true,
       "notes": [
@@ -311,7 +311,7 @@
       "id": "SYN-VH-005",
       "chain": "H",
       "description": "비결합 Cys — CDR-H3 에 Cys 를 하나 더 넣어 도메인 내 Cys 가 3개(홀수)",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSFIEAIWALKLPYITVTHQSRVGPKILAHASEHYNAKATLSVSESLQHSLQSSLPVVRVVKLCLGYAYITCTGERTDWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSFIEAIWALKLPYITVTHQSRVGPKILAHASEHYNAKATLSVSESLQHSLQSSLPVVRVVYYCKLYAYITCTGERTDWGQGLGSSGGF",
       "length": 117,
       "synthetic": true,
       "notes": [
@@ -352,7 +352,7 @@
       "id": "SYN-VH-006",
       "chain": "H",
       "description": "framework 에만 liability — FR3 에 DG, FR1 에 Met. CDR 내부 건과 위험도 비교용",
-      "sequence": "YITTIETSSFHYMRVRHEIEQCALLKGGLSKYGDHWALKLPYITVTHQSKRPALTTSSIYKPASLKATLSVSESLQHSDGSSLPVVRVVKLCLGSVGIAFGRTSWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYMRVRHEIEQCALLKGGLSKYGDHWALKLPYITVTHQSKRPALTTSSIYKPASLKATLSVSESLQHSDGSSLPVVRVVYYCKLSVGIAFGRTSWGQGLGSSGGF",
       "length": 115,
       "synthetic": true,
       "notes": [
@@ -394,7 +394,7 @@
       "id": "SYN-VH-007",
       "chain": "H",
       "description": "CDR-H3 에 DG — isomerization 최고 위험",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSSQPSTWALKLPYITVTHQSQQKADLISDRYGGDNAKATLSVSESLQHSLQSSLPVVRVVKLCLGAQGPDGRGNKFWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSSQPSTWALKLPYITVTHQSQQKADLISDRYGGDNAKATLSVSESLQHSLQSSLPVVRVVYYCKLAQGPDGRGNKFWGQGLGSSGGF",
       "length": 116,
       "synthetic": true,
       "notes": [
@@ -435,7 +435,7 @@
       "id": "SYN-VH-008",
       "chain": "H",
       "description": "CDR-H3 에 Met 과 Trp — CDR 내 산화 위험",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSYTSSPWALKLPYITVTHQSGNVKGPYHGNDRTSEAKATLSVSESLQHSLQSSLPVVRVVKLCLGGTFMGESWPSSLWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSYTSSPWALKLPYITVTHQSGNVKGPYHGNDRTSEAKATLSVSESLQHSLQSSLPVVRVVYYCKLGTFMGESWPSSLWGQGLGSSGGF",
       "length": 117,
       "synthetic": true,
       "notes": [
@@ -477,7 +477,7 @@
       "id": "SYN-VL-004",
       "chain": "L",
       "description": "CDR-L1 에 DP — fragmentation 위험",
-      "sequence": "AIIYYVTQTGKKSFTSTETQLVCTINVDPSADAGWFVTITAVYQKSTTVKQLRGHRSLHLITALARTSYRTLTQAALIRTRKTSSILCGGTLIEHKLFGQGRKSKLKT",
+      "sequence": "QYAIIYYVTQTGKKSFTSTETQCTINVDPSADAGWLVFVTITAVYQKSTKQLRGHRTVSLHLITALARTSYRTLTQAALIRTRKTYYCGGTLIEHKLFGQGSSILRKS",
       "length": 108,
       "synthetic": true,
       "notes": [
@@ -517,7 +517,7 @@
       "id": "SYN-VL-005",
       "chain": "L",
       "description": "CDR 에 Lys/Arg 를 몰아넣은 염기성 서열 — pI/net charge 계산 검증용",
-      "sequence": "AIIYYVTQTGKKSFTSTETQLVCDYKRKRKGRGGWFVTITAVYQKSTTVGEFNKKFSLHLITALARTSYRTLTQAALIRTRKTSSILCIRKRKAGSGFGQGRKSKLKT",
+      "sequence": "QYAIIYYVTQTGKKSFTSTETQCDYKRKRKGRGGWLVFVTITAVYQKSTGEFNKKFTVSLHLITALARTSYRTLTQAALIRTRKTYYCIRKRKAGSGFGQGSSILRKS",
       "length": 108,
       "synthetic": true,
       "notes": [
@@ -554,10 +554,51 @@
       }
     },
     {
+      "id": "SYN-VL-007",
+      "chain": "L",
+      "description": "FR3 안에 여분 Cys 가 있는 VL — 실제 서열에 있다(…LTIS<C>LQSEDFATYY<C>…). 'CDR-L2 이후 첫 Cys' 를 앵커로 쓰면 CDR-L3 가 10잔기 넘게 앞에서 시작한다",
+      "sequence": "QYAIIYYVTQTGKKSFTSTETQCLSRHRPYGYAYWLVFVTITAVYQKSTLKGYQVPTVSLHLCTALARTSYRTLTQAALIRTRKTYYCFVGQGISGKFGQGSSILRKS",
+      "length": 108,
+      "synthetic": true,
+      "notes": [
+        "FR3 내 여분 Cys",
+        "도메인 내 Cys 3개 → 홀수"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-L1": {
+            "start": 24,
+            "end": 34,
+            "seq": "LSRHRPYGYAY"
+          },
+          "CDR-L2": {
+            "start": 50,
+            "end": 56,
+            "seq": "LKGYQVP"
+          },
+          "CDR-L3": {
+            "start": 89,
+            "end": 97,
+            "seq": "FVGQGISGK"
+          }
+        },
+        "chain": "L",
+        "confident": true,
+        "anchors_broken": false,
+        "length_outlier": false
+      },
+      "anchors_intended": {
+        "cys1": 23,
+        "trp": 35,
+        "cys2": 88,
+        "terminal_motif": 98
+      }
+    },
+    {
       "id": "SYN-VH-011",
       "chain": "H",
       "description": "FR3 모티프가 QVTIS 로 시작하는 VH — IGHV2 계열에서 흔하다. 첫 자리가 R/K 가 아니라 Q 라 좁은 정규식으로는 못 찾는다",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSYGDLIWALKLPYITVTHQSQLSFFPILSAITDLIAQVTISVSESLQHSLQSSLPVVRVVKLCLGKIHSTGPVRYWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSYGDLIWALKLPYITVTHQSQLSFFPILSAITDLIAQVTISVSESLQHSLQSSLPVVRVVYYCKLKIHSTGPVRYWGQGLGSSGGF",
       "length": 115,
       "synthetic": true,
       "notes": [
@@ -598,7 +639,7 @@
       "id": "SYN-VH-012",
       "chain": "H",
       "description": "FR3 모티프가 RITIN 으로 끝나는 VH — 끝 자리가 N 이라 좁은 정규식으로는 못 찾는다",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSGLRVLWALKLPYITVTHQSGGSAQIDARSIRYLRTRITINVSESLQHSLQSSLPVVRVVKLCLGEYYFSDILYEWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSGLRVLWALKLPYITVTHQSGGSAQIDARSIRYLRTRITINVSESLQHSLQSSLPVVRVVYYCKLEYYFSDILYEWGQGLGSSGGF",
       "length": 115,
       "synthetic": true,
       "notes": [
@@ -639,7 +680,7 @@
       "id": "SYN-VH-010",
       "chain": "H",
       "description": "CDR-H2 에 NT — 약한 deamidation 등급. CDR 상향으로 '높음'이 되지만 최고 위험 모티프가 아니라 선별 규칙에는 걸리지 않아야 한다",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSSEGTKWALKLPYITVTHQSASFSDNTADIGKPGSLKATLSVSESLQHSLQSSLPVVRVVKLCLGFNFQGHPPVDWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSSEGTKWALKLPYITVTHQSASFSDNTADIGKPGSLKATLSVSESLQHSLQSSLPVVRVVYYCKLFNFQGHPPVDWGQGLGSSGGF",
       "length": 115,
       "synthetic": true,
       "notes": [
@@ -680,7 +721,7 @@
       "id": "SYN-VH-009",
       "chain": "H",
       "description": "CDR-H1 안에 Trp 이 있는 VH — 실제 항체에서 흔하다(예: SYWMQ). 'CDR1 이후 첫 Trp'를 앵커로 쓰면 CDR-H1 이 잘려 나간다",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSGAWSGWALKLPYITVTHQSESRLRTFGGHISTAQGKATLSVSESLQHSLQSSLPVVRVVKLCLGAIGKHPTSSDWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSGAWSGWALKLPYITVTHQSESRLRTFGGHISTAQGKATLSVSESLQHSLQSSLPVVRVVYYCKLAIGKHPTSSDWGQGLGSSGGF",
       "length": 115,
       "synthetic": true,
       "notes": [
@@ -721,7 +762,7 @@
       "id": "SYN-VL-006",
       "chain": "L",
       "description": "CDR-L1 안에 Trp 이 있는 VL — 중쇄와 같은 함정",
-      "sequence": "AIIYYVTQTGKKSFTSTETQLVCLPPWKPNEYQGWFVTITAVYQKSTTVPRPARDRSLHLITALARTSYRTLTQAALIRTRKTSSILCEYFGDKKEEFGQGRKSKLKT",
+      "sequence": "QYAIIYYVTQTGKKSFTSTETQCLPPWKPNEYQGWLVFVTITAVYQKSTPRPARDRTVSLHLITALARTSYRTLTQAALIRTRKTYYCEYFGDKKEEFGQGSSILRKS",
       "length": 108,
       "synthetic": true,
       "notes": [
@@ -761,7 +802,7 @@
       "id": "SYN-VH-901",
       "chain": "H",
       "description": "말단 WGxG 가 깨진 VH — 체인 판별부터 실패해야 한다 (confident=False)",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSYPSKSWALKLPYITVTHQSYRNINIPGPEPGGARGKATLSVSESLQHSLQSSLPVVRVVKLCLGGAVTKYPEKVSGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSYPSKSWALKLPYITVTHQSYRNINIPGPEPGGARGKATLSVSESLQHSLQSSLPVVRVVYYCKLGAVTKYPEKVSGQGLGSSGGF",
       "length": 115,
       "synthetic": true,
       "notes": [
@@ -780,7 +821,7 @@
       "id": "SYN-VH-902",
       "chain": "H",
       "description": "보존 Cys22 가 Ser 로 치환된 VH — CDR-H1 앵커를 못 찾아야 한다 (confident=False)",
-      "sequence": "YITTIETSSFHYGRVRHEIEQSALLKGGLSAISPAWALKLPYITVTHQSIANYKKRKVDVAYKTYKATLSVSESLQHSLQSSLPVVRVVKLCLGLSIPTEVVNQWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQSALLKGGLSAISPAWALKLPYITVTHQSIANYKKRKVDVAYKTYKATLSVSESLQHSLQSSLPVVRVVYYCKLLSIPTEVVNQWGQGLGSSGGF",
       "length": 115,
       "synthetic": true,
       "notes": [
@@ -799,7 +840,7 @@
       "id": "SYN-VH-903",
       "chain": "H",
       "description": "CDR-H1 이 9 잔기 — 앵커는 찾히지만 통상 범위(5-7) 밖이라 confident=False",
-      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSPFFLKNEHTWALKLPYITVTHQSANDLHFNVNVDYIKTVKATLSVSESLQHSLQSSLPVVRVVKLCLGSAITTLSQTFWGQGSSGGFQY",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSPFFLKNEHTWALKLPYITVTHQSANDLHFNVNVDYIKTVKATLSVSESLQHSLQSSLPVVRVVYYCKLSAITTLSQTFWGQGLGSSGGF",
       "length": 119,
       "synthetic": true,
       "notes": [

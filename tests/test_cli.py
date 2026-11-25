@@ -173,7 +173,7 @@ def test_valid_input_with_unconfident_sequence_still_exits_zero(records):
 
 def test_load_input_detects_corpus_json():
     entries, source = load_input(str(CORPUS_PATH))
-    assert len(entries) == 21
+    assert len(entries) == 22
     assert "코퍼스 JSON" in source
 
 

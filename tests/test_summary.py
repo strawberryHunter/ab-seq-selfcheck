@@ -235,7 +235,7 @@ def test_groups_split_heavy_light_and_unknown(records):
     assert [g["chain"] for g in summary["groups"]] == ["H", "L", None], "중쇄 → 경쇄 → 실패 순서"
 
     assert len(groups["H"]["rows"]) == 14
-    assert len(groups["L"]["rows"]) == 6
+    assert len(groups["L"]["rows"]) == 7
     assert [r["id"] for r in groups[None]["rows"]] == ["SYN-VH-901"]
 
 
@@ -313,7 +313,7 @@ def test_text_renders_one_table_per_chain(records):
     section = out.split("CDR별 liability 집계")[1].split("[SYN-VH-001]")[0]
 
     assert "중쇄 (VH) — 14건" in section
-    assert "경쇄 (VL) — 6건" in section
+    assert "경쇄 (VL) — 7건" in section
     assert "CDR-H2" in section and "CDR-L2" in section
 
 
