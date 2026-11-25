@@ -321,6 +321,52 @@
     return { entries: entries, source: source };
   }
 
+  var CHAIN_TOKEN = /^(vh|vl|vk|hc|lc|h|l|heavy|light|kappa|lambda)$/i;
+
+  /** A candidate's name without its chain token, lower-cased: "mAb01_VH" -> "mab01",
+      "SYN-VL-003" -> "syn-003", "Ab7 heavy" -> "ab7". null when the name has no chain token. */
+  function pairKey(id) {
+    var tokens = String(id).split(/[-_. ]+/).filter(Boolean);
+    var rest = tokens.filter(function (t) { return !CHAIN_TOKEN.test(t); });
+    if (rest.length === tokens.length) {
+      var m = /^(.*[0-9a-z])(VH|VL|HC|LC)$/.exec(String(id));   // "mAb01VH": upper-case suffix only
+      return m ? m[1].toLowerCase() : null;
+    }
+    return rest.length ? rest.join("-").toLowerCase() : null;
+  }
+
+  /** Partner chains by name: {index: partnerIndex} for names that differ only in the chain
+      token and whose chains the engine called H and L. Ambiguous groups are left unpaired. */
+  function pairMap(rows) {
+    var groups = {};
+    rows.forEach(function (r) {
+      if (!r.inputOk || !r.chain) return;
+      var k = pairKey(r.id);
+      if (k === null) return;
+      (groups[k] = groups[k] || []).push(r);
+    });
+    var out = {};
+    Object.keys(groups).forEach(function (k) {
+      var g = groups[k];
+      if (g.length === 2 && g[0].chain !== g[1].chain) { out[g[0].index] = g[1].index; out[g[1].index] = g[0].index; }
+    });
+    return out;
+  }
+
+  /** Rows in input order, but with each row's partner (when it is in the list too) right
+      after it -- so a sheet reads antibody by antibody. */
+  function withPartnersAdjacent(rows, pairs) {
+    var byIndex = {}, done = {}, out = [];
+    rows.forEach(function (r) { byIndex[r.index] = r; });
+    rows.forEach(function (r) {
+      if (done[r.index]) return;
+      var partner = byIndex[pairs[r.index]];
+      var first = partner && !done[partner.index] && partner.chain === "H" ? partner : r;
+      [first, first === r ? partner : r].forEach(function (x) { if (x && !done[x.index]) { done[x.index] = true; out.push(x); } });
+    });
+    return out;
+  }
+
   /**
    * What pasted text is, when it is not FASTA or a single sequence: ".tsv" (rows copied from
    * Excel: name<TAB>sequence, or one sequence per line), ".csv", ".json", or "" (let the
@@ -488,7 +534,8 @@
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
-    combineEntries: combineEntries, pastedKind: pastedKind, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
+    combineEntries: combineEntries, pastedKind: pastedKind, pairKey: pairKey, pairMap: pairMap,
+    withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
 });

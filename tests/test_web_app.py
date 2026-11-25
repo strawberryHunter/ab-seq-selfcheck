@@ -292,6 +292,24 @@ def test_pasted_tables_are_recognised():
 
 
 @needs_node
+def test_partner_chains_are_found_by_name():
+    out = _node("""
+      const s = Object.fromEntries(entries);
+      const named = [["mAb01_VH", s["SYN-VH-001"]], ["mAb02_VH", s["SYN-VH-003"]], ["mAb01_VL", s["SYN-VL-001"]],
+                     ["mAb02_VL", s["SYN-VL-004"]], ["lonely_VH", s["SYN-VH-007"]], ["dup_VH", s["SYN-VH-001"]],
+                     ["dup_VH", s["SYN-VH-003"]], ["dup_VL", s["SYN-VL-001"]], ["plain", s["SYN-VH-002"]]];
+      const rows = ABUI.buildRows(ABCHECK.analyze(named, 7.4));
+      const pairs = ABUI.pairMap(rows);
+      const picked = rows.filter(r => ["mAb02_VL", "mAb01_VL", "mAb01_VH", "plain"].includes(r.id));
+      console.log(JSON.stringify({
+        keys: ["mAb01_VH", "SYN-VL-003", "Ab7 heavy", "mAb01VH", "plain", "VH"].map(ABUI.pairKey),
+        pairs, order: ABUI.withPartnersAdjacent(picked, pairs).map(r => r.id)}));""")
+    assert out["keys"] == ["mab01", "syn-003", "ab7", "mab01", None, None]
+    assert out["pairs"] == {"0": 2, "2": 0, "1": 3, "3": 1}      # lonely, ambiguous and plain names stay unpaired
+    assert out["order"] == ["mAb01_VH", "mAb01_VL", "mAb02_VL", "plain"]
+
+
+@needs_node
 def test_shared_cdrs_finds_identical_cdrs():
     out = _node("""
       const rows = ABUI.buildRows(ABCHECK.analyze([["a", entries[0][1]], ["b", entries[0][1]], ["c", entries[2][1]]], 7.4));

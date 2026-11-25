@@ -2713,6 +2713,52 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return { entries: entries, source: source };
   }
 
+  var CHAIN_TOKEN = /^(vh|vl|vk|hc|lc|h|l|heavy|light|kappa|lambda)$/i;
+
+  /** A candidate's name without its chain token, lower-cased: "mAb01_VH" -> "mab01",
+      "SYN-VL-003" -> "syn-003", "Ab7 heavy" -> "ab7". null when the name has no chain token. */
+  function pairKey(id) {
+    var tokens = String(id).split(/[-_. ]+/).filter(Boolean);
+    var rest = tokens.filter(function (t) { return !CHAIN_TOKEN.test(t); });
+    if (rest.length === tokens.length) {
+      var m = /^(.*[0-9a-z])(VH|VL|HC|LC)$/.exec(String(id));   // "mAb01VH": upper-case suffix only
+      return m ? m[1].toLowerCase() : null;
+    }
+    return rest.length ? rest.join("-").toLowerCase() : null;
+  }
+
+  /** Partner chains by name: {index: partnerIndex} for names that differ only in the chain
+      token and whose chains the engine called H and L. Ambiguous groups are left unpaired. */
+  function pairMap(rows) {
+    var groups = {};
+    rows.forEach(function (r) {
+      if (!r.inputOk || !r.chain) return;
+      var k = pairKey(r.id);
+      if (k === null) return;
+      (groups[k] = groups[k] || []).push(r);
+    });
+    var out = {};
+    Object.keys(groups).forEach(function (k) {
+      var g = groups[k];
+      if (g.length === 2 && g[0].chain !== g[1].chain) { out[g[0].index] = g[1].index; out[g[1].index] = g[0].index; }
+    });
+    return out;
+  }
+
+  /** Rows in input order, but with each row's partner (when it is in the list too) right
+      after it -- so a sheet reads antibody by antibody. */
+  function withPartnersAdjacent(rows, pairs) {
+    var byIndex = {}, done = {}, out = [];
+    rows.forEach(function (r) { byIndex[r.index] = r; });
+    rows.forEach(function (r) {
+      if (done[r.index]) return;
+      var partner = byIndex[pairs[r.index]];
+      var first = partner && !done[partner.index] && partner.chain === "H" ? partner : r;
+      [first, first === r ? partner : r].forEach(function (x) { if (x && !done[x.index]) { done[x.index] = true; out.push(x); } });
+    });
+    return out;
+  }
+
   /**
    * What pasted text is, when it is not FASTA or a single sequence: ".tsv" (rows copied from
    * Excel: name<TAB>sequence, or one sequence per line), ".csv", ".json", or "" (let the
@@ -2880,7 +2926,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
-    combineEntries: combineEntries, pastedKind: pastedKind, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
+    combineEntries: combineEntries, pastedKind: pastedKind, pairKey: pairKey, pairMap: pairMap,
+    withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
 });
@@ -2935,7 +2982,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     payload: null, rows: [], source: "", ph: 7.4, at: null, isExample: false, recentId: null,
     view: "all", query: "", limit: PAGE, hero: 0, picked: new Set(),
     input: "", fileName: "", error: null, rejected: null,
-    rules: { active: "default", sets: [] },
+    rules: { active: "default", sets: [] }, pairs: {},
     open: null, openList: [], opener: null
   };
   const saveUi = () => store.set(K.ui, { chain: ui.chain, conf: ui.conf, sort: ui.sort, view: state.view });
@@ -3010,7 +3057,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   }
   const rules = () => state.rules.sets.find((s) => s.id === state.rules.active) || ABUI.DEFAULT_RULESET;
   const saveRules = () => store.set(K.rules, state.rules);
-  const retriage = () => { if (state.payload) state.rows = ABUI.buildRows(state.payload, rules()); };
+  const retriage = () => { if (state.payload) { state.rows = ABUI.buildRows(state.payload, rules()); state.pairs = ABUI.pairMap(state.rows); } };
   const meta = () => ({ ruleName: rules().name, when: when(state.at) });
 
   /* ---------- analysis ---------- */
@@ -3232,6 +3279,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     let h = view === "all" && !state.query ? hero(t) : "";
     h += `<div class="titlebar"><h1>${LISTS[view]}</h1><span class="cnt num">${shown.length}건</span>
         <div class="row"><button class="btn" type="button" id="x-tsv">Excel용 복사</button><button class="btn" type="button" id="x-mail">메일용 복사</button>
+          <button class="btn" type="button" id="x-fasta" title="ANARCI · IMGT 에 붙여넣기용">FASTA 복사</button>
           <button class="btn" type="button" id="x-csv">CSV</button><button class="btn" type="button" id="x-json">JSON</button></div></div>
       <div class="stats">
         <a class="stat" href="#all"${cur("all")}>후보<b>${t.all}</b></a>
@@ -3304,7 +3352,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const pos = list.findIndex((x) => x.index === index);
     $("sheet-chain").textContent = chainText(r);
     $("sheet-title").textContent = r.id;
-    $("sheet-sub").innerHTML = `${tag(r)}<span class="s13 muted">${r.inputOk ? `${confText(r)} · ${r.length} aa` : "분석 안 함"}</span>`;
+    const partner = state.rows[state.pairs[index]];
+    $("sheet-sub").innerHTML = `${tag(r)}<span class="s13 muted">${r.inputOk ? `${confText(r)} · ${r.length} aa` : "분석 안 함"}</span>` +
+      (partner ? `<button class="chip" type="button" id="sheet-partner">짝 ${esc(partner.id)}</button>` : "");
+    if (partner) $("sheet-partner").addEventListener("click", () => openSheet(partner.index));
     $("sheet-pick").hidden = !r.inputOk;
     $("sheet-pick").setAttribute("aria-pressed", String(state.picked.has(index)));
     $("sheet-body").innerHTML = sheetBody(r);
@@ -3446,12 +3497,14 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   }
 
   function viewOnepage() {
-    const rows = state.rows.filter((r) => state.picked.has(r.index));
+    const rows = ABUI.withPartnersAdjacent(state.rows.filter((r) => state.picked.has(r.index)), state.pairs);
     const t = ABUI.tally(state.rows, state.picked);
+    const missing = rows.filter((r) => state.pairs[r.index] !== undefined && !state.picked.has(state.pairs[r.index])).length;
     state.openList = rows;
     let h = `<div class="titlebar"><h1>한 장</h1><span class="cnt num">${rows.length}건</span>
       <div class="row">
         <button class="btn" type="button" id="op-add"${state.rows.some((r) => r.cats[0] === "review" && !state.picked.has(r.index)) ? "" : " disabled"}>검토 필요 ${t.review}건 넣기</button>
+        <button class="btn" type="button" id="op-pair"${missing ? "" : " disabled"}>${missing ? `짝 체인 ${missing}건 넣기` : "짝 체인 넣기"}</button>
         <button class="btn" type="button" id="op-clear"${rows.length ? "" : " disabled"}>비우기</button>
         <button class="btn" type="button" id="op-tsv"${rows.length ? "" : " disabled"}>Excel용 복사</button>
         <button class="btn primary" type="button" id="op-save"${rows.length ? "" : " disabled"}>HTML 저장</button>
@@ -3525,8 +3578,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       <section class="card guide"><h2>내보내기</h2><dl>
         <dt>Excel용 복사</dt><dd>지금 보이는 목록을 표로 복사</dd>
         <dt>메일용 복사</dt><dd>건수와 규칙 해당 내용을 글로 복사</dd>
+        <dt>FASTA 복사</dt><dd>지금 보이는 목록의 서열. 판정 불가 목록을 ANARCI · IMGT 에 붙여넣을 때</dd>
         <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준, JSON 은 엔진 원본(기본 규칙) 출력</dd>
-        <dt>한 장</dt><dd>북마크로 고른 후보만 A4 한 장 HTML 로 저장. 브라우저에서 열어 인쇄</dd></dl></section>
+        <dt>한 장</dt><dd>북마크로 고른 후보만 A4 한 장 HTML 로 저장. 브라우저에서 열어 인쇄</dd>
+        <dt>짝 체인</dt><dd>이름이 체인 표시(VH · VL · HC · LC · heavy · light)만 다른 두 서열. 한 장에 함께 넣고 나란히 표시</dd></dl></section>
       <section class="card guide"><h2>단축키</h2><dl>
         <dt><kbd>/</kbd></dt><dd>검색</dd><dt><kbd>Esc</kbd></dt><dd>상세 · 메뉴 닫기</dd>
         <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>상세에서 이전 · 다음 후보</dd><dt><kbd>Ctrl</kbd> <kbd>Enter</kbd></dt><dd>분석</dd></dl></section>
@@ -3601,6 +3656,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     on("more", "click", () => { state.limit += PAGE; render(); });
     on("x-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name), `표 ${state.openList.length}행 복사`));
     on("x-mail", "click", () => copy(ABUI.toMailText(state.rows, meta()), "메일용 글 복사"));
+    on("x-fasta", "click", () => { const n = state.openList.filter((r) => r.inputOk).length; copy(ABUI.toFasta(state.openList), `FASTA ${n}건 복사`); });
     on("x-csv", "click", () => save(`abcheck-${stamp()}.csv`, ABUI.toCsv(state.openList, rules().name), "text/csv"));
     on("x-json", "click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(state.payload), "application/json"));
     const slideCount = () => heroSlides(ABUI.tally(state.rows)).length;
@@ -3614,7 +3670,19 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     bindDrop($("hero-input"));
     if (state.view === "new") bindNew();
     // one page
-    on("op-add", "click", () => { state.rows.forEach((r) => { if (r.cats[0] === "review") state.picked.add(r.index); }); savePicked(); render(); });
+    // a meeting discusses antibodies, so a flagged chain brings its partner chain along
+    on("op-add", "click", () => {
+      let partners = 0;
+      state.rows.forEach((r) => {
+        if (r.cats[0] !== "review") return;
+        state.picked.add(r.index);
+        const p = state.pairs[r.index];
+        if (p !== undefined && state.rows[p].cats[0] !== "review" && !state.picked.has(p)) { state.picked.add(p); partners += 1; }
+      });
+      savePicked(); render();
+      if (partners) toast(`짝 체인 ${partners}건 함께 넣음`);
+    });
+    on("op-pair", "click", () => { state.openList.forEach((r) => { const p = state.pairs[r.index]; if (p !== undefined) state.picked.add(p); }); savePicked(); render(); });
     on("op-clear", "click", () => { state.picked = new Set(); savePicked(); render(); });
     on("op-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name), `표 ${state.openList.length}행 복사`));
     on("op-save", "click", () => save(`abcheck-onepage-${stamp()}.html`, ABUI.onePageDoc(state.openList, meta()), "text/html"));
@@ -3636,9 +3704,11 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function bindNew() {
     const ta = $("input");
     const detect = () => {
-      if (!ta.value.trim()) { $("detect").textContent = ""; return; }
-      try { const [entries, source] = readText(ta.value, state.fileName); $("detect").textContent = `${source} · 서열 ${entries.length}개`; }
-      catch (e) { $("detect").textContent = "읽을 수 없는 형식"; }
+      const out = $("detect");
+      if (!out || !document.contains(ta)) return;      // the debounce can fire after this screen was left
+      if (!ta.value.trim()) { out.textContent = ""; return; }
+      try { const [entries, source] = readText(ta.value, state.fileName); out.textContent = `${source} · 서열 ${entries.length}개`; }
+      catch (e) { out.textContent = "읽을 수 없는 형식"; }
     };
     const start = () => analyzeText(ta.value, state.fileName, parseFloat($("ph").value));
     let timer = 0;
