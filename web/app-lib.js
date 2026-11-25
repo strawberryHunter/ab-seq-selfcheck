@@ -336,6 +336,62 @@
   }
 
   /**
+   * The point nearest to (x, y), as an index into points, or -1 when none lies within maxDist.
+   * Used for hover and click on the scatter: with one hit area per point, the area drawn last
+   * covered its neighbours and a click on one mark opened another candidate.
+   */
+  function nearestPoint(points, x, y, maxDist) {
+    var best = -1, bestD = maxDist * maxDist;
+    points.forEach(function (p, i) {
+      var d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
+      if (d <= bestD && (best < 0 || d < bestD)) { best = i; bestD = d; }
+    });
+    return best;
+  }
+
+  /**
+   * Which points of a scatter plot get their name written next to them. A name goes to the
+   * right of its point, else to the left, else above, else below, and only when its box stays
+   * inside the plot and overlaps no other point and no name placed before it. Points far
+   * from the middle are tried first, so outliers keep their names; the others are named on
+   * hover and in the table. Points on the same spot (the same chain under several names) share
+   * one name, the first one's: four names around a single mark would read as four marks.
+   *   points: [{x, y, text}] in pixels
+   *   opts: {charW, h, gap, r, left, right, top, bottom} -- text metrics, mark radius, plot box
+   * Returns [{i, side: "right" | "left" | "above" | "below", x0, x1, y0, y1}] in point order.
+   */
+  function placeLabels(points, opts) {
+    var n = points.length;
+    if (!n) return [];
+    var cx = 0, cy = 0;
+    points.forEach(function (p) { cx += p.x / n; cy += p.y / n; });
+    var order = points.map(function (_, i) { return i; }).sort(function (a, b) {
+      var da = Math.pow(points[a].x - cx, 2) + Math.pow(points[a].y - cy, 2);
+      var db = Math.pow(points[b].x - cx, 2) + Math.pow(points[b].y - cy, 2);
+      return db - da || a - b;
+    });
+    var hits = function (a, b) { return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1; };
+    var marks = points.map(function (p) { return { x0: p.x - opts.r, x1: p.x + opts.r, y0: p.y - opts.r, y1: p.y + opts.r }; });
+    var placed = [];
+    order.forEach(function (i) {
+      var p = points[i], w = String(p.text).length * opts.charW;
+      if (points.some(function (q, j) { return j < i && Math.abs(q.x - p.x) < 1 && Math.abs(q.y - p.y) < 1; })) return;
+      ["right", "left", "above", "below"].some(function (side) {
+        var beside = side === "right" || side === "left";
+        var x0 = side === "right" ? p.x + opts.gap : side === "left" ? p.x - opts.gap - w : p.x - w / 2;
+        var yc = beside ? p.y : side === "above" ? p.y - opts.gap - opts.h / 2 : p.y + opts.gap + opts.h / 2;
+        var box = { i: i, side: side, x0: x0, x1: x0 + w, y0: yc - opts.h / 2, y1: yc + opts.h / 2 };
+        if (box.x0 < opts.left || box.x1 > opts.right || box.y0 < opts.top || box.y1 > opts.bottom) return false;
+        if (marks.some(function (m, j) { return j !== i && hits(box, m); })) return false;
+        if (placed.some(function (q) { return hits(box, q); })) return false;
+        placed.push(box);
+        return true;
+      });
+    });
+    return placed.sort(function (a, b) { return a.i - b.i; });
+  }
+
+  /**
    * The object to save as JSON. With the default rule set it is the engine's payload itself,
    * so the file equals the Python CLI's --json output. With another rule set the engine keys
    * stay as they are and two are added: "rule_set" (which rules) at the top and "rule_result"
@@ -628,7 +684,7 @@
     VALIDATION: VALIDATION, TABLE_HEAD: TABLE_HEAD, ONE_PAGE_CSS: ONE_PAGE_CSS,
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
-    filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
+    filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc

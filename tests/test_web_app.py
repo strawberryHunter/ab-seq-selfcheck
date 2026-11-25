@@ -459,6 +459,63 @@ def test_one_page_sheet():
 
 
 @needs_node
+def test_scatter_answers_for_the_nearest_point():
+    out = _node("""
+      const pts = [{x: 100, y: 100}, {x: 108, y: 104}, {x: 300, y: 50}];
+      console.log(JSON.stringify([
+        ABUI.nearestPoint(pts, 100, 100, 14),      // on the first mark, although the second is within reach
+        ABUI.nearestPoint(pts, 107, 104, 14),
+        ABUI.nearestPoint(pts, 104, 102, 14),      // exactly between: the earlier point keeps it
+        ABUI.nearestPoint(pts, 200, 200, 14),      // nothing near
+        ABUI.nearestPoint(pts, 300, 64, 14),       // at the edge of the reach
+        ABUI.nearestPoint(pts, 300, 65, 14),
+        ABUI.nearestPoint([], 1, 1, 14)]));""")
+    assert out == [0, 1, 0, -1, 2, -1, -1]
+
+
+@needs_node
+def test_scatter_names_never_collide():
+    out = _node("""
+      const opts = {charW: 8, h: 16, gap: 10, r: 8, left: 50, right: 700, top: 10, bottom: 400};
+      const hits = (a, b) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+      const check = (pts) => {
+        const boxes = ABUI.placeLabels(pts, opts);
+        const marks = pts.map(p => ({x0: p.x - 8, x1: p.x + 8, y0: p.y - 8, y1: p.y + 8}));
+        return {
+          n: boxes.length, sides: boxes.map(b => b.i + b.side[0]).join(" "),
+          labelOnLabel: boxes.some((a, i) => boxes.some((b, j) => i < j && hits(a, b))),
+          labelOnMark: boxes.some(b => marks.some((m, j) => j !== b.i && hits(b, m))),
+          outside: boxes.some(b => b.x0 < opts.left || b.x1 > opts.right || b.y0 < opts.top || b.y1 > opts.bottom)};
+      };
+      // the real case: every synthetic sequence at its pI / GRAVY position
+      const rows = ABUI.buildRows(ABCHECK.analyze(entries, 7.4)).filter(r => r.pI !== null);
+      const real = rows.map(r => ({x: 50 + (r.pI - 4) * 80, y: 400 - (r.gravy + 1.2) * 250, text: r.id}));
+      let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      const dense = Array.from({length: 300}, (_, i) => ({x: 300 + rnd() * 120, y: 150 + rnd() * 80, text: "cand-" + i}));
+      console.log(JSON.stringify({
+        apart: check([{x: 100, y: 100, text: "aaaa"}, {x: 400, y: 300, text: "bbbb"}]),
+        edge: check([{x: 690, y: 100, text: "near-right-edge"}]),
+        stacked: check([{x: 300, y: 200, text: "one"}, {x: 303, y: 201, text: "two"}, {x: 301, y: 199, text: "three"}]),
+        // the same chain under three names sits on one spot: one name, the first one's
+        same: check([{x: 300, y: 200, text: "first"}, {x: 300, y: 200, text: "second"}, {x: 300.4, y: 199.8, text: "third"}]),
+        // a point with a neighbour close on each side: its name goes above, the next one's below
+        fenced: check([{x: 300, y: 200, text: "middle-one"}, {x: 280, y: 200, text: ""}, {x: 320, y: 200, text: ""},
+                       {x: 300, y: 172, text: ""}]),
+        real: check(real), realPoints: real.length,
+        dense: check(dense), empty: ABUI.placeLabels([], opts)}));""")
+    assert out["apart"]["sides"] == "0r 1r"
+    assert out["edge"]["sides"] == "0l"                      # no room on the right: the name goes left
+    stacked = out["stacked"]["sides"].split()                # three points on one spot: each name takes another side
+    assert len(stacked) == 3 and len({side[-1] for side in stacked}) == 3
+    assert out["same"]["sides"] == "0r"
+    assert "0b" in out["fenced"]["sides"].split()            # sides and the top are taken: the name goes below
+    for case in ["apart", "edge", "stacked", "fenced", "real", "dense"]:
+        assert not out[case]["labelOnLabel"] and not out[case]["labelOnMark"] and not out[case]["outside"], case
+    assert 0 < out["real"]["n"] <= out["realPoints"]
+    assert out["dense"]["n"] < 300 and out["empty"] == []
+
+
+@needs_node
 def test_nice_ticks_cover_the_range():
     out = _node("""
       console.log(JSON.stringify([[6.2, 11.2, 7], [-0.6, 0.15, 6], [9.65, 9.65, 5]].map(a => ABUI.niceTicks(...a))));""")

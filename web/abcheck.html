@@ -273,11 +273,11 @@ textarea[aria-invalid="true"] { border-color: var(--text); }
 .figure .gl line { stroke: var(--line); stroke-width: 1; }
 .figure text { fill: var(--muted); font-size: 13px; font-family: var(--ff); }
 .figure text.lab { fill: var(--text); font-family: var(--fm); }
-.figure .pt { cursor: pointer; outline: none; }
-.figure .pt .hit { fill: transparent; }
+.figure .pt { outline: none; }
+.figure svg.near { cursor: pointer; }
 .figure .pt .mh { fill: var(--vh); stroke: var(--card); stroke-width: 2; }
 .figure .pt .ml { fill: var(--vl); stroke: var(--card); stroke-width: 2; }
-.figure .pt:hover .mh, .figure .pt:hover .ml, .figure .pt:focus-visible .mh, .figure .pt:focus-visible .ml { stroke: var(--text); }
+.figure .pt.on .mh, .figure .pt.on .ml, .figure .pt:focus-visible .mh, .figure .pt:focus-visible .ml { stroke: var(--text); }
 .tip { position: absolute; pointer-events: none; z-index: 5; background: var(--text); color: var(--card); border-radius: 10px; padding: 8px 10px; font-size: 13px; white-space: nowrap; transform: translate(-50%, calc(-100% - 12px)); }
 .key { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
 .paper { background: #FFFFFF; border: 1px solid var(--line); border-radius: 16px; padding: 20px; overflow-x: auto; }
@@ -2744,6 +2744,62 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   }
 
   /**
+   * The point nearest to (x, y), as an index into points, or -1 when none lies within maxDist.
+   * Used for hover and click on the scatter: with one hit area per point, the area drawn last
+   * covered its neighbours and a click on one mark opened another candidate.
+   */
+  function nearestPoint(points, x, y, maxDist) {
+    var best = -1, bestD = maxDist * maxDist;
+    points.forEach(function (p, i) {
+      var d = (p.x - x) * (p.x - x) + (p.y - y) * (p.y - y);
+      if (d <= bestD && (best < 0 || d < bestD)) { best = i; bestD = d; }
+    });
+    return best;
+  }
+
+  /**
+   * Which points of a scatter plot get their name written next to them. A name goes to the
+   * right of its point, else to the left, else above, else below, and only when its box stays
+   * inside the plot and overlaps no other point and no name placed before it. Points far
+   * from the middle are tried first, so outliers keep their names; the others are named on
+   * hover and in the table. Points on the same spot (the same chain under several names) share
+   * one name, the first one's: four names around a single mark would read as four marks.
+   *   points: [{x, y, text}] in pixels
+   *   opts: {charW, h, gap, r, left, right, top, bottom} -- text metrics, mark radius, plot box
+   * Returns [{i, side: "right" | "left" | "above" | "below", x0, x1, y0, y1}] in point order.
+   */
+  function placeLabels(points, opts) {
+    var n = points.length;
+    if (!n) return [];
+    var cx = 0, cy = 0;
+    points.forEach(function (p) { cx += p.x / n; cy += p.y / n; });
+    var order = points.map(function (_, i) { return i; }).sort(function (a, b) {
+      var da = Math.pow(points[a].x - cx, 2) + Math.pow(points[a].y - cy, 2);
+      var db = Math.pow(points[b].x - cx, 2) + Math.pow(points[b].y - cy, 2);
+      return db - da || a - b;
+    });
+    var hits = function (a, b) { return a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1; };
+    var marks = points.map(function (p) { return { x0: p.x - opts.r, x1: p.x + opts.r, y0: p.y - opts.r, y1: p.y + opts.r }; });
+    var placed = [];
+    order.forEach(function (i) {
+      var p = points[i], w = String(p.text).length * opts.charW;
+      if (points.some(function (q, j) { return j < i && Math.abs(q.x - p.x) < 1 && Math.abs(q.y - p.y) < 1; })) return;
+      ["right", "left", "above", "below"].some(function (side) {
+        var beside = side === "right" || side === "left";
+        var x0 = side === "right" ? p.x + opts.gap : side === "left" ? p.x - opts.gap - w : p.x - w / 2;
+        var yc = beside ? p.y : side === "above" ? p.y - opts.gap - opts.h / 2 : p.y + opts.gap + opts.h / 2;
+        var box = { i: i, side: side, x0: x0, x1: x0 + w, y0: yc - opts.h / 2, y1: yc + opts.h / 2 };
+        if (box.x0 < opts.left || box.x1 > opts.right || box.y0 < opts.top || box.y1 > opts.bottom) return false;
+        if (marks.some(function (m, j) { return j !== i && hits(box, m); })) return false;
+        if (placed.some(function (q) { return hits(box, q); })) return false;
+        placed.push(box);
+        return true;
+      });
+    });
+    return placed.sort(function (a, b) { return a.i - b.i; });
+  }
+
+  /**
    * The object to save as JSON. With the default rule set it is the engine's payload itself,
    * so the file equals the Python CLI's --json output. With another rule set the engine keys
    * stay as they are and two are added: "rule_set" (which rules) at the top and "rule_result"
@@ -3036,7 +3092,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     VALIDATION: VALIDATION, TABLE_HEAD: TABLE_HEAD, ONE_PAGE_CSS: ONE_PAGE_CSS,
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
-    filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
+    filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
@@ -3369,6 +3425,9 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return parts.join(" · ");
   }
 
+  const sortSelect = (cls) => `<label class="sr" for="f-sort">정렬</label><select id="f-sort" class="${cls}">` +
+    [["input", "입력 순"], ["name", "이름 순"], ["pi-desc", "pI 높은 순"], ["pi-asc", "pI 낮은 순"]].map(([k, l]) => `<option value="${k}"${ui.sort === k ? " selected" : ""}>${l}</option>`).join("") + `</select>`;
+
   function candCard(r) {
     let title, sub = "";
     const stateLine = stateLineOf(r);
@@ -3446,7 +3505,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
             `<a href="#${k}"${cur(k)}>${l} <b>${n}</b></a>`).join("")}
         </div>
         ${hasPairs ? `<div class="seg" role="group" aria-label="단위">${[["seq", "서열"], ["ab", "항체"]].map(([k, l]) => `<button type="button" data-unit="${k}" aria-pressed="${ui.unit === k}">${l}</button>`).join("")}</div>` : ""}
-        <label class="sr" for="f-sort">정렬</label><select id="f-sort" class="spacer">${opt([["input", "입력 순"], ["name", "이름 순"], ["pi-desc", "pI 높은 순"], ["pi-asc", "pI 낮은 순"]], ui.sort)}</select>
+        ${sortSelect("spacer")}
       </div>`;
     if (!shown.length) {
       const filtered = state.query || ui.chain !== "all" || ui.conf !== "all";
@@ -3618,14 +3677,23 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return h;
   }
 
-  function scatter(rows) {
-    const W = 760, H = 420, m = { l: 58, r: 26, t: 16, b: 46 };
+  /** pI x GRAVY scatter, drawn at the width it is shown at so text keeps its size on a phone. */
+  function scatter(rows, width) {
+    const W = Math.round(Math.min(1100, Math.max(280, width))), small = W < 520;
+    const H = small ? Math.round(W * 0.85) : 420, m = small ? { l: 46, r: 12, t: 12, b: 42 } : { l: 58, r: 26, t: 16, b: 46 };
     const xs = rows.map((r) => r.pI), ys = rows.map((r) => r.gravy);
-    const xt = ABUI.niceTicks(Math.min(...xs) - 0.3, Math.max(...xs) + 0.3, 7);
-    const yt = ABUI.niceTicks(Math.min(...ys) - 0.1, Math.max(...ys) + 0.1, 6);
+    const xt = ABUI.niceTicks(Math.min(...xs) - 0.3, Math.max(...xs) + 0.3, small ? 4 : 7);
+    const yt = ABUI.niceTicks(Math.min(...ys) - 0.1, Math.max(...ys) + 0.1, small ? 5 : 6);
     const X = (v) => m.l + (v - xt.lo) / (xt.hi - xt.lo) * (W - m.l - m.r);
     const Y = (v) => H - m.b - (v - yt.lo) / (yt.hi - yt.lo) * (H - m.t - m.b);
-    const label = rows.length <= 15;
+    // names only where they fit: outliers first, never on top of a point or another name
+    const names = {};
+    ABUI.placeLabels(rows.map((r) => ({ x: X(r.pI), y: Y(r.gravy), text: r.id })),
+      { charW: 7.9, h: 16, gap: 10, r: 8, left: m.l, right: W - 2, top: m.t, bottom: H - m.b }).forEach((b) => { names[b.i] = b; });
+    const nameText = (b, id) => {
+      const beside = b.side === "right" || b.side === "left";
+      return `<text class="lab" x="${beside ? (b.side === "right" ? b.x0 : b.x1) : (b.x0 + b.x1) / 2}" y="${(b.y0 + b.y1) / 2 + 4}" text-anchor="${b.side === "right" ? "start" : b.side === "left" ? "end" : "middle"}">${esc(id)}</text>`;
+    };
     let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="pI × GRAVY 산점도 · 서열 ${rows.length}개">`;
     s += `<g class="gl">` + xt.ticks.map((v) => `<line x1="${X(v)}" x2="${X(v)}" y1="${m.t}" y2="${H - m.b}"/>`).join("") +
       yt.ticks.map((v) => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}"/>`).join("") + `</g>`;
@@ -3633,28 +3701,30 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     s += yt.ticks.map((v) => `<text x="${m.l - 8}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`).join("");
     s += `<text x="${(m.l + W - m.r) / 2}" y="${H - 8}" text-anchor="middle">pI</text>`;
     s += `<text transform="translate(14 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">GRAVY</text>`;
-    s += rows.map((r) => {
+    s += rows.map((r, i) => {
       const x = X(r.pI), y = Y(r.gravy);
       const mark = r.chain === "L" ? `<rect class="ml" x="${x - 5}" y="${y - 5}" width="10" height="10" rx="1.5"/>` : `<circle class="mh" cx="${x}" cy="${y}" r="5.5"/>`;
-      const right = x < W - m.r - 120;
-      const lab = label ? `<text class="lab" x="${right ? x + 9 : x - 9}" y="${y + 4}" text-anchor="${right ? "start" : "end"}">${esc(r.id)}</text>` : "";
-      return `<g class="pt" tabindex="0" role="button" data-open="${r.index}" data-x="${x}" data-y="${y}" aria-label="${esc(r.id)} · pI ${fmt(r.pI, 2)} · GRAVY ${fmt(r.gravy, 3)}"><circle class="hit" cx="${x}" cy="${y}" r="13"/>${mark}${lab}</g>`;
+      const lab = names[i] ? nameText(names[i], r.id) : "";
+      return `<g class="pt" tabindex="0" role="button" data-open="${r.index}" data-x="${x}" data-y="${y}" aria-label="${esc(r.id)} · pI ${fmt(r.pI, 2)} · GRAVY ${fmt(r.gravy, 3)}">${mark}${lab}</g>`;
     }).join("");
     return s + `</svg>`;
   }
+  let figRows = [], figWidth = 0;      // what the scatter shows, and the width it was drawn at
   function viewProperties() {
-    const rows = ABUI.filterRows(state.rows, { view: "all", chain: ui.chain, query: state.query }).filter((r) => r.pI !== null);
+    const rows = ABUI.sortRows(ABUI.filterRows(state.rows, { view: "all", chain: ui.chain, query: state.query }).filter((r) => r.pI !== null), ui.sort);
     state.openList = rows;
+    figRows = rows;
     const t = ABUI.tally(state.rows);
     let h = `<div class="titlebar"><h1>물성 분포</h1><span class="cnt num">${rows.length}건</span></div>
       <div class="row">
         <div class="seg" role="group" aria-label="체인">${[["all", "전체"], ["H", "VH " + t.H], ["L", "VL " + t.L]].map(([k, l]) => `<button type="button" data-chain="${k}" aria-pressed="${ui.chain === k}">${l}</button>`).join("")}</div>
+        ${sortSelect("")}
         <span class="key spacer"><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="var(--vh)"/></svg>VH</span>
         <span class="key"><svg width="12" height="12" aria-hidden="true"><rect x="1" y="1" width="10" height="10" rx="1.5" fill="var(--vl)"/></svg>VL</span>
         <span class="chip">판정선 없음</span>
       </div>`;
     if (!rows.length) return h + `<div class="blank"><span>표시할 후보 없음</span></div>`;
-    h += `<section class="card"><div class="figure" id="fig">${scatter(rows)}<div class="tip" id="tip" hidden></div></div></section>
+    h += `<section class="card"><div class="figure" id="fig"><div class="tip" id="tip" hidden></div></div></section>
       <section class="card"><div class="scroll"><table><thead><tr><th>서열</th><th>체인</th><th class="num">길이</th><th class="num">pI</th><th class="num">GRAVY</th><th class="num">net charge · pH ${esc(state.ph)}</th><th class="num">CDR3 pI</th></tr></thead><tbody>` +
       rows.slice(0, 300).map((r) => {
         const c3 = r.cdr3 ? (seqObj(r).properties || {})[r.cdr3.name] : null;
@@ -3945,19 +4015,41 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   }
 
   function bindFigure(fig) {
+    const old = fig.querySelector("svg");
+    if (old) old.remove();
+    figWidth = fig.clientWidth;
+    fig.insertAdjacentHTML("afterbegin", scatter(figRows, figWidth));
     const tip = $("tip"), svg = fig.querySelector("svg");
     const show = (g) => {
       const r = state.rows[Number(g.dataset.open)];
       const k = svg.getBoundingClientRect().width / Number(svg.viewBox.baseVal.width);
-      tip.innerHTML = `<b class="mono">${esc(r.id)}</b> · ${chainText(r)}<br>pI ${fmt(r.pI, 2)} · GRAVY ${fmt(r.gravy, 3)} · net charge ${signed(r.charge)}`;
-      tip.style.left = (Number(g.dataset.x) * k) + "px"; tip.style.top = (Number(g.dataset.y) * k) + "px";
+      const x = Number(g.dataset.x), y = Number(g.dataset.y);
+      const same = fig.querySelectorAll(".pt").length > 1 ? [...fig.querySelectorAll(".pt")].filter((o) => Math.abs(Number(o.dataset.x) - x) < 1 && Math.abs(Number(o.dataset.y) - y) < 1).length : 1;
+      tip.innerHTML = `<b class="mono">${esc(r.id)}</b> · ${chainText(r)}${same > 1 ? ` · 같은 자리 ${same}건` : ""}<br>pI ${fmt(r.pI, 2)} · GRAVY ${fmt(r.gravy, 3)} · net charge ${signed(r.charge)}`;
+      tip.style.left = (x * k) + "px"; tip.style.top = (y * k) + "px";
       tip.hidden = false;
     };
-    const hide = () => { tip.hidden = true; };
-    fig.querySelectorAll(".pt").forEach((g) => {
-      g.addEventListener("pointerenter", () => show(g)); g.addEventListener("pointerleave", hide);
-      g.addEventListener("focus", () => show(g)); g.addEventListener("blur", hide);
-      g.addEventListener("click", () => openSheet(Number(g.dataset.open), g));
+    const groups = [...fig.querySelectorAll(".pt")];
+    const pts = groups.map((g) => ({ x: Number(g.dataset.x), y: Number(g.dataset.y) }));
+    let active = null;
+    const mark = (g) => {
+      if (active === g) { if (!g) tip.hidden = true; return; }      // moving away also clears a name shown by focus
+      if (active) active.classList.remove("on");
+      active = g;
+      svg.classList.toggle("near", !!g);
+      if (g) { g.classList.add("on"); show(g); } else tip.hidden = true;
+    };
+    // the point nearest the pointer answers, within a finger's or a cursor's reach
+    const under = (ev) => {
+      const box = svg.getBoundingClientRect(), k = Number(svg.viewBox.baseVal.width) / box.width;
+      const i = ABUI.nearestPoint(pts, (ev.clientX - box.left) * k, (ev.clientY - box.top) * k, ev.pointerType === "touch" ? 24 : 14);
+      return i < 0 ? null : groups[i];
+    };
+    svg.addEventListener("pointermove", (ev) => mark(under(ev)));
+    svg.addEventListener("pointerleave", () => mark(null));
+    svg.addEventListener("click", (ev) => { const g = under(ev); if (g) openSheet(Number(g.dataset.open), g); });
+    groups.forEach((g) => {
+      g.addEventListener("focus", () => show(g)); g.addEventListener("blur", () => { tip.hidden = true; });
       g.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openSheet(Number(g.dataset.open), g); } });
     });
   }
@@ -3989,6 +4081,11 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (!$("sheet").classList.contains("on") || typing) return;
     if (ev.key === "ArrowRight" || ev.key === "ArrowDown") { ev.preventDefault(); stepSheet(1); }
     else if (ev.key === "ArrowLeft" || ev.key === "ArrowUp") { ev.preventDefault(); stepSheet(-1); }
+  });
+  let resizeTimer = 0;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { const fig = $("fig"); if (fig && fig.clientWidth !== figWidth) bindFigure(fig); }, 150);
   });
   let qTimer = 0;
   const applyQuery = () => {
