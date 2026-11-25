@@ -176,19 +176,6 @@
     return neg ? -r : r;
   }
 
-  // sum() of floats. Python 3.12+ uses Neumaier compensated summation (builtin_sum_impl).
-  function pySumFloats(values) {
-    var f = 0.0, c = 0.0;
-    for (var i = 0; i < values.length; i++) {
-      var x = values[i], t = f + x;
-      if (Math.abs(f) >= Math.abs(x)) c += (f - t) + x;
-      else c += (x - t) + f;
-      f = t;
-    }
-    if (c && isFinite(c)) f += c;
-    return f;
-  }
-
   // Python's re.finditer over a JS regex: non-overlapping, scanning left to right from pos.
   function finditer(re, s, pos) {
     var g = new RegExp(re.source, "g");
@@ -1101,15 +1088,16 @@
     return (low + high) / 2.0;
   }
 
-  // gravy
+  // gravy -- integer tenths summed exactly, divided once (see properties.gravy)
   function gravy(seq) {
     seq = seq.toUpperCase();
-    var values = [];
+    var total = 0, n = 0;
     for (var i = 0; i < seq.length; i++) {
-      if (has(KYTE_DOOLITTLE, seq.charAt(i))) values.push(KYTE_DOOLITTLE[seq.charAt(i)]);
+      var r = seq.charAt(i);
+      if (has(KYTE_DOOLITTLE, r)) { total += Math.round(KYTE_DOOLITTLE[r] * 10); n++; }
     }
-    if (!values.length) return null;
-    return pySumFloats(values) / values.length;
+    if (!n) return null;
+    return total / (10 * n);
   }
 
   // compute + Properties.as_dict
@@ -1817,6 +1805,14 @@
     return err;
   }
 
+  // the Korean message read_table raises for csv.Error, with reader.line_num
+  function tableFormatError(lineNum) {
+    return new Error(
+      "표 파일의 " + lineNum + "번째 줄 근처에서 형식이 깨져 있다. " +
+      "따옴표(\")가 짝이 맞는지, 한 칸 안에 줄바꿈이 들어가지 않았는지 확인하라."
+    );
+  }
+
   function csvReader(text, delimiter) {
     // io.StringIO iterates lines split after "\n" only, keeping the "\n"
     var lines = [], start = 0, p;
@@ -1833,8 +1829,9 @@
     var state, fields, field, fieldLen;
 
     function saveField() { fields.push(field); field = ""; fieldLen = 0; }
+    function fail(msg) { var e = csvError(msg); e.lineNum = li; return e; }
     function addChar(c) {
-      if (fieldLen >= FIELD_LIMIT) throw csvError("field larger than field limit (" + FIELD_LIMIT + ")");
+      if (fieldLen >= FIELD_LIMIT) throw fail("field larger than field limit (" + FIELD_LIMIT + ")");
       field += c;
       fieldLen++;
     }
@@ -1893,7 +1890,7 @@
         case EAT_CRNL:
           if (c === "\n" || c === "\r") return;
           if (c === EOL) { state = START_RECORD; return; }
-          throw csvError("new-line character seen in unquoted field - " +
+          throw fail("new-line character seen in unquoted field - " +
             "do you need to open the file with newline=''?");
       }
     }
@@ -1922,7 +1919,14 @@
 
   // read_table
   function readTable(text, delimiter) {
-    var rows = csvReader(text, delimiter).filter(function (r) {
+    var parsed;
+    try {
+      parsed = csvReader(text, delimiter);
+    } catch (e) {
+      if (e.isCsvError) throw tableFormatError(e.lineNum);
+      throw e;
+    }
+    var rows = parsed.filter(function (r) {
       return r.some(function (c) { return pyStrip(c) !== ""; });
     });
     if (!rows.length) return [];
@@ -2013,7 +2017,6 @@
       round: pyRound,
       floatRepr: pyFloatRepr,
       reprStr: pyReprStr,
-      sumFloats: pySumFloats,
       strip: pyStrip,
       splitLines: pySplitLines,
       jsonLoads: pyJsonLoads,

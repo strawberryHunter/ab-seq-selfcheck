@@ -407,3 +407,22 @@ def test_filename_typos_still_say_file_not_found(name):
 def test_mostly_punctuation_is_still_rejected():
     result = _run("....----..AC")
     assert result.returncode == 1
+
+
+def test_broken_csv_is_a_korean_message_not_a_traceback(tmp_path):
+    """csv.Error is not a ValueError; it used to escape as a traceback."""
+    path = tmp_path / "bad.csv"
+    path.write_bytes(b"id,sequence\na,QVQL\rEVQL\nb,QQ\n")
+    result = _run(str(path))
+    assert result.returncode == 2
+    assert "Traceback" not in result.stderr
+    assert "번째 줄 근처에서 형식이 깨져 있다" in result.stderr
+
+
+def test_gravy_is_exact_on_every_python_version():
+    """GRAVY used to depend on sum()'s float algorithm, which changed in Python 3.12."""
+    from abcheck.properties import KYTE_DOOLITTLE, gravy
+
+    seq = "".join(KYTE_DOOLITTLE) * 7 + "AILV"
+    tenths = sum(round(KYTE_DOOLITTLE[r] * 10) for r in seq)
+    assert gravy(seq) == tenths / (10 * len(seq))

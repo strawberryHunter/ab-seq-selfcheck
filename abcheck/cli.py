@@ -97,7 +97,16 @@ def read_table(text: str, delimiter: str) -> list[tuple[str, str]]:
     id column likewise; without one, two columns are read as (id, sequence) and one column as
     sequences only.
     """
-    rows = [r for r in csv.reader(io.StringIO(text), delimiter=delimiter) if any(c.strip() for c in r)]
+    reader = csv.reader(io.StringIO(text), delimiter=delimiter)
+    try:
+        rows = [r for r in reader if any(c.strip() for c in r)]
+    except csv.Error:
+        # csv.Error is not a ValueError, so it used to escape as a traceback; and its English
+        # text differs between Python versions. Say what to check, with the line.
+        raise ValueError(
+            f"표 파일의 {reader.line_num}번째 줄 근처에서 형식이 깨져 있다. "
+            "따옴표(\")가 짝이 맞는지, 한 칸 안에 줄바꿈이 들어가지 않았는지 확인하라."
+        ) from None
     if not rows:
         return []
 

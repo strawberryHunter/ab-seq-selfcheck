@@ -59,7 +59,6 @@ process.stdin.on("end", () => {
       if (req.op === "round") return { ok: true, values: req.values.map((v) => A._py.floatRepr(A._py.round(v[0], v[1]))) };
       if (req.op === "repr") return { ok: true, values: req.values.map((v) => A._py.floatRepr(v)) };
       if (req.op === "reprStr") return { ok: true, values: req.values.map((v) => A._py.reprStr(v)) };
-      if (req.op === "sum") return { ok: true, values: req.values.map((v) => A._py.floatRepr(A._py.sumFloats(v))) };
       return { ok: false, error: "unknown op " + req.op };
     } catch (e) {
       return { ok: false, error: e.message };
@@ -375,11 +374,25 @@ def fuzz_read_input_cases(n: int = 400, seed: int = 11) -> list[tuple[str, str |
     return out
 
 
+_JSON_LOCATION = re.compile(r"\(\d+번째 줄 \d+번째 글자 근처\)")
+
+
+def _without_json_location(result: dict) -> dict:
+    if not result.get("ok") and "JSON 형식이 깨져" in result.get("error", ""):
+        return {**result, "error": _JSON_LOCATION.sub("(위치)", result["error"])}
+    return result
+
+
 def read_input_diffs(cases: list[tuple[str, str | None]]) -> list[str]:
     answers = run_node([{"op": "readInput", "text": t, "filename": f} for t, f in cases])
     diffs = []
     for (text, filename), js in zip(cases, answers):
         py = py_read_input(text, filename)
+        if sys.version_info < (3, 13):
+            # Python 3.13's json module points at the offending comma for a trailing comma;
+            # older versions point at the end of input. The engine follows 3.13. The
+            # location is only a hint in the message, so compare without it there.
+            py, js = _without_json_location(py), _without_json_location(js)
         if py != js:
             diffs.append(f"[readInput {filename!r} {text[:30]!r}] python={py!r} js={js!r}")
     return diffs
@@ -410,17 +423,15 @@ def helper_diffs() -> tuple[int, list[str]]:
     answers = run_node([
         {"op": "round", "values": rounds},
         {"op": "repr", "values": floats},
-        {"op": "sum", "values": sums},
         {"op": "reprStr", "values": strs},
     ])
     expected = [
         [repr(round(x, n)) for x, n in rounds],
         [repr(x) for x in floats],
-        [repr(sum(v)) for v in sums],
         [repr(s) for s in strs],
     ]
-    names = ["round", "float repr", "sum", "str repr"]
-    inputs = [rounds, floats, sums, strs]
+    names = ["round", "float repr", "str repr"]
+    inputs = [rounds, floats, strs]
     diffs = []
     for name, inp, exp, ans in zip(names, inputs, expected, answers):
         for i, (e, got) in enumerate(zip(exp, ans["values"])):
