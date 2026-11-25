@@ -114,7 +114,22 @@ jobs:
 
       - name: Invalid input exits with code 1
         run: |
-          if python -m abcheck.cli ACDEF > /dev/null 2>&1; then
-            echo "Invalid input exited with success"
+          set +e
+          python -m abcheck.cli ACDEF > /dev/null 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 1 ]; then
+            echo "Invalid input exited with $code, expected 1"
+            exit 1
+          fi
+
+      - name: Unreadable input exits with code 2
+        run: |
+          set +e
+          python -m abcheck.cli no_such_file.fasta > /dev/null 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 2 ]; then
+            echo "Missing input file exited with $code, expected 2"
             exit 1
           fi

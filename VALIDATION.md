@@ -41,11 +41,11 @@ scripts are.
 | Jaffe 2022 (human naive) | 100% | 99.9% | 99.8% | 999/1000 |
 | Alsoiussi 2020 (mouse) | 100% | **100%** | 99.2% | **1000/1000** |
 | King 2020 | 100% | 99.1% | 94.7% | 994/1000 |
-| Ota 2024 | 100% | 99.0% | 95.0% | 991/1000 |
-| Phad 2022 | 100% | 99.0% | 93.1% | 990/1000 |
+| Ota 2024 | 100% | 99.0% | 94.9% | 991/1000 |
+| Phad 2022 | 100% | 99.0% | 93.0% | 990/1000 |
 | Setliff 2019 (HIV) | 100% | 99.9% | 97.7% | 999/1000 |
 | Sokal 2021 | 98.4% | 91.2% | 89.4% | 975/984 |
-| **Total** | **99.8%** | **98.3%** | **95.6%** | **6948/6984** |
+| **Total** | **99.8%** | **98.3%** | **95.5%** | **6948/6984** |
 
 ### CDR boundaries — compared with ANARCI ground truth
 
@@ -112,32 +112,41 @@ ground truth**.
 ### Internal consistency — FR3↔conserved Cys distance
 
 The distance from the FR3 start motif to the conserved Cys should be structurally constant.
-Measured:
+**Measured before the annotator used it**, it was 29 in 3,429 of 3,443 VH, and all 14
+exceptions were motifs matched in the wrong place (CDR-H2 came out as 15 or 29 residues).
+
+The annotator now **uses this distance as a cross-check**: if the motif match disagrees with
+it, the annotator re-anchors from the Cys and marks the sequence `low confidence`. The script
+still prints the distance:
 
 ```
-29 residues   3443 / 3443   100.0%
+FR3↔보존Cys 29잔기  3442/3442  100.0%
 ```
 
-The annotator **uses this distance as a cross-check.** If the motif matches in the wrong place,
-the distance comes out wrong, and the annotator then re-anchors from the Cys. Before this check
-was added the figure was 3429/3443, and all 14 mismatches were cases where CDR-H2 came out
-as 15 or 29 residues.
+That 100% is **produced by the cross-check, not measured** — it only shows the check is wired
+in. The evidence for the distance is the 3,429/3,443 above. (With the current code the script
+counts 3,442 VH with a CDR-H2, one fewer than at the time of that measurement.)
 
-### Reasons for low confidence (311 of 7,000)
+### Reasons for low confidence (297 of the 6,984 that passed validation)
+
+16 more sequences were rejected by input validation (too short). Counts are sequences per
+reason; 15 sequences have more than one reason, so the column sums to 314.
 
 | Count | Reason | Nature |
 |---|---|---|
-| 145 | FR3 motif not found; back-calculated from Cys | Hypermutation. Position recovered but flagged conservatively |
+| 144 | FR3 motif not found; back-calculated from Cys | Hypermutation. Position recovered but flagged conservatively |
 | 39 | Conserved Cys23 not found | N-terminally truncated read |
 | 36 | Terminal motif not found | C-terminally truncated read |
 | 25 | Conserved Cys22 not found | N-terminally truncated read |
-| 12 | End of CDR-H2 cannot be determined | Both anchors failed |
-| 12 | CDR-H2 length out of range (15 or 21) | Atypical germline |
-| 5 | FR3 motif inconsistent with distance → corrected | Caught by the cross-check |
-| 6 | CDR-H1 length out of range (9–17) | Conserved Trp mutated |
+| 16 | CDR-H1 longer than 7 | Conserved Trp mutated, so a later Trp was taken |
+| 14 | FR3 motif disagrees with the Cys distance → re-anchored | Caught by the cross-check |
+| 15 | CDR-H2 out of range (13 short, 2 long) | Atypical germline |
+| 13 | End of CDR-H2 cannot be determined | Both anchors failed |
+| 5 | Conserved Trp not found / CDR out of sequence | Conserved Trp mutated or truncated read |
+| 7 | Other CDR lengths out of range (L1 4, H3 2, L3 1) | Atypical germline or shifted anchor |
 
 **Cell type decides the outcome.** Human naive B (almost no SHM) reaches 99.8%; heavily
-hypermutated memory/plasma B cells reach 93–95%. The FR3 motif assumes germline conservation,
+hypermutated memory/plasma B cells reach 89–95%. The FR3 motif assumes germline conservation,
 and hypermutation breaks that assumption.
 
 ---
@@ -167,8 +176,8 @@ Regression: `SYN-VH-009`, `SYN-VL-006`
        ↑fake          ↑real Cys88
 ```
 
-CDR-L3 started 11 residues too early. **One of these (MOU-259-VH) had a CDR-H3 length of 25,
-within the normal range, so it slipped past the length check and passed as `confident`** — a
+This hit 7 of 2,000 sequences, in both chains; in the VL example above, CDR-L3 started 11
+residues too early. **One of the 7 (MOU-259-VH) had a CDR-H3 length of 25, within the normal range, so it slipped past the length check and passed as `confident`** — a
 silently wrong answer. The residue preceding the conserved Cys is measured as Y 83.2% + F 16.1%
 = 99.3%, so the search was changed to use the `[YF]C` context.
 Regression: `SYN-VL-007`
@@ -239,6 +248,9 @@ picks up the wrong Trp.
 |---|---|---|
 | VH | `[VI][RK]Q` | 85.6% |
 | VL | `[YF][QL]Q` | 83.1% |
+
+(These are the candidate patterns measured at the time. The VH pattern finally adopted is the
+broader `W[VIA][RKQ]Q`; see item 6.)
 
 **I first rejected this, then reversed the decision after comparing with ANARCI ground truth.**
 Looking only at the distribution, I assumed "the 6–8% that don't match must be normal germline,"

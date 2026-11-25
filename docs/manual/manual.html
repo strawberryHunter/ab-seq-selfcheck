@@ -452,7 +452,7 @@ abcheck 0.1.0 — 항체 가변도메인 서열 셀프 점검
 <p>공개 항체 레퍼토리 데이터베이스(OAS)의 실제 서열 <b>7,000개</b>로 측정했다. 측정 절차는 저장소의
 <code>scripts/validate_on_oas.py</code>, <code>scripts/compare_with_anarci.py</code> 로 누구나 다시 돌려볼 수 있다.</p>
 
-<table><thead><tr><th>항목</th><th>결과</th></tr></thead><tbody><tr><td>체인(H/L) 판별</td><td>오판 0건 / 6,984</td></tr><tr><td>CDR 주석 성공</td><td>98.3%</td></tr><tr><td>CDR 경계 (ANARCI 정답 대비, 16,427건)</td><td>불일치 0.35%</td></tr><tr><td>사람 naive B 세포 데이터</td><td>신뢰 가능 99.8%</td></tr><tr><td>과변이가 심한 memory/plasma B 세포</td><td>신뢰 가능 93~95%</td></tr></tbody></table>
+<table><thead><tr><th>항목</th><th>결과</th></tr></thead><tbody><tr><td>체인(H/L) 판별</td><td>오판 0건 / 6,984</td></tr><tr><td>CDR 주석 성공</td><td>98.3%</td></tr><tr><td>CDR 경계 (ANARCI 정답 대비, 16,427건)</td><td>불일치 0.35%</td></tr><tr><td>사람 naive B 세포 데이터</td><td>신뢰 가능 99.8%</td></tr><tr><td>과변이가 심한 memory/plasma B 세포</td><td>신뢰 가능 89~95%</td></tr></tbody></table>
 
 <h2>이런 서열에서는 약하다</h2>
 <ul>
@@ -466,7 +466,7 @@ abcheck 0.1.0 — 항체 가변도메인 서열 셀프 점검
 
 <h1>13. 부록 — 탐색 규칙과 기준표</h1><h2>CDR 을 찾는 순서</h2>
 <table><thead><tr><th>체인</th><th>순서</th></tr></thead><tbody><tr><td>VH</td><td>Cys22 → CDR-H1 (Cys22+9 부터) → Trp36 (뒤에 [VIA][RKQ]Q) → CDR-H2 (Trp36+14 부터) → FR3 모티프 [RKQ].[TSAV][IMLFV][STAN] → Cys92 (앞에 Y/F) → CDR-H3 (Cys92+3 부터) → WGxG</td></tr><tr><td>VL</td><td>Cys23 → CDR-L1 (Cys23+1 부터) → Trp35 (뒤에 [YF][QL]Q) → CDR-L2 (Trp35+15 부터, 7잔기) → Cys88 (앞에 Y/F) → CDR-L3 (Cys88+1 부터) → FGxG</td></tr></tbody></table>
-<p>FR3 모티프를 못 찾으면 보존 Cys 에서 29잔기 역산한다 (실제 VH 3,443건이 전부 29 였다). 이 경우 '신뢰 불가'로 표시한다.</p>
+<p>FR3 모티프를 못 찾으면 보존 Cys 에서 29잔기 역산한다 (실제 VH 3,443건 중 3,429건이 29 였고, 나머지 14건은 모두 모티프가 엉뚱한 자리에 걸린 경우였다). 이 경우 '신뢰 불가'로 표시한다.</p>
 <h2>CDR 통상 길이</h2><p>이 범위를 벗어나면 '신뢰 불가'가 된다. 이 범위는 "항체가 이상한가"가 아니라 "주석을 믿을 수 있는가"의 기준이다.</p>
 <table><thead><tr><th>CDR</th><th>통상 길이 (잔기)</th></tr></thead><tbody><tr><td>CDR-H1</td><td>5-7</td></tr><tr><td>CDR-H2</td><td>16-20</td></tr><tr><td>CDR-H3</td><td>3-30</td></tr><tr><td>CDR-L1</td><td>7-17</td></tr><tr><td>CDR-L2</td><td>7</td></tr><tr><td>CDR-L3</td><td>5-15</td></tr></tbody></table>
 <h2>물성 계산</h2>

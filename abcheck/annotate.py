@@ -398,8 +398,8 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
 
     if fr3 is not None:
         cys2, by_context = _find_conserved_cys(seq, fr3, motif_pos)
-        # Cross-check: the FR3-motif-to-conserved-Cys distance was 29 in all 3,429 measured cases,
-        # and the 14 mismatches were all the motif matching in the wrong place (CDR-H2 came out as 15 or 29).
+        # Cross-check: the FR3-motif-to-conserved-Cys distance was 29 in 3,429 of 3,443 measured VH,
+        # and the 14 exceptions were all the motif matching in the wrong place (CDR-H2 came out as 15 or 29).
         # If the distance differs, discard the motif and re-derive the position from the Cys.
         if cys2 is not None and cys2 - fr3 != FR3_TO_CYS_GAP:
             corrected = cys2 - FR3_TO_CYS_GAP

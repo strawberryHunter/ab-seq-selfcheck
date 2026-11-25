@@ -326,3 +326,32 @@ def test_readme_leads_with_validation():
     assert text.index("## 검증") < text.index("## 실행 예시 3개")
     english = _readme_en()
     assert english.index("## Validation") < english.index("## Quick start")
+
+
+def test_korean_summary_example_matches_real_output():
+    """The summary-table rows quoted in README.ko.md match the CLI's actual summary rows.
+
+    The example once lacked the triage column and showed totals that matched neither the
+    quoted rows nor the real corpus.
+    """
+    text = _readme().split("### 0. CDR별 liability 집계")[1].split("### 0-2.")[0]
+    quoted = [
+        [c.strip().strip("*") for c in line.strip("|").split("|")]
+        for line in text.splitlines()
+        if line.startswith("| SYN-") or line.startswith("| **합계**")
+    ]
+    assert len(quoted) >= 4, "the Korean summary example has no rows"
+
+    result = subprocess.run(
+        [sys.executable, "-m", "abcheck.cli", "data/synthetic/sequences.json"],
+        cwd=REPO_ROOT, capture_output=True, text=True,
+    )
+    actual = {}
+    for line in result.stdout.splitlines():
+        cells = [c.strip() for c in line.split("|")]
+        if len(cells) > 3 and (cells[0].startswith("SYN-") or cells[0] == "합계"):
+            actual.setdefault(cells[0], cells)   # first occurrence = summary table
+    for row in quoted:
+        key = "합계" if row[0] == "합계" else row[0]
+        assert key in actual, f"{key} is not in the real summary output"
+        assert row == actual[key], f"README.ko.md {row} vs real {actual[key]}"

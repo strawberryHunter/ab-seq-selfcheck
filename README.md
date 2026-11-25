@@ -22,16 +22,16 @@ python3 -m abcheck.cli candidates.fasta --html
 ## Validation
 
 Measured on **7,000 sequences** from the Observed Antibody Space (OAS) public
-repertoire database, across 7 datasets spanning naive B, memory B, plasma B and
-plasmablast cells in human and mouse. The numbers are reproducible →
+repertoire database, across 7 datasets spanning naive B, memory B, plasma B, plasmablast and
+unsorted B cells in human and mouse. The numbers are reproducible →
 [`scripts/validate_on_oas.py`](scripts/validate_on_oas.py)
 
 | Metric | Result |
 |---|---|
 | Chain (H/L) assignment | **0 incorrect** / 6,984 |
 | CDR annotation success | 98.3% |
-| **CDR boundaries** vs ANARCI ground truth (7 datasets, 16,427 comparisons) | **0.35% deviation** |
-| Internal consistency (FR3 ↔ conserved Cys distance) | 100% |
+| **CDR boundaries** vs ANARCI ground truth, germline family and IMGT length fixed (7 datasets, 16,427 comparisons) | **0.35% deviation** |
+| FR3 motif → conserved Cys distance = 29 (measured before the cross-check existed) | 3,429 / 3,443 — all 14 exceptions were motifs matched in the wrong place |
 
 OAS ships ANARCI annotations (IMGT numbering) alongside each sequence, which makes
 CDR boundaries checkable against ground truth. Because this tool approximates
@@ -50,13 +50,22 @@ account is in [VALIDATION.md](VALIDATION.md).
 
 - **Never guess.** When an anchor residue is missing, the tool reports
   *not confident* with a reason instead of inventing a position. This is why chain
-  assignment has zero incorrect calls across 7,000 sequences.
+  assignment has zero incorrect calls across the 6,984 sequences that passed input
+  validation.
 - **No overall verdict.** The tool does not produce a developability score.
   Weighting one `NG` in a CDR against two `DG` in framework has no agreed answer, and
   once a number exists, people read the number instead of the evidence.
 - **Always show the evidence.** Every flag carries an explanation of why it matters.
 - **It is a screening heuristic, not a numbering engine.** It does not replace
   ANARCI/IMGT, and every output says so.
+
+### Limitations
+
+- CDR boundaries are approximate. Insertions and deletions can shift them.
+- Liability flags look at sequence motifs only. Without structure (solvent
+  accessibility), a buried residue that poses no real problem is still flagged.
+- pI, GRAVY and net charge are sequence-based estimates and can differ from
+  measured values.
 
 ### Re-check with ANARCI/IMGT when
 
@@ -117,8 +126,10 @@ inclusive.
 | VL | `Cys23` → **CDR-L1** (from Cys23+1) → `Trp35` (followed by `[YF][QL]Q`) → **CDR-L2** (from Trp35+15, 7 residues) → `Cys88` (preceded by `Y/F`) → **CDR-L3** (from Cys88+1) → `FGxG` |
 
 If the FR3 motif is missing (typically broken by somatic hypermutation), the
-boundary is back-calculated 29 residues from the conserved Cys — a distance that was
-constant across 3,443 real VH sequences — and the result is marked *not confident*.
+boundary is back-calculated 29 residues from the conserved Cys, and the result is
+marked *not confident*. The same distance cross-checks every motif match: in real VH
+it was 29 in 3,429 of 3,443 cases, and all 14 exceptions were motifs matched in the
+wrong place, which the annotator now re-anchors.
 
 A CDR length outside the typical range keeps its position but drops confidence.
 The range answers "can this annotation be trusted?", not "is this antibody unusual?".
@@ -160,7 +171,7 @@ for relative comparison between regions only.
 User-defined rules mark sequences as *needs review*. Defaults: a high-risk,
 top-of-class motif (`N[^P][ST]`, `NG`, `DG`, `DP`) inside a CDR, or a high-risk
 unpaired Cys. Results are *needs review* / *no rule matched* / *cannot evaluate*
-(annotation failed — never silently treated as clean). Rules live in
+(input or annotation failed — never silently treated as clean). Rules live in
 `abcheck/triage.py` (`DEFAULT_RULES`).
 
 ### Input validation
@@ -187,14 +198,14 @@ python3 scripts/make_synthetic_sequences.py
 python3 -m pytest -q
 ```
 
-`.github/workflows/ci.yml` runs on pull requests and pushes to `main`:
+`.github/workflows/ci.yml` runs on pull requests into `main` and pushes to `main`:
 
 | Job | Checks |
 |---|---|
 | `pytest (Python 3.10–3.13)` | the full test suite, including that the committed sample report and user manual match current output |
 | `No runtime dependencies` | `pyproject.toml` still declares no runtime dependencies |
 | `Synthetic corpus is reproducible` | the committed corpus equals the generator output |
-| `CLI smoke test` | the three Quick start examples run; invalid input exits with 1 |
+| `CLI smoke test` | the single-sequence, HTML and JSON examples run on the synthetic corpus; invalid input exits with exactly 1 |
 
 To make failing checks block merges, enable branch protection on `main` and require
 the seven checks above (`pytest (Python 3.10)` … `pytest (Python 3.13)`,

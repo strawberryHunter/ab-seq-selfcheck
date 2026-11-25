@@ -40,11 +40,11 @@ verifies that the annotator locates anchors by relative distance rather than by 
 | FR2a | 23..30 |
 | CDR-H1 | 31.. (= Cys22 + 9) |
 | Conserved Trp (anchor) | Right after CDR-H1 (typically 36) |
-| FR2b | Trp+1 .. Trp+13 |
+| FR2b | Trp+1 .. Trp+13, starting `VRQ` (so `W[VIA][RKQ]Q` matches) |
 | CDR-H2 | Trp+14 .. |
-| FR3 motif `[RK].[TSAV][IMLFV][STA]` (anchor) | Right after CDR-H2 (typically 66) |
-| Rest of FR3 | 21 residues starting at motif+5 |
-| Conserved Cys (anchor) | Typically 92 |
+| FR3 motif (anchor) | Right after CDR-H2 (typically 66). The scaffold draws from the narrow `[RK].[TSAV][IMLFV][STA]`; the germline-variant cases (`SYN-VH-011`/`012`) inject `Q…` / `…N` forms that only the annotator's wider `[RKQ].[TSAV][IMLFV][STAN]` finds |
+| Rest of FR3 | 24 residues starting at motif+5, ending in `YY` |
+| Conserved Cys (anchor) | motif + 29 (typically 95) — the same distance as in real VH |
 | FR3 tail | Cys+1 .. Cys+2 |
 | CDR-H3 | Cys+3 .. (= Cys92 + 3) |
 | `WGxG` (anchor) | Right after CDR-H3 |
@@ -58,9 +58,9 @@ verifies that the annotator locates anchors by relative distance rather than by 
 | Conserved Cys (anchor) | 23 |
 | CDR-L1 | 24.. (= Cys23 + 1) |
 | Conserved Trp (anchor) | Right after CDR-L1 (typically 35) |
-| FR2 | Trp+1 .. Trp+14 |
+| FR2 | Trp+1 .. Trp+14, starting `YQQ` (so `W[YF][QL]Q` matches) |
 | CDR-L2 (fixed at 7 residues) | Trp+15 .. |
-| FR3 | 31 residues right after CDR-L2 |
+| FR3 | 31 residues right after CDR-L2, ending in `YY` |
 | Conserved Cys (anchor) | Typically 88 |
 | CDR-L3 | Cys+1 .. |
 | `FGxG` (anchor) | Right after CDR-L3 |
@@ -74,10 +74,12 @@ that only controlled inputs enter the corpus.
 1. The terminal `WGxG` (or `FGxG`) is the **last** match in the sequence, with no opposite-chain
    motif after it — so chain identification is never ambiguous.
 2. The anchor is the only Cys within the 15..30 window (16..30 for VL).
-3. The **first** Trp after the start of CDR1 is the intended Trp anchor.
+3. The **first** Trp in FR2 context (`W[VIA][RKQ]Q` / `W[YF][QL]Q`) after CDR1 start + the
+   minimum CDR1 length is the intended Trp anchor.
 4. The **first** FR3 motif match after CDR-H2 start +9 is the intended FR3 anchor (it does not
    match earlier by chance inside CDR-H2).
-5. The **first** Cys after the FR3 motif (CDR-L2 for VL) is the intended second Cys anchor.
+5. The **first** `[YF]C` after the FR3 motif (CDR-L2 for VL) is the intended second Cys anchor,
+   and for VH it sits exactly 29 residues after the motif.
 6. The only liability motifs in each CDR are **those fully contained in the injected fragment**
    — so the tests can assert "this case's CDR liabilities are exactly these."
 
@@ -106,6 +108,14 @@ behavior; in real antibodies these Trp residues are usually buried and low-risk.
 | SYN-VH-008 | H | True | `M` and `W` in CDR-H3 (oxidation) |
 | SYN-VL-004 | L | True | `DP` in CDR-L1 (fragmentation) |
 | SYN-VL-005 | L | True | Lys/Arg concentrated in CDRs — for pI / net charge verification |
+| SYN-VH-009 | H | True | Trp inside CDR-H1 (common in real antibodies, e.g. SYWMQ) — must not be taken as the anchor |
+| SYN-VL-006 | L | True | Trp inside CDR-L1 — the same trap on the light chain |
+| SYN-VH-010 | H | True | `NT` in CDR-H2 — escalated to "high" but not a top-of-class motif, so not triaged |
+| SYN-VH-011 | H | True | FR3 motif starting `QVTIS` (IGHV2-like) — missed by the narrow regex |
+| SYN-VH-012 | H | True | FR3 motif ending `RITIN` — missed by the narrow regex |
+| SYN-VL-007 | L | True | Extra Cys inside FR3 — must not be taken as the conserved Cys88 |
+| SYN-VH-013 | H | **False** | FR3 motif broken by hypermutation (`EATLT`) — back-calculated from the Cys, so not confident |
+| SYN-VH-014 | H | **False** | FR3-like decoy (`RVTIS`) inside CDR-H2 — caught by the 29-residue cross-check and re-anchored |
 | SYN-VH-901 | H | **False** | Trp→Ser in the terminal `WGxG` — chain identification itself must fail |
 | SYN-VH-902 | H | **False** | Cys22→Ser — the CDR-H1 anchor must not be found |
 | SYN-VH-903 | H | **False** | CDR-H1 of 9 residues — anchors are found, but outside the normal range (5-7) |
