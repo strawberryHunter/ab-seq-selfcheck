@@ -29,7 +29,7 @@
       15
     ]
   },
-  "count": 23,
+  "count": 24,
   "sequences": [
     {
       "id": "SYN-VH-001",
@@ -564,6 +564,48 @@
         "trp": 35,
         "cys2": 88,
         "terminal_motif": 98
+      }
+    },
+    {
+      "id": "SYN-VH-014",
+      "chain": "H",
+      "description": "CDR-H2 안에 FR3 모티프처럼 보이는 조각(RVTIS)이 있는 VH — 모티프 탐색이 여기 먼저 걸려 CDR-H2 가 잘린다. 보존 Cys 까지의 거리(29)로 교차검증해 바로잡아야 한다",
+      "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSRSYDAWALKLPYITVTHQSQYATEIYVYSRVTISQKATLSVSESLQHSLQSSLPVVRVVKLLYYCGSTAGSRAYYVSWGQGSGGFQYA",
+      "length": 118,
+      "synthetic": true,
+      "notes": [
+        "CDR-H2 내 가짜 FR3 모티프"
+      ],
+      "expected": {
+        "cdrs": {
+          "CDR-H1": {
+            "start": 31,
+            "end": 35,
+            "seq": "RSYDA"
+          },
+          "CDR-H2": {
+            "start": 50,
+            "end": 65,
+            "seq": "QYATEIYVYSRVTISQ"
+          },
+          "CDR-H3": {
+            "start": 98,
+            "end": 107,
+            "seq": "TAGSRAYYVS"
+          }
+        },
+        "chain": "H",
+        "confident": false,
+        "anchors_broken": false,
+        "length_outlier": false,
+        "fr3_motif_broken": true
+      },
+      "anchors_intended": {
+        "cys1": 22,
+        "trp": 36,
+        "fr3_motif": 66,
+        "cys2": 95,
+        "terminal_motif": 108
       }
     },
     {

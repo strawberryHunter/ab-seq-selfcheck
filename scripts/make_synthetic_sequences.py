@@ -201,6 +201,9 @@ class Case:
     length_outlier: bool = False
     #: FR3 시작 모티프를 이 값으로 고정한다 (실제 germline 계열의 변형을 재현할 때).
     fr3_motif: str | None = None
+    #: CDR-H2 안에 FR3 모티프처럼 보이는 조각을 일부러 넣은 케이스.
+    #: 주석기가 Cys 거리로 교차검증해 바로잡는지 본다.
+    decoy_fr3_motif: bool = False
     #: 모티프가 정규식에 안 걸려 주석기가 Cys 역산 경로를 타야 하는 케이스.
     #: 역산은 모티프 직접 확인보다 근거가 약하므로 confident=False 가 되어야 한다.
     fr3_motif_broken: bool = False
@@ -369,7 +372,8 @@ def _last_index(pattern: re.Pattern[str], seq: str) -> int | None:
     return last
 
 
-def verify_heavy(seq: str, cdrs: dict, anchors: dict) -> list[str]:
+def verify_heavy(seq: str, cdrs: dict, anchors: dict,
+                 allow_motif_mismatch: bool = False) -> list[str]:
     """의도한 앵커가 탐색 규칙으로 유일하게 복원되는지 검사. 문제를 문자열 목록으로 돌려준다."""
     problems: list[str] = []
 
@@ -406,7 +410,10 @@ def verify_heavy(seq: str, cdrs: dict, anchors: dict) -> list[str]:
                 f"모티프도 없고 Cys 역산도 어긋난다: {cys_fb} - {FR3_TO_CYS_GAP} "
                 f"!= {anchors['fr3_motif']}"
             )
-    elif found != anchors["fr3_motif"]:
+    elif found != anchors["fr3_motif"] and not allow_motif_mismatch:
+        # 보통은 CDR-H2 안에서 우연히 걸린 것이므로 재추첨한다.
+        # 다만 "가짜 모티프" 케이스는 일부러 그렇게 만드는 것이라 허용한다 —
+        # 주석기가 Cys 거리로 교차검증해 바로잡는지를 보는 케이스다.
         problems.append(f"FR3 모티프 첫 매치가 CDR-H2 안에 걸렸다: {found} != {anchors['fr3_motif']}")
 
     # Cys92: FR3 모티프 이후 첫 [YF]C, 그리고 그 거리가 실제와 같은지
@@ -522,6 +529,17 @@ def make_cases() -> list[Case]:
         ),
 
         Case(
+            "SYN-VH-014", "H",
+            "CDR-H2 안에 FR3 모티프처럼 보이는 조각(RVTIS)이 있는 VH — 모티프 탐색이 "
+            "여기 먼저 걸려 CDR-H2 가 잘린다. 보존 Cys 까지의 거리(29)로 교차검증해 "
+            "바로잡아야 한다",
+            (5, 16, 10),
+            cdr_inserts={"H2": [(10, "RVTIS")]},
+            decoy_fr3_motif=True,
+            fr3_motif_broken=True,
+            notes=["CDR-H2 내 가짜 FR3 모티프"],
+        ),
+        Case(
             "SYN-VH-013", "H",
             "FR3 모티프가 체세포 과변이로 깨진 VH (EATLT — 첫 자리가 R/K/Q 가 아니다). "
             "모티프 탐색이 실패하므로 보존 Cys 에서 29잔기 역산하는 대체 경로를 타야 한다. "
@@ -626,7 +644,10 @@ def build_record(case: Case, heavy: HeavyScaffold, light: LightScaffold) -> dict
         rng = random.Random(f"{case.seq_id}/{attempt}")
         if case.chain == "H":
             seq, cdrs, anchors = _assemble_heavy(case, heavy, rng)
-            problems = verify_heavy(seq, cdrs, anchors)
+            problems = verify_heavy(
+                seq, cdrs, anchors,
+                allow_motif_mismatch=case.decoy_fr3_motif,
+            )
         else:
             seq, cdrs, anchors = _assemble_light(case, light, rng)
             problems = verify_light(seq, cdrs, anchors)

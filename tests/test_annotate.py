@@ -348,3 +348,22 @@ def test_fallback_is_not_used_when_motif_is_present(records):
         ann = annotate(by_id(records, seq_id)["sequence"])
         assert not any("역산" in r for r in ann.reasons + ann.warnings), (seq_id, ann.reasons)
         assert ann.confident is True, (seq_id, ann.reasons)
+
+
+def test_decoy_fr3_motif_is_corrected_by_cys_distance(records):
+    """CDR-H2 안의 가짜 FR3 모티프를 보존 Cys 거리로 교차검증해 바로잡는다.
+
+    실제 데이터 7,000건에서 FR3 모티프↔보존 Cys 거리는 3,429건이 전부 29 였고,
+    어긋난 14건은 전부 모티프가 엉뚱한 자리에 걸린 경우였다(CDR-H2 가 15 또는 29 로 나옴).
+    """
+    rec = by_id(records, "SYN-VH-014")
+    ann = annotate(rec["sequence"])
+
+    # 가짜 모티프에 걸렸더라도 최종 CDR-H2 는 정답이어야 한다
+    for name, want in rec["expected"]["cdrs"].items():
+        got = ann.cdrs[name]
+        assert (got.start, got.end, got.seq) == (want["start"], want["end"], want["seq"]), name
+
+    # 고쳐 잡았다는 사실을 숨기지 않는다
+    assert ann.confident is False
+    assert any("통상값" in r and "고쳐 잡았다" in r for r in ann.reasons), ann.reasons

@@ -365,6 +365,20 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
 
     if fr3 is not None:
         cys2, by_context = _find_conserved_cys(seq, fr3, motif_pos)
+        # 교차검증: FR3 모티프와 보존 Cys 의 거리는 실측 3,429건이 전부 29 였고,
+        # 어긋난 14건은 전부 모티프가 엉뚱한 자리에 걸린 경우였다(CDR-H2 가 15 또는 29 로 나옴).
+        # 거리가 다르면 모티프 쪽을 버리고 Cys 기준으로 다시 잡는다.
+        if cys2 is not None and cys2 - fr3 != FR3_TO_CYS_GAP:
+            corrected = cys2 - FR3_TO_CYS_GAP
+            if corrected > h2_start:
+                ann.confident = False
+                ann.reasons.append(
+                    f"FR3 시작 모티프를 {fr3}번에서 찾았지만, 보존 Cys({cys2}번)까지의 거리가 "
+                    f"{cys2 - fr3}로 통상값({FR3_TO_CYS_GAP})과 다르다. 모티프가 엉뚱한 자리에 "
+                    f"걸린 것으로 보여 Cys 기준으로 {corrected}번으로 고쳐 잡았다. "
+                    "CDR-H2 경계를 ANARCI/IMGT 로 반드시 재확인할 것."
+                )
+                fr3 = corrected
     else:
         # 체세포 과변이로 모티프가 깨진 경우. 보존 Cys 에서 거리로 역산한다
         # (실측 992건 전부 29잔기). 정규식을 더 넓히는 것보다 안전하다 —

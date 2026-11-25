@@ -51,8 +51,8 @@ def test_html_mode_does_not_dump_table_to_stdout(tmp_path):
 
 def test_not_confident_sequences_are_listed_on_stderr(tmp_path):
     result = _run(str(CORPUS_PATH), "--html", "--out-dir", str(tmp_path))
-    assert "주석을 신뢰할 수 없는 서열 4건" in result.stderr
-    for seq_id in ["SYN-VH-901", "SYN-VH-902", "SYN-VH-903", "SYN-VH-013"]:
+    assert "주석을 신뢰할 수 없는 서열 5건" in result.stderr
+    for seq_id in ["SYN-VH-901", "SYN-VH-902", "SYN-VH-903", "SYN-VH-013", "SYN-VH-014"]:
         assert seq_id in result.stderr
     assert "ANARCI/IMGT 재확인 필요" in result.stderr
 
@@ -173,7 +173,7 @@ def test_valid_input_with_unconfident_sequence_still_exits_zero(records):
 
 def test_load_input_detects_corpus_json():
     entries, source = load_input(str(CORPUS_PATH))
-    assert len(entries) == 23
+    assert len(entries) == 24
     assert "코퍼스 JSON" in source
 
 

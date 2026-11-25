@@ -222,3 +222,42 @@ def test_tutorial_states_no_network_and_no_scoring():
     text = TUTORIAL.read_text(encoding="utf-8")
     assert "외부 API 를 호출하지 않는다" in text
     assert "점수를 매기지 않는" in text
+
+
+# --------------------------------------------------------------------------
+# VALIDATION.md
+# --------------------------------------------------------------------------
+
+VALIDATION = REPO_ROOT / "VALIDATION.md"
+
+
+def test_validation_doc_exists_and_is_linked():
+    assert VALIDATION.exists()
+    assert "VALIDATION.md" in _readme(), "README 에서 검증 기록으로 가는 링크가 없다"
+
+
+def test_validation_doc_states_how_to_reproduce():
+    """숫자만 적고 재현 방법이 없으면 검증이 아니다."""
+    text = VALIDATION.read_text(encoding="utf-8")
+    assert "scripts/oas_to_fasta.py" in text
+    assert "scripts/validate_on_oas.py" in text
+    assert "opig.stats.ox.ac.uk" in text
+
+
+def test_validation_doc_records_known_limitations():
+    """고치지 않기로 한 것과 그 근거가 남아 있어야 한다."""
+    text = VALIDATION.read_text(encoding="utf-8")
+    assert "알려진 한계" in text
+    assert "기각" in text
+    assert "IGHV4" in text, "기각 근거(IGHV4 정상 FR2)가 빠졌다"
+
+
+def test_validation_script_runs_on_the_synthetic_fasta():
+    """검증 스크립트가 실제로 돌아가는지 — 합성 FASTA 로 연기 테스트."""
+    result = subprocess.run(
+        [sys.executable, "scripts/validate_on_oas.py", "data/synthetic/sequences.fasta"],
+        cwd=REPO_ROOT, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "CDR 주석 성공" in result.stdout
+    assert "FR3↔보존Cys" in result.stdout
