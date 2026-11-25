@@ -315,14 +315,15 @@ def test_broken_fr3_motif_falls_back_to_cys_distance(records):
     rec = by_id(records, "SYN-VH-013")
     ann = annotate(rec["sequence"])
 
-    assert ann.confident is True, ann.reasons
+    # 위치는 그대로 보고한다 — 결과를 버리지 않는다
     for name, want in rec["expected"]["cdrs"].items():
         got = ann.cdrs[name]
         assert (got.start, got.end, got.seq) == (want["start"], want["end"], want["seq"]), name
 
-    # 추측이 아니라 역산이라는 것을 사용자에게 알려야 한다
-    assert any("역산" in w for w in ann.warnings), ann.warnings
-    assert any("ANARCI" in w for w in ann.warnings)
+    # 다만 모티프를 직접 확인한 것보다 근거가 약하므로 신뢰도는 내린다
+    assert ann.confident is False
+    assert any("역산" in r for r in ann.reasons), ann.reasons
+    assert any("ANARCI" in r for r in ann.reasons)
 
 
 def test_fr3_to_cys_gap_holds_across_corpus(records):
@@ -345,4 +346,5 @@ def test_fallback_is_not_used_when_motif_is_present(records):
     """모티프가 멀쩡하면 역산 경고가 붙지 않아야 한다 — 대체 경로가 남발되면 곤란하다."""
     for seq_id in ["SYN-VH-001", "SYN-VH-002", "SYN-VH-011", "SYN-VH-012"]:
         ann = annotate(by_id(records, seq_id)["sequence"])
-        assert not any("역산" in w for w in ann.warnings), (seq_id, ann.warnings)
+        assert not any("역산" in r for r in ann.reasons + ann.warnings), (seq_id, ann.reasons)
+        assert ann.confident is True, (seq_id, ann.reasons)

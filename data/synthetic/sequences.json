@@ -60,7 +60,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -99,7 +100,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -138,7 +140,8 @@
         "chain": "L",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 23,
@@ -176,7 +179,8 @@
         "chain": "L",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 23,
@@ -216,7 +220,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -257,7 +262,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -298,7 +304,8 @@
         "chain": "L",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 23,
@@ -338,7 +345,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -380,7 +388,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -421,7 +430,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -463,7 +473,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -504,7 +515,8 @@
         "chain": "L",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 23,
@@ -544,7 +556,8 @@
         "chain": "L",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 23,
@@ -556,7 +569,7 @@
     {
       "id": "SYN-VH-013",
       "chain": "H",
-      "description": "FR3 모티프가 체세포 과변이로 깨진 VH (EATLT — 첫 자리가 R/K/Q 가 아니다). 모티프 탐색이 실패하므로 보존 Cys 에서 29잔기 역산하는 대체 경로를 타야 한다",
+      "description": "FR3 모티프가 체세포 과변이로 깨진 VH (EATLT — 첫 자리가 R/K/Q 가 아니다). 모티프 탐색이 실패하므로 보존 Cys 에서 29잔기 역산하는 대체 경로를 타야 한다. 위치는 정확히 복원하되 근거가 약하므로 confident=False 여야 한다",
       "sequence": "YITTIETSSFHYGRVRHEIEQCALLKGGLSVYVYYWALKLPYITVTHQSRDQVTYYSEVDAFKGKEATLTVSESLQHSLQSSLPVVRVVKLLYYCGSNDVLDIETIDWGQGSGGFQYA",
       "length": 118,
       "synthetic": true,
@@ -582,9 +595,10 @@
           }
         },
         "chain": "H",
-        "confident": true,
+        "confident": false,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": true
       },
       "anchors_intended": {
         "cys1": 22,
@@ -626,7 +640,8 @@
         "chain": "L",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 23,
@@ -666,7 +681,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -707,7 +723,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -748,7 +765,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -789,7 +807,8 @@
         "chain": "H",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,
@@ -830,7 +849,8 @@
         "chain": "L",
         "confident": true,
         "anchors_broken": false,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 23,
@@ -854,7 +874,8 @@
         "chain": null,
         "confident": false,
         "anchors_broken": true,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": null
     },
@@ -873,7 +894,8 @@
         "chain": null,
         "confident": false,
         "anchors_broken": true,
-        "length_outlier": false
+        "length_outlier": false,
+        "fr3_motif_broken": false
       },
       "anchors_intended": null
     },
@@ -908,7 +930,8 @@
         "chain": "H",
         "confident": false,
         "anchors_broken": false,
-        "length_outlier": true
+        "length_outlier": true,
+        "fr3_motif_broken": false
       },
       "anchors_intended": {
         "cys1": 22,

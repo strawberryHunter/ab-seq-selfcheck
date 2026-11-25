@@ -38,7 +38,7 @@ TALARTSYRTLTQAALIRTRKTSSIYYCGGTLIEHKLFGQGLRKSKLK
 >SYN-VL-005 chain=L synthetic | CDR 에 Lys/Arg 를 몰아넣은 염기성 서열 — pI/net charge 계산 검증용
 IIYYVTQTGKKSFTSTETQLVFCDYKRKRKGRGGWVTITAVYQKSTTVSGEFNKKFLHLI
 TALARTSYRTLTQAALIRTRKTSSIYYCIRKRKAGSGFGQGLRKSKLK
->SYN-VH-013 chain=H synthetic | FR3 모티프가 체세포 과변이로 깨진 VH (EATLT — 첫 자리가 R/K/Q 가 아니다). 모티프 탐색이 실패하므로 보존 Cys 에서 29잔기 역산하는 대체 경로를 타야 한다
+>SYN-VH-013 chain=H synthetic | FR3 모티프가 체세포 과변이로 깨진 VH (EATLT — 첫 자리가 R/K/Q 가 아니다). 모티프 탐색이 실패하므로 보존 Cys 에서 29잔기 역산하는 대체 경로를 타야 한다. 위치는 정확히 복원하되 근거가 약하므로 confident=False 여야 한다
 YITTIETSSFHYGRVRHEIEQCALLKGGLSVYVYYWALKLPYITVTHQSRDQVTYYSEVD
 AFKGKEATLTVSESLQHSLQSSLPVVRVVKLLYYCGSNDVLDIETIDWGQGSGGFQYA
 >SYN-VL-007 chain=L synthetic | FR3 안에 여분 Cys 가 있는 VL — 실제 서열에 있다(…LTIS<C>LQSEDFATYY<C>…). 'CDR-L2 이후 첫 Cys' 를 앵커로 쓰면 CDR-L3 가 10잔기 넘게 앞에서 시작한다

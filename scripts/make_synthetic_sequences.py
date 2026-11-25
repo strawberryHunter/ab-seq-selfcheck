@@ -201,6 +201,9 @@ class Case:
     length_outlier: bool = False
     #: FR3 시작 모티프를 이 값으로 고정한다 (실제 germline 계열의 변형을 재현할 때).
     fr3_motif: str | None = None
+    #: 모티프가 정규식에 안 걸려 주석기가 Cys 역산 경로를 타야 하는 케이스.
+    #: 역산은 모티프 직접 확인보다 근거가 약하므로 confident=False 가 되어야 한다.
+    fr3_motif_broken: bool = False
     notes: list[str] = field(default_factory=list)
 
 
@@ -521,9 +524,11 @@ def make_cases() -> list[Case]:
         Case(
             "SYN-VH-013", "H",
             "FR3 모티프가 체세포 과변이로 깨진 VH (EATLT — 첫 자리가 R/K/Q 가 아니다). "
-            "모티프 탐색이 실패하므로 보존 Cys 에서 29잔기 역산하는 대체 경로를 타야 한다",
+            "모티프 탐색이 실패하므로 보존 Cys 에서 29잔기 역산하는 대체 경로를 타야 한다. "
+            "위치는 정확히 복원하되 근거가 약하므로 confident=False 여야 한다",
             (5, 16, 10),
             fr3_motif="EATLT",
+            fr3_motif_broken=True,
             notes=["FR3 모티프 깨짐 — Cys 역산 경로"],
         ),
         Case(
@@ -645,7 +650,9 @@ def build_record(case: Case, heavy: HeavyScaffold, light: LightScaffold) -> dict
         intact_seq = seq
         final_seq = _apply_breakages(seq, case, anchors)
 
-        expected_confident = not (case.anchors_broken or case.length_outlier)
+        expected_confident = not (
+            case.anchors_broken or case.length_outlier or case.fr3_motif_broken
+        )
         record = {
             "id": case.seq_id,
             "chain": case.chain,
@@ -665,6 +672,7 @@ def build_record(case: Case, heavy: HeavyScaffold, light: LightScaffold) -> dict
                 "confident": expected_confident,
                 "anchors_broken": case.anchors_broken,
                 "length_outlier": case.length_outlier,
+                "fr3_motif_broken": case.fr3_motif_broken,
             },
             "anchors_intended": None if case.anchors_broken else anchors,
         }

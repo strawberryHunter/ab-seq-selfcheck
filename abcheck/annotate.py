@@ -372,11 +372,15 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
         cys2, by_context = _find_conserved_cys(seq, search_from + FR3_TO_CYS_GAP, motif_pos)
         if cys2 is not None:
             fr3 = cys2 - FR3_TO_CYS_GAP
-            ann.warnings.append(
+            # 위치는 그대로 보고하되 신뢰도는 내린다. 거리는 실측 992건 전부 일정했지만,
+            # 모티프를 직접 확인한 것보다는 약한 근거다 — 결과를 쓰기 전에 사람이 보게 한다.
+            ann.confident = False
+            ann.reasons.append(
                 f"FR3 시작 모티프({FR3_MOTIF_PATTERN})를 찾지 못해, 보존 Cys({cys2}번)에서 "
                 f"{FR3_TO_CYS_GAP}잔기 역산해 CDR-H2 의 끝을 {fr3 - 1}번으로 잡았다. "
-                "체세포 과변이로 모티프가 깨진 서열에서 흔하다. "
-                "CDR-H2 경계는 ANARCI/IMGT 로 재확인할 것."
+                "체세포 과변이로 모티프가 깨진 서열에서 흔하다. 위치는 그대로 보고하지만 "
+                "모티프를 직접 확인한 것보다 근거가 약하므로, CDR-H2 경계를 "
+                "ANARCI/IMGT 로 반드시 재확인할 것."
             )
 
     if cys2 is None or fr3 is None or fr3 <= h2_start:
