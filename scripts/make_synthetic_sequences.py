@@ -94,6 +94,9 @@ CDR_LIABILITY_PATTERNS: list[tuple[str, str]] = [
 #: abcheck.annotate.FR3_MOTIF_PATTERN 과 같아야 한다.
 FR3_MOTIF_RE = re.compile(r"[RKQ].[TSAV][IMLFV][STAN]")
 
+#: FR3 시작 모티프에서 보존 Cys 까지의 거리. abcheck.annotate.FR3_TO_CYS_GAP 과 같아야 한다.
+FR3_TO_CYS_GAP = 29
+
 #: 보존 Trp 앵커를 찾기 시작할 오프셋. abcheck.annotate 와 같은 값을 쓴다.
 MIN_CDR1_LENGTH_H = 5
 MIN_CDR1_LENGTH_L = 7
@@ -157,7 +160,9 @@ def build_heavy_scaffold(rng: random.Random) -> HeavyScaffold:
         fr2=_draw(rng, FRAMEWORK_WEIGHTS, 13),
         fr3_motif=motif,
         # 보존 Cys 앞은 실제 서열의 83% 가 YY 다. 주석기가 [YF]C 문맥을 쓰므로 맞춰 둔다.
-        fr3_rest=_draw(rng, FRAMEWORK_WEIGHTS, 19) + "YY",
+        # 길이 22 + "YY" = 24. 모티프 5 를 더하면 FR3→보존Cys 거리가 29 가 된다.
+        # 실제 VH 992건이 전부 29 였으므로 거기에 맞춘다 (주석기가 이 거리로 역산한다).
+        fr3_rest=_draw(rng, FRAMEWORK_WEIGHTS, 22) + "YY",
         post_cys2=_draw(rng, FRAMEWORK_WEIGHTS, 2),
         fr4_rest=_draw(rng, FRAMEWORK_WEIGHTS, 7),
     )
@@ -384,16 +389,30 @@ def verify_heavy(seq: str, cdrs: dict, anchors: dict) -> list[str]:
     if first_w != anchors["trp"]:
         problems.append(f"CDR-H1 최소 길이 이후 첫 Trp 위치가 다르다: {first_w} != {anchors['trp']}")
 
-    # FR3 모티프: CDR-H2 시작 + 9 이후 첫 매치
+    # FR3 모티프: CDR-H2 시작 + 9 이후 첫 매치.
+    # 모티프가 일부러 깨진 케이스(과변이 재현)는 주석기의 대체 경로를 타야 하므로,
+    # 그때는 "보존 Cys 에서 29잔기 역산"이 의도한 위치와 맞는지로 검증한다.
     h2_start = cdrs["CDR-H2"][0]
-    found = _first_index(FR3_MOTIF_RE, seq, h2_start + 9)
-    if found != anchors["fr3_motif"]:
+    search_from = h2_start + 9
+    found = _first_index(FR3_MOTIF_RE, seq, search_from)
+
+    if found is None:
+        cys_fb = _first_conserved_cys(seq, search_from + FR3_TO_CYS_GAP)
+        if cys_fb is None or cys_fb - FR3_TO_CYS_GAP != anchors["fr3_motif"]:
+            problems.append(
+                f"모티프도 없고 Cys 역산도 어긋난다: {cys_fb} - {FR3_TO_CYS_GAP} "
+                f"!= {anchors['fr3_motif']}"
+            )
+    elif found != anchors["fr3_motif"]:
         problems.append(f"FR3 모티프 첫 매치가 CDR-H2 안에 걸렸다: {found} != {anchors['fr3_motif']}")
 
-    # Cys92: FR3 모티프 이후 첫 [YF]C
+    # Cys92: FR3 모티프 이후 첫 [YF]C, 그리고 그 거리가 실제와 같은지
     first_c = _first_conserved_cys(seq, anchors["fr3_motif"])
     if first_c != anchors["cys2"]:
         problems.append(f"FR3 모티프 이후 첫 [YF]C 위치가 다르다: {first_c} != {anchors['cys2']}")
+    gap = anchors["cys2"] - anchors["fr3_motif"]
+    if gap != FR3_TO_CYS_GAP:
+        problems.append(f"FR3→보존Cys 거리가 실제({FR3_TO_CYS_GAP})와 다르다: {gap}")
 
     return problems
 
@@ -499,6 +518,14 @@ def make_cases() -> list[Case]:
             notes=["염기성 CDR → 높은 pI"],
         ),
 
+        Case(
+            "SYN-VH-013", "H",
+            "FR3 모티프가 체세포 과변이로 깨진 VH (EATLT — 첫 자리가 R/K/Q 가 아니다). "
+            "모티프 탐색이 실패하므로 보존 Cys 에서 29잔기 역산하는 대체 경로를 타야 한다",
+            (5, 16, 10),
+            fr3_motif="EATLT",
+            notes=["FR3 모티프 깨짐 — Cys 역산 경로"],
+        ),
         Case(
             "SYN-VL-007", "L",
             "FR3 안에 여분 Cys 가 있는 VL — 실제 서열에 있다(…LTIS<C>LQSEDFATYY<C>…). "

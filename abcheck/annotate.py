@@ -90,6 +90,12 @@ MIN_CDR1_LENGTH_L = 7
 #: 이보다 짧은 CDR-H2 는 모티프가 CDR 안에서 먼저 걸린 것으로 본다.
 MIN_CDR_H2_BEFORE_MOTIF = 9
 
+#: FR3 시작 모티프에서 보존 Cys92 까지의 거리.
+#: OAS 실제 VH 992건이 **전부** 정확히 29였다. 모티프가 체세포 과변이로 깨졌을 때
+#: 이 거리로 역산한다. 정규식을 계속 넓히는 것보다 안전하다 — 넓힐수록 CDR-H2 안에서
+#: 우연히 걸릴 위험이 커지고, 그러면 CDR-H2 가 조용히 짧아진다.
+FR3_TO_CYS_GAP = 29
+
 #: 통상 CDR 길이 범위 (스크리닝 기준; 엄격한 numbering 기준이 아니다)
 #:
 #: 이 범위는 "이 항체가 이상한가"가 아니라 **"주석을 믿을 수 있는가"** 의 기준이다.
@@ -352,33 +358,44 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
         )
         return
 
-    fr3 = _first_match_from(FR3_MOTIF_RE, seq, h2_start + MIN_CDR_H2_BEFORE_MOTIF)
-    if fr3 is None or fr3 >= motif_pos:
+    search_from = h2_start + MIN_CDR_H2_BEFORE_MOTIF
+    fr3 = _first_match_from(FR3_MOTIF_RE, seq, search_from)
+    if fr3 is not None and fr3 >= motif_pos:
+        fr3 = None
+
+    if fr3 is not None:
+        cys2, by_context = _find_conserved_cys(seq, fr3, motif_pos)
+    else:
+        # 체세포 과변이로 모티프가 깨진 경우. 보존 Cys 에서 거리로 역산한다
+        # (실측 992건 전부 29잔기). 정규식을 더 넓히는 것보다 안전하다 —
+        # 넓힐수록 CDR-H2 안에서 우연히 걸릴 위험이 커진다.
+        cys2, by_context = _find_conserved_cys(seq, search_from + FR3_TO_CYS_GAP, motif_pos)
+        if cys2 is not None:
+            fr3 = cys2 - FR3_TO_CYS_GAP
+            ann.warnings.append(
+                f"FR3 시작 모티프({FR3_MOTIF_PATTERN})를 찾지 못해, 보존 Cys({cys2}번)에서 "
+                f"{FR3_TO_CYS_GAP}잔기 역산해 CDR-H2 의 끝을 {fr3 - 1}번으로 잡았다. "
+                "체세포 과변이로 모티프가 깨진 서열에서 흔하다. "
+                "CDR-H2 경계는 ANARCI/IMGT 로 재확인할 것."
+            )
+
+    if cys2 is None or fr3 is None or fr3 <= h2_start:
         ann.confident = False
         ann.reasons.append(
-            f"FR3 시작 모티프([RK].[TSAV][IMLFV][STA])를 찾지 못했다. "
-            f"CDR-H2 시작({h2_start}번) 이후에 매치가 없어 CDR-H2 의 끝을 정할 수 없다. "
+            f"CDR-H2 의 끝을 정할 수 없다. FR3 시작 모티프({FR3_MOTIF_PATTERN})가 없고, "
+            f"보존 Cys 에서 역산할 수도 없다 (CDR-H2 시작 {h2_start}번). "
             "CDR-H2/H3 위치는 추측하지 않는다."
         )
         return
-    ann.anchors["fr3_motif"] = fr3
-    ann.cdrs["CDR-H2"] = CDR("CDR-H2", h2_start, fr3 - 1, seq[h2_start - 1:fr3 - 1])
 
-    # --- 앵커 4: Cys92, CDR-H3 ---
-    cys2, by_context = _find_conserved_cys(seq, fr3, motif_pos)
-    if not by_context and cys2 is not None:
+    if not by_context:
         ann.warnings.append(
             f"보존 Cys92 를 문맥(YC/FC) 으로 찾지 못해 {cys2}번의 Cys 를 그대로 썼다. "
             "FR3 에 여분 Cys 가 있으면 CDR-H3 시작이 밀릴 수 있다. ANARCI/IMGT 로 재확인할 것."
         )
-    if cys2 is None or cys2 >= motif_pos:
-        ann.confident = False
-        ann.reasons.append(
-            f"보존 Cys92 를 찾지 못했다. FR3 모티프({fr3}번) 이후 말단 WGxG 전까지 "
-            "Cys 가 없다. 이 Cys 는 CDR-H3 시작을 정하는 앵커다. "
-            "CDR-H3 위치는 추측하지 않는다."
-        )
-        return
+
+    ann.anchors["fr3_motif"] = fr3
+    ann.cdrs["CDR-H2"] = CDR("CDR-H2", h2_start, fr3 - 1, seq[h2_start - 1:fr3 - 1])
     ann.anchors["cys2"] = cys2
 
     h3_start = cys2 + CDR3_OFFSET_H

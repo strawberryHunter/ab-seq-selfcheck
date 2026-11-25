@@ -303,3 +303,46 @@ def test_strict_fr3_pattern_would_miss_those_variants(records):
     strict = re.compile(FR3_MOTIF_PATTERN_STRICT)
     for motif in ["QVTIS", "RITIN"]:
         assert not strict.fullmatch(motif), f"{motif} 가 좁은 패턴에 걸린다 — 테스트 전제가 틀렸다"
+
+
+def test_broken_fr3_motif_falls_back_to_cys_distance(records):
+    """FR3 모티프가 과변이로 깨져도 보존 Cys 에서 역산해 복원한다.
+
+    OAS 마우스 plasmablast(과변이가 심한 세포)에서 8건이 이 경우였다. 모티프가
+    EATLT / RLNIS / KAILT 처럼 바뀌어 정규식에 안 걸렸다. 실제 VH 992건 전부에서
+    FR3 모티프→보존 Cys 거리가 29 로 일정했으므로 그 거리를 쓴다.
+    """
+    rec = by_id(records, "SYN-VH-013")
+    ann = annotate(rec["sequence"])
+
+    assert ann.confident is True, ann.reasons
+    for name, want in rec["expected"]["cdrs"].items():
+        got = ann.cdrs[name]
+        assert (got.start, got.end, got.seq) == (want["start"], want["end"], want["seq"]), name
+
+    # 추측이 아니라 역산이라는 것을 사용자에게 알려야 한다
+    assert any("역산" in w for w in ann.warnings), ann.warnings
+    assert any("ANARCI" in w for w in ann.warnings)
+
+
+def test_fr3_to_cys_gap_holds_across_corpus(records):
+    """FR3 모티프와 보존 Cys 의 거리가 코퍼스 전체에서 일정한지.
+
+    이 거리가 흔들리면 역산 경로가 조용히 틀어진다.
+    """
+    from abcheck.annotate import FR3_TO_CYS_GAP
+
+    checked = 0
+    for rec in records:
+        ann = annotate(rec["sequence"])
+        if "fr3_motif" in ann.anchors and "cys2" in ann.anchors:
+            assert ann.anchors["cys2"] - ann.anchors["fr3_motif"] == FR3_TO_CYS_GAP, rec["id"]
+            checked += 1
+    assert checked >= 10
+
+
+def test_fallback_is_not_used_when_motif_is_present(records):
+    """모티프가 멀쩡하면 역산 경고가 붙지 않아야 한다 — 대체 경로가 남발되면 곤란하다."""
+    for seq_id in ["SYN-VH-001", "SYN-VH-002", "SYN-VH-011", "SYN-VH-012"]:
+        ann = annotate(by_id(records, seq_id)["sequence"])
+        assert not any("역산" in w for w in ann.warnings), (seq_id, ann.warnings)

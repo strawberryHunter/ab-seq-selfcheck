@@ -52,7 +52,7 @@ python3 -m abcheck.cli --help
 저장소에 들어 있는 합성 예시 서열로 먼저 해 본다. 따옴표 안에 서열을 넣는다.
 
 ```bash
-python3 -m abcheck.cli "YITTIETSSFHYGRVRHEIEQCALLKGGLSGNLSAAWALKLPYITVTHQSRGRVETRTKTGNARDEKATLSVSESLQHSLQSSLPVVRVVYYCKLTLSVGVDFITWGQGLGSSGGF"
+python3 -m abcheck.cli "YITTIETSSFHYGRVRHEIEQCALLKGGLSGNLSAAWALKLPYITVTHQSRGRVETRTKTGNARDEKATLSVSESLQHSLQSSLPVVRVVKLLYYCGSTLSVGVDFITWGQGSGGFQYA"
 ```
 
 대소문자와 줄바꿈은 알아서 정리하니 신경 쓰지 않아도 된다.
@@ -94,7 +94,7 @@ python3 -m abcheck.cli "YITTIETSSFHYGRVRHEIEQCALLKGGLSGNLSAAWALKLPYITVTHQSRGRVET
   -------+--------+------+-----------------
   CDR-H1 |  31-36 |    6 | GNLSAA
   CDR-H2 |  51-66 |   16 | RGRVETRTKTGNARDE
-  CDR-H3 |  96-105|   10 | TLSVGVDFIT
+  CDR-H3 |  99-108|   10 | TLSVGVDFIT
 ```
 
 항원에 붙는 고리 세 개의 위치다. **1-based, 양끝 포함** — 31번 잔기부터 36번 잔기까지라는 뜻.

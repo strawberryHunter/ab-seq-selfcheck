@@ -172,7 +172,7 @@ def test_cdr_cysteine_also_appears_as_regular_hit(records):
     """CDR 안의 여분 Cys 는 도메인 플래그로 보고하고, 위치 기반 모티프로는 잡지 않는다."""
     _, _, report = _scan(records, "SYN-VH-005")
     assert "cysteine" not in _kinds(report.hits)
-    assert report.domain_flags[0]["positions"] == [22, 92, 100]
+    assert report.domain_flags[0]["positions"] == [22, 95, 103]
 
 
 # --------------------------------------------------------------------------
