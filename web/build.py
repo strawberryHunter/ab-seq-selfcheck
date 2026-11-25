@@ -19,12 +19,15 @@ WEB = Path(__file__).resolve().parent
 ROOT = WEB.parent
 TEMPLATE = WEB / "app.html"
 ENGINE = WEB / "abcheck-engine.js"
+APPLIB = WEB / "app-lib.js"
 OUTPUT = WEB / "abcheck.html"
 CORPUS = ROOT / "data" / "synthetic" / "sequences.json"
 
 #: Example input shown on first load: synthetic sequences that cover the three triage
-#: outcomes (no rule matched / needs review / cannot evaluate) and both chains.
-EXAMPLE_IDS = ["SYN-VH-001", "SYN-VH-003", "SYN-VL-001", "SYN-VL-004", "SYN-VH-005", "SYN-VH-013", "SYN-VH-902"]
+#: outcomes (no rule matched / needs review / cannot evaluate), both chains, and a spread
+#: of pI for the property plot.
+EXAMPLE_IDS = ["SYN-VH-001", "SYN-VH-003", "SYN-VH-007", "SYN-VH-005", "SYN-VH-013", "SYN-VH-902",
+               "SYN-VL-001", "SYN-VL-004", "SYN-VL-005"]
 
 
 def example_fasta() -> str:
@@ -35,11 +38,16 @@ def example_fasta() -> str:
 def build() -> str:
     template = TEMPLATE.read_text(encoding="utf-8")
     engine = ENGINE.read_text(encoding="utf-8")
-    assert "/*__ENGINE__*/" in template and '/*__EXAMPLE__*/""' in template
-    if "</script" in engine.lower():
-        raise SystemExit("engine contains '</script' and cannot be inlined")
+    applib = APPLIB.read_text(encoding="utf-8")
+    for marker in ("/*__ENGINE__*/", "/*__APPLIB__*/", '/*__EXAMPLE__*/""'):
+        if template.count(marker) != 1:
+            raise SystemExit(f"web/app.html must contain {marker} exactly once")
+    for name, code in (("engine", engine), ("app-lib", applib)):
+        if "</script" in code.lower():
+            raise SystemExit(f"{name} contains '</script' and cannot be inlined")
     return (template
             .replace("/*__ENGINE__*/", engine)
+            .replace("/*__APPLIB__*/", applib)
             .replace('/*__EXAMPLE__*/""', json.dumps(example_fasta(), ensure_ascii=False)))
 
 

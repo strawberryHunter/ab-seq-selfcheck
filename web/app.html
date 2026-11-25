@@ -2,508 +2,1069 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
-/* Layout: one working column — input on top, then the summary that says what to open
-   first, then per-sequence detail. Reads like an instrument printout: rules and
-   monospace, no color coding of risk (risk is text, by design — no verdicts). */
+/* Layout: an app shell in the Nextmove family — a fixed left sidebar (brand, primary
+   action, grouped navigation with counts, recent analyses), a sticky top bar (search,
+   theme), one screen at a time, and detail in a sheet from the right. Risk is always
+   written as text and never painted: the tool gives no verdicts. */
 :root {
-  --bg: #f6f7f5;
-  --surface: #ffffff;
-  --fg: #1b1f1c;
-  --muted: #5c6660;
-  --line: #d5dbd6;
-  --line-strong: #1b1f1c;
-  --accent: #1f6f5c;
-  --accent-fg: #ffffff;
-  --cdr-bg: #dfeee8;
-  --zebra: #f1f4f1;
-  --focus: #1f6f5c;
-  --font-body: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --paper: #ffffff;
+  --card: #ffffff;
+  --surf: #f5f7fb;
+  --line: #e2e7f0;
+  --line2: #eef2f8;
+  --ink: #0d1526;
+  --body: #3a4560;
+  --muted: #667089;
+  --brand: #2563eb;
+  --brand-soft: #e4ecfd;
+  --brand-ink: #1b4ed8;
+  --sbg: #f5f7fb;
+  --sbg2: #e6edfb;
+  --cdr: #dce7fd;
+  --scrim: rgba(10, 13, 18, 0.45);
+  --vh: #2a78d6;
+  --vl: #eb6834;
+  --ff: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif;
+  --fm: "IBM Plex Mono", "D2Coding", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #131614; --surface: #1b1f1c; --fg: #e6ebe7; --muted: #9aa59e; --line: #333b36;
-    --line-strong: #e6ebe7; --accent: #5fc2a6; --accent-fg: #0f1a16; --cdr-bg: #1f3b33;
-    --zebra: #202622; --focus: #5fc2a6; color-scheme: dark;
+    --paper: #080c15; --card: #0f1626; --surf: #141c2e; --line: #22304f; --line2: #19233a;
+    --ink: #eef2fa; --body: #b4bfd6; --muted: #8f9ab3; --brand: #6ea0ff; --brand-soft: #15213c;
+    --brand-ink: #9dbcff; --sbg: #0b111d; --sbg2: #16213b; --cdr: #1d2f55; --scrim: rgba(0, 0, 0, 0.6);
+    --vh: #3987e5; --vl: #d95926; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #131614; --surface: #1b1f1c; --fg: #e6ebe7; --muted: #9aa59e; --line: #333b36;
-  --line-strong: #e6ebe7; --accent: #5fc2a6; --accent-fg: #0f1a16; --cdr-bg: #1f3b33;
-  --zebra: #202622; --focus: #5fc2a6; color-scheme: dark;
+  --paper: #080c15; --card: #0f1626; --surf: #141c2e; --line: #22304f; --line2: #19233a;
+  --ink: #eef2fa; --body: #b4bfd6; --muted: #8f9ab3; --brand: #6ea0ff; --brand-soft: #15213c;
+  --brand-ink: #9dbcff; --sbg: #0b111d; --sbg2: #16213b; --cdr: #1d2f55; --scrim: rgba(0, 0, 0, 0.6);
+  --vh: #3987e5; --vl: #d95926; color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
 body {
-  background: var(--bg); color: var(--fg);
-  font-family: var(--font-body); font-size: 15px; line-height: 1.6;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 24px 48px;
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--ff); font-size: 15px; line-height: 1.6;
+  word-break: keep-all; -webkit-font-smoothing: antialiased;
 }
-.wrap { max-width: 1040px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 28px; }
-h1, h2, h3 { line-height: 1.3; text-wrap: balance; margin: 0; }
-h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; }
-h1 .brand { font-family: var(--font-mono); font-weight: 600; color: var(--accent); margin-right: 6px; }
-h2 { font-size: 1.15rem; font-weight: 700; padding-bottom: 6px; border-bottom: 2px solid var(--line-strong); }
-h3 { font-size: 1rem; font-weight: 600; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 40; background: var(--paper); }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: var(--brand-ink); text-underline-offset: 3px; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; }
+h1, h2, h3, h4 { margin: 0; line-height: 1.3; text-wrap: balance; }
 p { margin: 0; }
+.mono { font-family: var(--fm); font-size: 0.92em; }
+.num { font-variant-numeric: tabular-nums; }
 .muted { color: var(--muted); }
-.small { font-size: 0.85rem; }
-code, .mono { font-family: var(--font-mono); font-size: 0.92em; }
-a { color: var(--fg); text-underline-offset: 3px; }
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.small { font-size: 13px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-header.top { display: grid; gap: 6px; }
-.eyebrow { font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.privacy { display: inline-flex; gap: 8px; align-items: baseline; font-size: 0.9rem; }
-
-/* Input */
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
-label { font-weight: 600; font-size: 0.92rem; }
-textarea {
-  width: 100%; min-height: 168px; resize: vertical; padding: 12px;
-  font-family: var(--font-mono); font-size: 0.85rem; line-height: 1.5;
-  color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+/* ---------- shell ---------- */
+.app { display: grid; grid-template-columns: 256px minmax(0, 1fr); min-height: 100vh; }
+.side {
+  position: sticky; top: env(safe-area-inset-top, 0px); align-self: start;
+  height: calc(100vh - env(safe-area-inset-top, 0px)); overflow: auto;
+  background: var(--sbg); border-right: 1px solid var(--line2);
+  padding: 22px 12px 22px; padding-left: max(12px, env(safe-area-inset-left, 0px));
+  display: flex; flex-direction: column; gap: 14px;
 }
-.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-button, .filebtn {
-  font: inherit; font-size: 0.92rem; font-weight: 600; cursor: pointer;
-  padding: 8px 16px; border-radius: 4px; border: 1px solid var(--line-strong);
-  background: var(--surface); color: var(--fg);
+.brand { display: flex; align-items: center; gap: 11px; padding: 0 8px 4px; text-decoration: none; color: var(--ink); }
+.brand svg { flex: none; }
+.bname { display: grid; gap: 1px; }
+.bname b { font-family: var(--fm); font-size: 19px; font-weight: 600; letter-spacing: -0.4px; line-height: 1.15; }
+.bname b span { color: var(--brand); }
+.bname small { font-size: 12px; color: var(--muted); }
+.cta {
+  display: block; text-align: center; text-decoration: none; font-weight: 700; font-size: 15px;
+  padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--brand-ink);
 }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
-button:hover, .filebtn:hover { filter: brightness(0.96); }
-.filebtn input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.ph { display: inline-flex; gap: 6px; align-items: center; font-size: 0.9rem; }
-.ph input { width: 4.5em; font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--fg); }
-.hint { font-size: 0.85rem; color: var(--muted); }
-.status { font-size: 0.9rem; min-height: 1.4em; }
+.cta:hover { border-color: var(--brand); }
+.cta[aria-current="page"] { background: var(--brand); border-color: var(--brand); color: #fff; }
+.ngroup { display: grid; gap: 1px; }
+.slabel { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.6px; padding: 12px 12px 6px; border-top: 1px solid var(--line); }
+.nav {
+  position: relative; display: flex; align-items: center; gap: 8px; text-decoration: none;
+  padding: 8px 10px 8px 12px; border-radius: 9px; font-size: 15px; font-weight: 600; color: var(--body);
+}
+.nav b { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.nav:hover { background: var(--sbg2); color: var(--ink); }
+.nav[aria-current="page"] { background: var(--sbg2); color: var(--ink); font-weight: 700; }
+.nav[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 7px; bottom: 7px; width: 2px; background: var(--brand); }
+.nav[aria-current="page"] b { color: var(--brand-ink); }
+.nav.zero b { opacity: 0.5; }
+.recent { display: grid; gap: 2px; }
+.rec { display: grid; gap: 1px; text-align: left; border: none; background: none; padding: 7px 10px 7px 12px; border-radius: 9px; color: var(--body); }
+.rec:hover { background: var(--sbg2); color: var(--ink); }
+.rec span { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec small { font-size: 12px; color: var(--muted); }
+.linkbtn { border: none; background: none; padding: 4px 12px; color: var(--muted); font-size: 12.5px; text-align: left; text-decoration: underline; text-underline-offset: 3px; }
+.sfoot { margin-top: auto; padding: 12px 12px 0; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); display: grid; gap: 4px; }
 
-/* Notices */
-.notice { border-left: 3px solid var(--line-strong); padding: 4px 0 4px 14px; display: grid; gap: 4px; font-size: 0.88rem; }
-.notice ul { margin: 0; padding-left: 18px; }
-details > summary { cursor: pointer; }
+.mainwrap { min-width: 0; display: flex; flex-direction: column; }
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--paper); border-bottom: 1px solid var(--line); }
+.inner {
+  max-width: 1280px; width: 100%; margin: 0 auto;
+  padding-left: max(24px, env(safe-area-inset-left, 0px));
+  padding-right: max(24px, env(safe-area-inset-right, 0px));
+}
+.topin { display: flex; align-items: center; gap: 10px; padding-block: 11px; }
+.search { flex: 1; min-width: 0; position: relative; }
+.search svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.search input { width: 100%; border: 1px solid var(--line); background: var(--surf); border-radius: 10px; padding: 9px 36px 9px 38px; outline: none; }
+.search input:focus { border-color: var(--ink); background: var(--card); }
+.search .clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: none; background: none; color: var(--muted); font-size: 18px; width: 28px; height: 28px; border-radius: 6px; }
+.iconbtn { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--card); border-radius: 10px; color: var(--ink); }
+.iconbtn:hover { border-color: var(--ink); }
+main { padding-block: 26px 72px; }
 
-/* Tables */
-.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; }
-table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
-th { text-align: left; font-weight: 600; padding: 7px 10px; border-bottom: 2px solid var(--line-strong); white-space: nowrap; }
-td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; word-break: keep-all; }
-tbody tr:nth-child(even) { background: var(--zebra); }
-td:first-child { white-space: nowrap; }
-td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-tr.total td { font-weight: 700; border-top: 2px solid var(--line-strong); }
+/* ---------- common pieces ---------- */
+.bar { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.bar h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.6px; }
+.bar .cnt { font-weight: 600; color: var(--muted); }
+.sub { color: var(--body); margin-top: 6px; max-width: 70ch; }
+.stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 0; margin-top: 14px; font-size: 14px; color: var(--body); }
+.stats > * { padding: 0 14px; border-left: 1px solid var(--line); }
+.stats > *:first-child { padding-left: 0; border-left: none; }
+.stats a { color: var(--body); text-decoration: none; }
+.stats a:hover { color: var(--brand-ink); text-decoration: underline; }
+.stats b { color: var(--ink); font-variant-numeric: tabular-nums; margin-left: 4px; }
+.note {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px;
+  background: var(--brand-soft); color: var(--brand-ink); border-radius: 12px; padding: 11px 15px; font-size: 14px; font-weight: 600;
+}
+.note .btn { margin-left: auto; }
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 18px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.toolbar .spacer { margin-left: auto; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.seg button { border: none; background: var(--card); padding: 7px 14px; font-weight: 600; font-size: 14px; color: var(--body); border-left: 1px solid var(--line); }
+.seg button:first-child { border-left: none; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.seg button:disabled { color: var(--muted); opacity: 0.5; cursor: default; }
+.seg button b { font-weight: 600; opacity: 0.7; margin-left: 4px; font-variant-numeric: tabular-nums; }
+select { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 7px 10px; font-weight: 600; font-size: 14px; color: var(--body); }
+.btn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 8px 14px; font-weight: 700; font-size: 14px; color: var(--ink); white-space: nowrap; text-decoration: none; display: inline-block; }
+.btn:hover { border-color: var(--ink); }
+.btn.fill { background: var(--brand); border-color: var(--brand); color: #fff; }
+.btn.fill:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-width: 0; }
+.blank { border: 1px dashed var(--line); border-radius: 14px; padding: 42px 20px; text-align: center; color: var(--body); margin-top: 14px; }
+.blank b { display: block; font-size: 17px; color: var(--ink); margin-bottom: 4px; }
+.foot { margin-top: 18px; font-size: 13px; color: var(--muted); max-width: 90ch; display: grid; gap: 4px; }
+.sect { margin-top: 30px; display: grid; gap: 12px; }
+.sect > h3 { font-size: 17px; font-weight: 700; letter-spacing: -0.3px; }
 
-/* Status tags: text first; the border style (not color) separates the three states */
-.tag { display: inline-block; padding: 1px 8px; border-radius: 3px; font-size: 0.8rem; font-weight: 600; white-space: nowrap; border: 1px solid var(--line-strong); }
-.tag.review { background: var(--line-strong); color: var(--bg); }
+/* status tags: three states told apart by fill and border style, never by color */
+.tag { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12.5px; font-weight: 700; white-space: nowrap; border: 1px solid var(--ink); color: var(--ink); }
+.tag.review { background: var(--ink); color: var(--paper); }
 .tag.unknown { border-style: dashed; }
-.tag.clear { border-color: var(--line); color: var(--muted); }
+.tag.clear { border-color: var(--line); color: var(--muted); font-weight: 600; }
+.chain { display: inline-block; font-family: var(--fm); font-size: 11.5px; font-weight: 600; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
 
-.attention { display: grid; gap: 8px; }
-.attention div { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
-.attention a { font-family: var(--font-mono); font-size: 0.88rem; }
+/* tables */
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th { text-align: left; font-size: 12.5px; font-weight: 700; color: var(--muted); padding: 9px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--line2); vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.nowrap { white-space: nowrap; }
+table.list tbody tr { cursor: pointer; }
+table.list tbody tr:hover { background: var(--surf); }
+.rowlink { border: none; background: none; padding: 0; font-family: var(--fm); font-weight: 600; font-size: 14px; color: var(--ink); text-align: left; white-space: nowrap; }
+.rowlink:hover { color: var(--brand-ink); text-decoration: underline; text-underline-offset: 3px; }
+.seqcell { font-family: var(--fm); font-size: 13.5px; white-space: nowrap; }
+.seqcell small { font-family: var(--ff); color: var(--muted); margin-left: 6px; font-size: 12px; }
+.seqcell u, .ruler u { text-decoration: underline 2px; text-underline-offset: 3px; text-decoration-color: var(--ink); cursor: help; }
+.more { margin-top: 12px; }
 
-.section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
-.group-title { display: flex; gap: 8px; align-items: baseline; }
-
-/* Per-sequence detail */
-.seq-card { border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
-.seq-card > summary { list-style: none; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
-.seq-card > summary::-webkit-details-marker { display: none; }
-.seq-card > summary::before { content: "▸"; font-size: 0.8rem; color: var(--muted); }
-.seq-card[open] > summary::before { content: "▾"; }
-.seq-card .id { font-family: var(--font-mono); font-weight: 600; }
-.seq-body { padding: 0 16px 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; min-width: 0; }
-.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 18px; font-size: 0.9rem; }
-.kv span { color: var(--muted); margin-right: 6px; }
-ul.plain { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 0.9rem; }
-
-.ruler { font-family: var(--font-mono); font-size: 0.86rem; line-height: 1.5; white-space: pre; }
-.ruler .pos { color: var(--muted); user-select: none; }
-.ruler .cdr { background: var(--cdr-bg); font-weight: 600; }
-.ruler .lbl { color: var(--muted); font-family: var(--font-body); font-size: 0.78rem; }
-
-/* Filter bar: counts per state; pressing one narrows tables and detail to that state */
-.filters { display: flex; flex-wrap: wrap; gap: 8px; }
-.filters button { font-weight: 500; padding: 6px 12px; display: inline-flex; gap: 8px; align-items: baseline; }
-.filters button .n { font-family: var(--font-mono); font-weight: 600; }
-.filters button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
-.filters button:disabled { opacity: 0.45; cursor: default; }
-.ruler u.liab { text-decoration: underline 2px; text-underline-offset: 3px; text-decoration-color: var(--fg); cursor: help; }
-.legend { font-size: 0.8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 16px; }
-.legend .cdr { background: var(--cdr-bg); font-weight: 600; padding: 0 4px; font-family: var(--font-mono); }
-.legend u { text-decoration: underline 2px; text-underline-offset: 3px; font-family: var(--font-mono); }
-textarea.drag { border-style: dashed; border-color: var(--accent); }
-textarea[aria-invalid="true"] { border-color: var(--fg); border-width: 2px; }
-.status.error { font-weight: 600; }
-.detail-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 10px; padding-bottom: 6px; border-bottom: 2px solid var(--line-strong); }
-.detail-head h2 { border: 0; padding: 0; }
-.detail-head .controls button { padding: 5px 12px; font-weight: 500; font-size: 0.85rem; }
-.filtered-note { font-size: 0.85rem; color: var(--muted); }
-kbd { font-family: var(--font-mono); font-size: 0.8em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; }
-.empty { padding: 18px; border: 1px dashed var(--line); border-radius: 6px; color: var(--muted); }
-.errors { border-left: 3px solid var(--line-strong); padding-left: 14px; display: grid; gap: 8px; }
-footer { font-size: 0.82rem; color: var(--muted); display: grid; gap: 4px; }
-
-@media (max-width: 600px) {
-  body { font-size: 14px; }
-  .panel { padding: 14px; }
-  th, td { padding: 5px 7px; }
+/* sheet */
+.scrim { position: fixed; inset: 0; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity 0.16s; z-index: 50; }
+.scrim.on { opacity: 1; pointer-events: auto; }
+#sheet {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(680px, 100vw); z-index: 51;
+  background: var(--card); display: flex; flex-direction: column;
+  transform: translateX(101%); visibility: hidden; transition: transform 0.2s ease, visibility 0s linear 0.2s;
+  box-shadow: -10px 0 40px rgba(10, 13, 18, 0.18);
 }
-@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+#sheet.on { transform: none; visibility: visible; transition: transform 0.2s ease; }
+.sh { display: flex; gap: 12px; align-items: flex-start; padding: 18px 22px 14px; padding-top: calc(18px + env(safe-area-inset-top, 0px)); padding-right: max(22px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); }
+.sh h3 { font-family: var(--fm); font-size: 20px; font-weight: 600; letter-spacing: -0.4px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.sh p { margin-top: 4px; color: var(--muted); font-size: 14px; }
+.sh .x { margin-left: auto; flex: none; border: none; background: var(--surf); border-radius: 9px; width: 34px; height: 34px; font-size: 20px; line-height: 1; color: var(--body); }
+.sb { flex: 1; overflow: auto; padding: 6px 22px 28px; padding-right: max(22px, env(safe-area-inset-right, 0px)); }
+.sf { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-top: 1px solid var(--line); padding: 11px 22px; padding-bottom: calc(11px + env(safe-area-inset-bottom, 0px)); padding-right: max(22px, env(safe-area-inset-right, 0px)); }
+.sf .pos { margin-right: auto; font-size: 13px; color: var(--muted); }
+.blk { margin-top: 22px; display: grid; gap: 8px; min-width: 0; }
+.blk h4 { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: 0.3px; }
+.blk ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; font-size: 14.5px; }
+.callout { border-left: 3px solid var(--ink); padding: 2px 0 2px 14px; display: grid; gap: 6px; font-size: 14.5px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--muted); }
+.legend .c { background: var(--cdr); font-family: var(--fm); font-weight: 600; padding: 0 4px; border-radius: 3px; color: var(--ink); }
+.legend u { font-family: var(--fm); text-decoration: underline 2px; text-underline-offset: 3px; color: var(--ink); }
+.ruler { margin: 0; font-family: var(--fm); font-size: 13px; line-height: 1.75; white-space: pre; color: var(--ink); }
+.ruler .p { color: var(--muted); user-select: none; }
+.ruler .c { background: var(--cdr); font-weight: 600; }
+.ruler .l { color: var(--muted); font-family: var(--ff); font-size: 12px; }
+.hit td:first-child { font-weight: 700; white-space: nowrap; }
+.hit .why { display: block; margin-top: 3px; font-size: 12.5px; color: var(--muted); }
+
+/* new analysis */
+textarea {
+  width: 100%; min-height: 260px; resize: vertical; padding: 14px;
+  font-family: var(--fm); font-size: 13px; line-height: 1.55;
+  background: var(--surf); color: var(--ink); border: 1px solid var(--line); border-radius: 12px;
+}
+textarea:focus { outline: none; border-color: var(--ink); background: var(--card); }
+textarea.drag { border-style: dashed; border-color: var(--brand); }
+textarea[aria-invalid="true"] { border-color: var(--ink); border-width: 2px; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filebtn { position: relative; }
+.filebtn input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.ph { display: inline-flex; gap: 6px; align-items: center; font-size: 14px; font-weight: 600; color: var(--body); margin-left: auto; }
+.ph input { width: 4.6em; border: 1px solid var(--line); background: var(--card); border-radius: 9px; padding: 7px 9px; }
+.detect { font-size: 13.5px; color: var(--muted); min-height: 1.4em; }
+.hints { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--body); display: grid; gap: 3px; }
+kbd { font-family: var(--fm); font-size: 0.85em; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--card); }
+.errbox { border-left: 3px solid var(--ink); padding: 4px 0 4px 14px; display: grid; gap: 8px; }
+.errbox ul { margin: 0; padding-left: 18px; font-size: 14px; }
+
+/* tiles, steps, figure */
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; margin-top: 18px; }
+.tile { background: var(--card); padding: 16px 18px; display: grid; gap: 6px; align-content: start; }
+.tile b { font-size: 28px; font-weight: 700; letter-spacing: -1px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.tile span { font-size: 13.5px; font-weight: 600; color: var(--body); }
+.tile i { font-style: normal; font-size: 12.5px; color: var(--muted); }
+.steps { list-style: none; counter-reset: s; padding: 0; margin: 0; display: grid; gap: 14px; }
+.steps li { counter-increment: s; position: relative; padding-left: 42px; }
+.steps li::before { content: counter(s); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 9px; background: var(--brand-soft); color: var(--brand-ink); font-weight: 800; font-size: 13.5px; display: grid; place-items: center; }
+.steps b { display: block; font-size: 15.5px; }
+.steps p { color: var(--body); font-size: 14px; margin-top: 2px; }
+.figure { position: relative; margin-top: 16px; }
+.figure svg { display: block; width: 100%; height: auto; overflow: visible; }
+.figure .grid line { stroke: var(--line2); stroke-width: 1; }
+.figure .axis line { stroke: var(--line); }
+.figure text { fill: var(--muted); font-size: 12px; font-family: var(--ff); }
+.figure text.lab { fill: var(--body); font-family: var(--fm); font-size: 11.5px; }
+.figure text.ttl { fill: var(--body); font-weight: 600; font-size: 12.5px; }
+.figure .pt { cursor: pointer; outline: none; }
+.figure .pt .hitarea { fill: transparent; }
+.figure .pt .mark-h { fill: var(--vh); stroke: var(--card); stroke-width: 2; }
+.figure .pt .mark-l { fill: var(--vl); stroke: var(--card); stroke-width: 2; }
+.figure .pt:hover .mark-h, .figure .pt:hover .mark-l, .figure .pt:focus-visible .mark-h, .figure .pt:focus-visible .mark-l { stroke: var(--ink); }
+.tip { position: absolute; pointer-events: none; z-index: 5; background: var(--ink); color: var(--paper); border-radius: 9px; padding: 8px 11px; font-size: 12.5px; line-height: 1.5; white-space: nowrap; transform: translate(-50%, calc(-100% - 12px)); }
+.tip b { font-family: var(--fm); }
+.key { display: inline-flex; align-items: center; gap: 6px; }
+.key svg { display: block; }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 12px); z-index: 90;
+  background: var(--ink); color: var(--paper); border-radius: 12px; padding: 11px 16px; font-size: 14px; font-weight: 600;
+  opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; max-width: calc(100vw - 32px);
+}
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+@media (max-width: 860px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .side {
+    position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line);
+    padding: 14px 0 12px; gap: 10px;
+  }
+  .side > .brand, .side > .cta { margin-left: max(16px, env(safe-area-inset-left, 0px)); margin-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .brand { padding: 0; }
+  .navs { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .navs::-webkit-scrollbar { display: none; }
+  .ngroup { display: contents; }
+  .slabel, .recent, .sfoot, .recgroup { display: none; }
+  .nav { flex: none; white-space: nowrap; border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; font-size: 14px; background: var(--card); }
+  .nav[aria-current="page"]::before { display: none; }
+  .nav[aria-current="page"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .nav[aria-current="page"] b { color: var(--paper); }
+  .inner { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  main { padding-block: 20px 60px; }
+  .bar h2 { font-size: 21px; }
+  .ph { margin-left: 0; }
+}
+@media (max-width: 640px) {
+  #sheet { top: auto; height: 92vh; width: 100vw; border-radius: 18px 18px 0 0; transform: translateY(101%); }
+  #sheet.on { transform: none; }
+  .sh { padding-top: 16px; }
+  .stats > * { padding: 0 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #sheet, .scrim, .toast { transition: none; }
+}
 </style>
 
-<div class="wrap">
-  <header class="top">
-    <span class="eyebrow">VH / VL developability screening</span>
-    <h1><span class="brand">AbCheck</span> 항체 서열 점검</h1>
-    <p class="muted">가변도메인 서열을 넣으면 CDR 위치, liability 모티프, 물성을 보여준다.
-      <strong>분석은 이 브라우저 안에서만 돈다</strong> — 서열은 어디로도 전송되지 않는다.</p>
-  </header>
-
-  <section class="panel" aria-labelledby="in-label">
-    <label id="in-label" for="input">서열 입력 — 서열 하나, FASTA, 또는 엑셀에서 복사한 표(이름·서열 두 열)</label>
-    <textarea id="input" spellcheck="false" autocomplete="off"></textarea>
-    <div class="controls">
-      <button class="primary" id="run" type="button">분석하기</button>
-      <label class="filebtn" for="file">파일 열기<input id="file" type="file" accept=".fasta,.fa,.faa,.fas,.txt,.csv,.tsv,.json"></label>
-      <button id="example" type="button">예시 넣기</button>
-      <button id="clear" type="button">지우기</button>
-      <span class="ph"><label for="ph">net charge pH</label><input id="ph" type="number" step="0.1" min="0" max="14" value="7.4"></span>
+<div class="app">
+  <aside class="side" aria-label="메뉴">
+    <a class="brand" href="#all" aria-label="AbCheck 후보 전체로">
+      <svg width="38" height="38" viewBox="0 0 38 38" aria-hidden="true">
+        <rect width="38" height="38" rx="10" fill="var(--brand)"/>
+        <path d="M19 30V19M19 19L11.5 10.5M19 19l7.5-8.5" stroke="#fff" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+        <circle cx="10.6" cy="9.6" r="2.6" fill="#fff"/><circle cx="27.4" cy="9.6" r="2.6" fill="#fff"/>
+      </svg>
+      <span class="bname"><b><span>Ab</span>Check</b><small>항체 서열 점검</small></span>
+    </a>
+    <a class="cta" href="#new" id="nav-new">+ 새 분석</a>
+    <nav class="navs" aria-label="화면">
+      <div class="ngroup"><div class="slabel">후보</div>
+        <a class="nav" href="#all" data-v="all">후보 전체 <b id="n-all">0</b></a>
+        <a class="nav" href="#review" data-v="review">검토 필요 <b id="n-review">0</b></a>
+        <a class="nav" href="#recheck" data-v="recheck">재확인 필요 <b id="n-recheck">0</b></a>
+        <a class="nav" href="#errors" data-v="errors">입력 오류 <b id="n-errors">0</b></a>
+      </div>
+      <div class="ngroup"><div class="slabel">비교</div>
+        <a class="nav" href="#compare" data-v="compare">CDR 비교</a>
+        <a class="nav" href="#properties" data-v="properties">물성 분포</a>
+      </div>
+      <div class="ngroup"><div class="slabel">정보</div>
+        <a class="nav" href="#rules" data-v="rules">선별 규칙</a>
+        <a class="nav" href="#validation" data-v="validation">검증 기록</a>
+        <a class="nav" href="#guide" data-v="guide">사용법 · 한계</a>
+      </div>
+    </nav>
+    <div class="recgroup" id="recgroup" hidden>
+      <div class="slabel">최근 분석</div>
+      <div class="recent" id="recent"></div>
+      <button class="linkbtn" type="button" id="rec-clear">기록 지우기</button>
     </div>
-    <p class="hint">FASTA·CSV·TSV·JSON 파일을 입력창에 끌어다 놓아도 된다. <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> 로 분석.
-      공백·줄바꿈·소문자·정렬 갭(<code>.</code> <code>-</code>)은 알아서 정리한다. 한 서열은 VH 또는 VL 도메인 하나(70–200 잔기) — scFv 는 VH·VL 로 나눠서.</p>
-    <p class="hint" id="detected" aria-live="polite"></p>
-    <p class="status" id="status" role="status" aria-live="polite"></p>
-  </section>
+    <div class="sfoot">
+      <span>분석은 이 브라우저 안에서만 실행됨 · 서열은 어디로도 전송되지 않음</span>
+      <a href="https://github.com/strawberryHunter/ab-seq-selfcheck" target="_blank" rel="noopener">소스와 검증 기록 (GitHub)</a>
+    </div>
+  </aside>
 
-  <section class="notice" aria-label="이 도구의 한계" id="limits"></section>
-
-  <section class="section" id="results" aria-label="결과"></section>
-
-  <footer>
-    <p id="ver"></p>
-    <p>스크리닝 휴리스틱이며 numbering 엔진이 아니다. 후보를 탈락시키기 전에는 ANARCI/IMGT 로 재확인할 것.
-      검증 기록과 소스: <a href="https://github.com/strawberryHunter/ab-seq-selfcheck" target="_blank" rel="noopener">github.com/strawberryHunter/ab-seq-selfcheck</a></p>
-  </footer>
+  <div class="mainwrap">
+    <header class="top">
+      <div class="inner topin">
+        <label class="search" for="q">
+          <span class="sr">서열 검색</span>
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5.2" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="서열 이름 또는 잔기 3개 이상 검색 (예: SYN-VH-003, NGS)">
+          <button class="clear" type="button" id="q-clear" aria-label="검색 지우기" hidden>×</button>
+        </label>
+        <button class="iconbtn" type="button" id="theme" aria-label="밝은 화면 / 어두운 화면 전환" title="밝은 화면 / 어두운 화면 전환">
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M9 2a7 7 0 0 1 0 14z" fill="currentColor"/></svg>
+        </button>
+      </div>
+    </header>
+    <main class="inner" id="view" tabindex="-1"></main>
+  </div>
 </div>
+
+<div class="scrim" id="scrim"></div>
+<aside id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" aria-hidden="true">
+  <div class="sh">
+    <div><h3 id="sheet-title"></h3><p id="sheet-sub"></p></div>
+    <button class="x" type="button" id="sheet-close" aria-label="닫기">×</button>
+  </div>
+  <div class="sb" id="sheet-body"></div>
+  <div class="sf">
+    <span class="pos" id="sheet-pos"></span>
+    <button class="btn" type="button" id="sheet-prev">이전</button>
+    <button class="btn" type="button" id="sheet-next">다음</button>
+    <button class="btn" type="button" id="sheet-copy">FASTA 복사</button>
+  </div>
+</aside>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 /*__ENGINE__*/
+</script>
+<script>
+/*__APPLIB__*/
 </script>
 <script>
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const anchorId = (id) => "seq-" + String(id).replace(/[^\p{L}\p{N}]/gu, "-");
+  const fmt = (v, d) => (v === null || v === undefined ? "-" : Number(v).toFixed(d));
+  const signed = (v) => (v === null || v === undefined ? "-" : (v > 0 ? "+" : "") + Number(v).toFixed(2));
 
   /* Synthetic examples from data/synthetic/sequences.json — no real antibody sequences. */
   const EXAMPLE = /*__EXAMPLE__*/"";
 
-  let lastPayload = null;
-  let filter = "all";
+  const VIEWS = ["new", "all", "review", "recheck", "errors", "compare", "properties", "rules", "validation", "guide"];
+  const LIST_VIEWS = { all: "후보 전체", review: "검토 필요", recheck: "재확인 필요", errors: "입력 오류" };
+  const LIST_LEDE = {
+    all: "입력한 모든 서열. 행을 누르면 CDR · 서열 · liability · 물성 상세가 열림.",
+    review: "선별 규칙에 걸린 서열. 항체가 나쁘다는 뜻이 아니라 먼저 들여다볼 대상이라는 뜻.",
+    recheck: "주석 신뢰도가 낮은 서열. CDR 경계가 밀렸을 수 있으므로 ANARCI/IMGT 로 경계 확인 필요.",
+    errors: "입력 검증을 통과하지 못해 분석하지 않은 서열. 상세에서 고칠 내용 확인 가능."
+  };
 
-  /* A sequence can be in two buckets (e.g. needs review AND not confident). */
-  function cats(row) {
-    const c = [];
-    if (!row.input_ok) c.push("error");
-    if (row.triage.status === "검토 필요") c.push("review");
-    if (row.input_ok && !row.confident) c.push("recheck");
-    if (row.triage.status === "기준 해당 없음") c.push("clear");
-    return c;
-  }
-  const FILTERS = [
-    ["all", "전체"], ["review", "검토 필요"], ["recheck", "재확인 필요"], ["error", "입력 오류"], ["clear", "기준 해당 없음"],
-  ];
-  function applyFilter() {
-    document.querySelectorAll("[data-cats]").forEach((el) => {
-      el.hidden = filter !== "all" && !el.dataset.cats.split(" ").includes(filter);
-    });
-    document.querySelectorAll(".filters button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.f === filter)));
-    const note = $("filtered-note");
-    if (note) note.textContent = filter === "all" ? "" : `'${FILTERS.find((f) => f[0] === filter)[1]}' 만 보는 중 — '전체' 를 누르면 모두 보인다.`;
+  const state = {
+    payload: null, rows: [], source: "", ph: 7.4, at: null, isExample: true,
+    view: "all", chain: "all", sort: "input", query: "", limit: 300,
+    input: "", fileName: "", inputError: "", rejected: null,
+    open: null, openList: [], opener: null
+  };
+
+  /* ---------- browser storage (per-viewer conveniences only) ---------- */
+  const store = {
+    get(key, fallback) {
+      try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); }
+      catch (e) { console.warn("abcheck: could not read " + key + " from browser storage", e); return fallback; }
+    },
+    set(key, value) {
+      try { localStorage.setItem(key, JSON.stringify(value)); return true; }
+      catch (e) { console.warn("abcheck: could not save " + key + " to browser storage", e); return false; }
+    }
+  };
+  const RECENT_KEY = "abcheck.recent.v1", THEME_KEY = "abcheck.theme.v1";
+
+  /* ---------- toast ---------- */
+  let toastTimer = 0;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg; t.classList.add("on");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), 3200);
   }
 
+  /* ---------- clipboard and downloads ---------- */
+  function copy(text, done) {
+    const fallback = (err) => {
+      if (err) console.warn("abcheck: clipboard write refused, selecting the text instead", err);
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      toast("자동 복사가 막혀 있어 내용을 선택해 둠 · Ctrl+C (Mac 은 ⌘C) 로 복사");
+      setTimeout(() => ta.remove(), 15000);
+    };
+    try { navigator.clipboard.writeText(text).then(() => toast(done), fallback); }
+    catch (e) { fallback(e); }
+  }
+
+  let downloads = null;
+  if (window.claude && typeof window.claude.use === "function") {
+    window.claude.use("downloads").then((d) => { downloads = d; if (d) render(); },
+      (e) => console.warn("abcheck: downloads capability did not load", e));
+  }
+  function save(filename, data) {
+    if (!downloads) { toast("이 화면에서는 파일 저장 불가 · '표 복사' 사용"); return; }
+    downloads.save({ filename, data }).then(
+      () => toast(filename + " 저장"),
+      (e) => {
+        const code = e && e.code;
+        if (code === "declined") toast("저장 취소됨");
+        else if (code === "rate_limited") toast("저장 창이 이미 열려 있음 · 잠시 후 다시 시도");
+        else { console.error("abcheck: saving " + filename + " failed", e); toast("파일 저장 실패 (" + (code || "unknown") + ") · '표 복사' 사용"); }
+      });
+  }
+  function stamp() {
+    const d = state.at || new Date(), p = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes());
+  }
+
+  /* ---------- analysis ---------- */
+  function analyze(text, fileName, ph, example) {
+    state.inputError = ""; state.rejected = null;
+    if (!String(text).trim()) { state.inputError = "서열이 비어 있음. 서열이나 FASTA 를 붙여넣거나 파일을 열 것."; return false; }
+    if (!(ph >= 0 && ph <= 14)) { state.inputError = "pH 는 0 에서 14 사이 숫자로 넣을 것."; return false; }
+    let entries, source;
+    try { [entries, source] = ABCHECK.readInput(text, fileName); }
+    catch (e) { state.inputError = "입력을 읽을 수 없음: " + e.message; return false; }
+    if (!entries.length) { state.inputError = "처리할 서열이 없음."; return false; }
+    const payload = ABCHECK.analyze(entries, ph);
+    if (payload.sequences.every((s) => !s.input_ok)) { state.rejected = payload; return false; }
+    state.payload = payload;
+    state.rows = ABUI.buildRows(payload);
+    state.source = source; state.ph = ph; state.at = new Date(); state.isExample = !!example;
+    state.limit = 300;
+    if (!example) remember(text, fileName, source, ph, payload.count);
+    return true;
+  }
+
+  function remember(text, fileName, source, ph, count) {
+    if (text.length > 300000) return;   // too big for browser storage; the analysis itself is unaffected
+    const list = store.get(RECENT_KEY, []).filter((r) => r.text !== text);
+    list.unshift({ text, fileName, source, ph, count, at: Date.now() });
+    store.set(RECENT_KEY, list.slice(0, 6));
+  }
+
+  /* ---------- shared bits ---------- */
   function tag(status) {
     const cls = status === "검토 필요" ? "review" : status === "판정 불가" ? "unknown" : "clear";
     return `<span class="tag ${cls}">${esc(status)}</span>`;
   }
-  function counts(c) {
-    const parts = ["높음", "중간", "낮음"].filter((k) => c[k]).map((k) => `${k} ${c[k]}`);
-    return parts.length ? parts.join(", ") : "-";
-  }
-  function flags(list) { return list && list.length ? esc(list.map((f) => `${f.label} (${f.risk})`).join(", ")) : "-"; }
-  function link(id) { return `<a href="#${esc(anchorId(id))}" data-open="${esc(anchorId(id))}">${esc(id)}</a>`; }
+  const chainBadge = (r) => (r.chain ? `<span class="chain">${r.chain === "H" ? "VH" : "VL"}</span>` : "");
+  const seqObj = (r) => state.payload.sequences[r.index];
 
-  function renderLimits(p) {
-    $("limits").innerHTML =
-      `<strong>먼저 읽을 것 — 이 도구의 한계</strong>` +
-      `<p>${esc(p.no_verdict)}</p>` +
-      `<details><summary class="small">한계 ${p.limitations.length}가지 모두 보기</summary>` +
-      `<ul>${p.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}</ul></details>`;
-    $("ver").textContent = `${p.tool.name} ${p.tool.version} · 좌표는 ${p.coordinates}`;
-  }
-
-  function renderSummary(p) {
-    const s = p.summary;
-    const rows = s.rows;
-    const review = rows.filter((r) => r.triage.status === "검토 필요").map((r) => r.id);
-    const recheck = rows.filter((r) => r.input_ok && !r.confident).map((r) => r.id);
-    const bad = rows.filter((r) => !r.input_ok).map((r) => r.id);
-    let h = `<h2>결과 요약 <span class="muted small">— 서열 ${p.count}건</span></h2>`;
-    h += `<p class="small muted">${esc(s.note)}</p>`;
-
-    const lists = [["검토 필요", review], ["ANARCI/IMGT 재확인 필요 (주석 신뢰 불가)", recheck], ["입력 오류로 제외", bad]].filter((x) => x[1].length);
-    h += `<div class="panel attention"><h3>먼저 볼 서열 <span class="muted small">(입력 순서 · 누르면 상세로 이동)</span></h3>`;
-    h += lists.length
-      ? lists.map(([label, ids]) => `<div><strong>${esc(label)} ${ids.length}건</strong> ${ids.map(link).join(" ")}</div>`).join("")
-      : `<p class="muted">선별 규칙에 걸린 서열이 없다. 그렇다고 안전하다는 뜻은 아니다 — 아래 상세를 볼 것.</p>`;
-    h += `<details><summary class="small">적용한 선별 규칙</summary><ul class="plain small">${s.triage_rules.map((d) => `<li>${esc(d)}</li>`).join("")}</ul><p class="small muted">${esc(s.triage_notice)}</p></details></div>`;
-
-    const n = Object.fromEntries(FILTERS.map(([k]) => [k, k === "all" ? rows.length : rows.filter((r) => cats(r).includes(k)).length]));
-    h += `<div class="filters" role="group" aria-label="상태별로 보기">` +
-      FILTERS.map(([k, label]) => `<button type="button" data-f="${k}" aria-pressed="${k === filter}"${n[k] || k === "all" ? "" : " disabled"}>${label} <span class="n">${n[k]}</span></button>`).join("") +
-      `</div><p class="filtered-note" id="filtered-note"></p>`;
-
-    for (const g of s.groups) {
-      h += `<div class="section"><div class="group-title"><h3>${esc(g.title)}</h3><span class="muted small">${g.rows.length}건</span></div>`;
-      if (g.chain === null) {
-        h += `<div class="scroll"><table><thead><tr><th>서열</th><th>분류</th><th>상태</th><th>검출 모티프</th><th>도메인 플래그</th></tr></thead><tbody>`;
-        for (const r of g.rows) {
-          const all = { 높음: 0, 중간: 0, 낮음: 0 };
-          for (const reg of Object.values(r.regions)) for (const k in all) all[k] += reg[k];
-          const state = !r.input_ok ? "입력 오류" : "체인 판별 실패";
-          h += `<tr data-cats="${cats(r).join(" ")}"><td>${link(r.id)}</td><td>${tag(r.triage.status)}</td><td>${state}</td><td>${r.input_ok ? counts(all) : "-"}</td><td>${flags(r.domain_flags)}</td></tr>`;
-        }
-        h += `</tbody></table></div></div>`;
-        continue;
+  /** CDR residues with liability positions underlined (positions are 1-based in the domain). */
+  function markedCdr(cdr, hits) {
+    const marks = new Array(cdr.length).fill(null);
+    (hits || []).forEach((x) => {
+      for (let p = Math.max(x.start, cdr.start); p <= Math.min(x.end, cdr.end); p++) {
+        const k = p - cdr.start;
+        marks[k] = (marks[k] ? marks[k] + " / " : "") + `${x.label} · ${x.risk}`;
       }
-      const cdrCols = g.cdr_labels;
-      h += `<div class="scroll"><table><thead><tr><th>서열</th><th>분류</th><th>주석</th>${cdrCols.map((c) => `<th>${esc(c)}</th>`).join("")}<th>framework</th><th>도메인 플래그</th></tr></thead><tbody>`;
-      for (const r of g.rows) {
-        const cells = ["CDR1", "CDR2", "CDR3"].map((reg) => r.regions_unassigned ? "주석 실패" : counts(r.regions[reg]));
-        h += `<tr data-cats="${cats(r).join(" ")}"><td>${link(r.id)}</td><td>${tag(r.triage.status)}</td><td>${r.confident ? "신뢰 가능" : "신뢰 불가"}</td>${cells.map((c) => `<td>${esc(c)}</td>`).join("")}<td>${counts(r.regions.framework)}</td><td>${flags(r.domain_flags)}</td></tr>`;
-      }
-      const t = g.totals;
-      h += `<tr class="total"><td>합계</td><td></td><td></td>${["CDR1", "CDR2", "CDR3"].map((reg) => `<td>${counts(t[reg])}</td>`).join("")}<td>${counts(t.framework)}</td><td>${g.domain_flag_total ? g.domain_flag_total + "건" : "-"}</td></tr>`;
-      h += `</tbody></table></div></div>`;
+    });
+    let out = "", buf = "", cur = null;
+    const flush = () => { if (!buf) return; out += cur ? `<u title="${esc(cur)}">${esc(buf)}</u>` : esc(buf); buf = ""; };
+    for (let k = 0; k < cdr.seq.length; k++) {
+      if (marks[k] !== cur) { flush(); cur = marks[k]; }
+      buf += cdr.seq[k];
     }
-    h += `<div class="controls"><button type="button" id="copy-tsv">표 복사 (엑셀에 붙여넣기)</button><button type="button" id="copy-json">JSON 복사</button><span class="small muted" id="copy-status" role="status"></span></div>`;
-    return h;
+    flush();
+    return out;
   }
 
   function ruler(seq, cdrs, hits) {
-    const at = new Array(seq.length + 1).fill(null);
-    for (const [name, c] of Object.entries(cdrs)) for (let i = c.start; i <= c.end; i++) at[i] = name;
-    const liab = new Array(seq.length + 1).fill(null);
-    for (const x of hits || []) for (let i = x.start; i <= x.end; i++) liab[i] = (liab[i] ? liab[i] + " / " : "") + `${x.label} ${x.match} · ${x.risk}`;
-    const width = 60;
+    const at = new Array(seq.length + 2).fill(null), liab = new Array(seq.length + 2).fill(null);
+    cdrs.forEach((c) => { for (let i = c.start; i <= c.end; i++) at[i] = c.name; });
+    (hits || []).forEach((x) => { for (let i = x.start; i <= x.end; i++) liab[i] = (liab[i] ? liab[i] + " / " : "") + `${x.label} ${x.match} · ${x.risk}`; });
+    const width = 50;
     let out = "";
     for (let off = 0; off < seq.length; off += width) {
-      const pos = String(off + 1).padStart(4, " ");
       let line = "", cur = null, curL = null, buf = "";
+      const names = [];
       const flush = () => {
         if (!buf) return;
         let t = esc(buf);
-        if (curL) t = `<u class="liab" title="${esc(curL)}">${t}</u>`;
-        line += cur ? `<span class="cdr" title="${esc(cur)}">${t}</span>` : t;
+        if (curL) t = `<u title="${esc(curL)}">${t}</u>`;
+        line += cur ? `<span class="c" title="${esc(cur)}">${t}</span>` : t;
         buf = "";
       };
-      const names = [];
       for (let i = off; i < Math.min(off + width, seq.length); i++) {
+        if (i > off && (i - off) % 10 === 0) { flush(); line += " "; }
         const n = at[i + 1], l = liab[i + 1];
         if (n !== cur || l !== curL) { flush(); cur = n; curL = l; }
         buf += seq[i];
         if (n && !names.includes(n)) names.push(n);
       }
       flush();
-      out += `<span class="pos">${pos}  </span>${line}${names.length ? `  <span class="lbl">${esc(names.join(", "))}</span>` : ""}\n`;
+      out += `<span class="p">${String(off + 1).padStart(4, " ")}  </span>${line}${names.length ? `  <span class="l">${esc(names.join(", "))}</span>` : ""}\n`;
     }
     return out;
   }
 
-  function renderSequence(r, row) {
-    const a = r.annotation;
-    const id = anchorId(r.id);
-    const open = r.triage.status === "검토 필요" || !r.input_ok;
-    let h = `<details class="seq-card" id="${esc(id)}" data-cats="${cats(row).join(" ")}"${open ? " open" : ""}><summary><span class="id">${esc(r.id)}</span>${tag(r.triage.status)}`;
-    if (r.input_ok) h += `<span class="small muted">${a.chain === "H" ? "중쇄" : a.chain === "L" ? "경쇄" : "체인 미확정"} · ${r.length} 잔기 · ${a.confident ? "신뢰 가능" : "신뢰 불가"}</span>`;
-    else h += `<span class="small muted">입력 오류</span>`;
-    h += `</summary><div class="seq-body">`;
-
-    if (!r.input_ok) {
-      h += `<div class="errors"><strong>이 서열은 분석하지 않았다. 고칠 것:</strong><ul class="plain">${r.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div></div></details>`;
-      return h;
+  /* ---------- views ---------- */
+  function viewNew() {
+    const r = state.rejected;
+    let err = "";
+    if (state.inputError) err = `<div class="errbox" role="alert"><strong>${esc(state.inputError)}</strong></div>`;
+    else if (r) {
+      err = `<div class="errbox" role="alert"><strong>분석할 수 있는 서열 없음 · 고칠 것</strong>` +
+        r.sequences.map((s) => `<div><span class="mono">${esc(s.id)}</span><ul>${s.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div>`).join("") +
+        `<p class="small muted">고친 뒤 '분석하기' 를 다시 누르면 됨. 이전 결과는 그대로 유지됨.</p></div>`;
     }
-    if (r.triage.reasons.length || r.triage.note) {
-      h += `<div><h3>선별 근거</h3><ul class="plain">${r.triage.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}${r.triage.note ? `<li>${esc(r.triage.note)}</li>` : ""}</ul></div>`;
-    }
-    const msgs = [...a.reasons.map((x) => ["신뢰 불가 사유", x]), ...a.warnings.map((x) => ["주의", x]), ...r.warnings.map((x) => ["참고", x])];
-    if (msgs.length) h += `<div><h3>주석 메모</h3><ul class="plain">${msgs.map(([k, x]) => `<li><strong>${k}</strong> · ${esc(x)}</li>`).join("")}</ul></div>`;
-
-    const cdrs = a.cdrs || {};
-    if (Object.keys(cdrs).length) {
-      h += `<div class="scroll"><table><thead><tr><th>CDR</th><th>위치</th><th>길이</th><th>서열</th></tr></thead><tbody>` +
-        Object.entries(cdrs).map(([n, c]) => `<tr><td>${esc(n)}</td><td class="num">${c.start}-${c.end}</td><td class="num">${c.length}</td><td class="mono"><strong>${esc(c.seq)}</strong></td></tr>`).join("") +
-        `</tbody></table></div>`;
-    }
-    h += `<div><h3>서열</h3><p class="legend"><span><span class="cdr">ABC</span> CDR</span><span><u>NG</u> liability 모티프 (마우스를 올리면 내용)</span><span>좌표 1-based</span></p><div class="scroll"><pre class="ruler">${ruler(r.sequence, cdrs, r.liabilities ? r.liabilities.hits : [])}</pre></div></div>`;
-
-    const L = r.liabilities;
-    if (L) {
-      h += `<div><h3>liability 플래그 <span class="muted small">— CDR 안은 한 단계 올리고 framework 는 한 단계 내린다</span></h3>`;
-      if (L.domain_flags.length) h += `<ul class="plain">${L.domain_flags.map((f) => `<li><strong>${esc(f.label)} (${esc(f.risk)})</strong> · ${esc(f.rationale)}</li>`).join("")}</ul>`;
-      if (L.hits.length) {
-        h += `<div class="scroll"><table><thead><tr><th>위험도</th><th>항목</th><th>매치</th><th>위치</th><th>구간</th><th>근거</th></tr></thead><tbody>` +
-          L.hits.map((x) => `<tr><td><strong>${esc(x.risk)}</strong></td><td>${esc(x.label)}</td><td class="mono">${esc(x.match)}</td><td class="num">${x.start === x.end ? x.start : x.start + "-" + x.end}</td><td>${esc(x.region)}</td><td class="small">${esc(x.risk_note)} ${esc(x.rationale)}</td></tr>`).join("") +
-          `</tbody></table></div>`;
-      } else h += `<p class="muted small">검출된 모티프가 없다.</p>`;
-      for (const w of L.warnings) h += `<p class="small muted">${esc(w)}</p>`;
-      h += `</div>`;
-    }
-    const P = r.properties;
-    if (P) {
-      h += `<div><h3>물성 <span class="muted small">— pI(EMBOSS) · GRAVY(Kyte-Doolittle) · net charge</span></h3><div class="scroll"><table><thead><tr><th>구간</th><th>길이</th><th>pI</th><th>GRAVY</th><th>net charge (pH ${esc(Object.values(P)[0].pH)})</th></tr></thead><tbody>` +
-        Object.values(P).map((x) => `<tr><td>${esc(x.label)}</td><td class="num">${x.length}</td><td class="num">${x.pI.toFixed(2)}</td><td class="num">${x.GRAVY.toFixed(3)}</td><td class="num">${(x.net_charge > 0 ? "+" : "") + x.net_charge.toFixed(2)}</td></tr>`).join("") +
-        `</tbody></table></div><p class="small muted">CDR 별 pI 는 조각을 독립 펩타이드로 계산한 값이다 — 구간끼리 상대 비교용.</p></div>`;
-    }
-    return h + `</div></details>`;
+    return `
+      <div class="bar"><h2>새 분석</h2></div>
+      <p class="sub">VH 또는 VL 가변도메인 서열을 넣으면 CDR 위치 · liability 모티프 · 물성을 계산함. 분석은 이 브라우저 안에서만 실행됨.</p>
+      <div class="panel" style="margin-top:18px;display:grid;gap:12px">
+        <label for="input" class="small" style="font-weight:700">서열 · FASTA · 엑셀 표(이름 · 서열 두 열) · JSON</label>
+        <textarea id="input" spellcheck="false" autocomplete="off" aria-invalid="${err ? "true" : "false"}" placeholder=">후보-1&#10;QVQLVQSGAEVKKPGASVKVSCKAS...&#10;>후보-2&#10;DIQMTQSPSSLSASVGDRVTITC...">${esc(state.input)}</textarea>
+        <p class="detect" id="detect" aria-live="polite"></p>
+        <div class="controls">
+          <button class="btn fill" type="button" id="run">분석하기</button>
+          <label class="btn filebtn" for="file">파일 열기<input id="file" type="file" accept=".fasta,.fa,.faa,.fas,.txt,.csv,.tsv,.json"></label>
+          <button class="btn" type="button" id="example">예시 넣기</button>
+          <button class="btn" type="button" id="clear">지우기</button>
+          <span class="ph"><label for="ph">net charge pH</label><input id="ph" type="number" step="0.1" min="0" max="14" value="${esc(state.ph)}"></span>
+        </div>
+        ${err}
+      </div>
+      <div class="sect">
+        <h3>넣을 때 참고</h3>
+        <ul class="hints">
+          <li>파일은 입력창에 끌어다 놓아도 됨 · <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>Enter</kbd> 로 분석</li>
+          <li>공백 · 줄바꿈 · 소문자 · 정렬 갭(<code>.</code> <code>-</code>)은 자동 정리</li>
+          <li>한 서열 = VH 또는 VL 도메인 하나(70–200 잔기) · scFv · Fab 는 VH 와 VL 로 나눠서</li>
+          <li>메모장 · 엑셀이 저장한 UTF-8 · UTF-16 · cp949 파일 모두 읽음 · .xlsx 는 'CSV UTF-8' 로 저장 후 열기</li>
+        </ul>
+      </div>`;
   }
 
-  function render(p) {
-    lastPayload = p;
-    renderLimits(p);
-    let h = renderSummary(p);
-    const rowById = new Map(p.summary.rows.map((r) => [r.id, r]));
-    h += `<div class="detail-head"><h2>서열별 상세</h2><div class="controls"><button type="button" id="open-all">모두 펼치기</button><button type="button" id="close-all">모두 접기</button></div></div>`;
-    h += `<div class="section">${p.sequences.map((s) => renderSequence(s, rowById.get(s.id) || { input_ok: s.input_ok, confident: false, triage: s.triage })).join("")}</div>`;
-    $("results").innerHTML = h;
-    $("open-all").addEventListener("click", () => document.querySelectorAll(".seq-card:not([hidden])").forEach((d) => { d.open = true; }));
-    $("close-all").addEventListener("click", () => document.querySelectorAll(".seq-card").forEach((d) => { d.open = false; }));
-    $("results").querySelectorAll(".filters button").forEach((b) => b.addEventListener("click", () => { filter = b.dataset.f; applyFilter(); }));
-    applyFilter();
-    $("copy-tsv").addEventListener("click", copyTsv);
-    $("copy-json").addEventListener("click", () => copy(JSON.stringify(lastPayload, null, 2), "JSON 을 복사했다."));
+  function listView(view) {
+    const rows = state.rows, t = ABUI.tally(rows);
+    const shown = ABUI.sortRows(ABUI.filterRows(rows, { view, chain: state.chain, query: state.query }), state.sort);
+    state.openList = shown;
+    const when = state.at ? state.at.toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
+    let h = `<div class="bar"><h2>${LIST_VIEWS[view]}</h2><span class="cnt">${shown.length}건</span></div>
+      <p class="sub">${esc(LIST_LEDE[view])}</p>
+      <div class="stats">
+        <a href="#review">검토 필요<b>${t.review}</b></a>
+        <a href="#recheck">재확인 필요<b>${t.recheck}</b></a>
+        <a href="#errors">입력 오류<b>${t.errors}</b></a>
+        <span>VH<b>${t.H}</b> · VL<b>${t.L}</b></span>
+        <span class="muted">${esc(state.source)} · pH ${esc(state.ph)}${when ? " · " + esc(when) : ""}</span>
+      </div>`;
+    if (state.isExample) {
+      h += `<div class="note"><span>예시(합성 서열) 분석 결과 표시 중 · 실제 항체 서열 아님</span><a class="btn fill" href="#new">내 서열 분석하기</a></div>`;
+    }
+    h += `<div class="toolbar">
+        <div class="seg" role="group" aria-label="체인">
+          ${[["all", "전체", rows.length], ["H", "VH", t.H], ["L", "VL", t.L]].map(([k, l, n]) =>
+            `<button type="button" data-chain="${k}" aria-pressed="${state.chain === k}"${n ? "" : " disabled"}>${l}<b>${n}</b></button>`).join("")}
+        </div>
+        <label class="sr" for="sort">정렬</label>
+        <select id="sort">
+          ${[["input", "입력 순"], ["name", "이름 순"], ["pi-desc", "pI 높은 순"], ["pi-asc", "pI 낮은 순"]].map(([k, l]) =>
+            `<option value="${k}"${state.sort === k ? " selected" : ""}>${l}</option>`).join("")}
+        </select>
+        <span class="spacer"></span>
+        <button class="btn" type="button" id="copy-tsv">표 복사</button>
+        ${downloads ? `<button class="btn" type="button" id="save-csv">CSV 저장</button><button class="btn" type="button" id="save-json">JSON 저장</button>` : ""}
+      </div>`;
+    if (!shown.length) {
+      const why = state.query ? `'${esc(state.query)}' 검색 결과 없음` : `${LIST_VIEWS[view]} 서열 없음`;
+      h += `<div class="blank"><b>${why}</b>${view === "all" && !state.query ? "" : "다른 목록을 보거나 검색어를 지우면 됨."}</div>`;
+    } else {
+      const page = shown.slice(0, state.limit);
+      h += `<div class="scroll"><table class="list"><thead><tr>
+          <th>서열</th><th>분류</th><th>주석</th><th>CDR3</th><th>CDR 플래그</th><th>framework</th><th>도메인 플래그</th>
+          <th class="num">pI</th><th class="num">GRAVY</th></tr></thead><tbody>` +
+        page.map((r) => {
+          const s = seqObj(r);
+          const cdr3 = r.cdr3 ? `${markedCdr(r.cdr3, s.liabilities ? s.liabilities.hits : [])}<small>${r.cdr3.length}</small>` : `<span class="muted">-</span>`;
+          return `<tr data-i="${r.index}">
+            <td class="nowrap"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button>${chainBadge(r)}</td>
+            <td>${tag(r.status)}</td>
+            <td class="nowrap">${!r.inputOk ? "입력 오류" : r.confident ? "신뢰 가능" : "신뢰 불가"}</td>
+            <td class="seqcell">${cdr3}</td>
+            <td class="nowrap">${!r.inputOk ? "-" : r.regionsUnassigned ? "주석 실패" : ABUI.countText(r.cdrCounts)}</td>
+            <td class="nowrap">${r.inputOk ? ABUI.countText(r.fwCounts) : "-"}</td>
+            <td>${r.flags.length ? esc(r.flags.map((f) => f.label + " (" + f.risk + ")").join(", ")) : "-"}</td>
+            <td class="num">${fmt(r.pI, 2)}</td><td class="num">${fmt(r.gravy, 3)}</td></tr>`;
+        }).join("") + `</tbody></table></div>`;
+      if (shown.length > page.length) h += `<button class="btn more" type="button" id="more">나머지 ${shown.length - page.length}건 더 보기</button>`;
+    }
+    h += `<div class="foot"><p>${esc(state.payload.summary.note)}</p><p>${esc(state.payload.no_verdict)}</p></div>`;
+    return h;
   }
 
-  function tsv(p) {
-    const head = ["서열", "체인", "분류", "주석", "CDR1", "CDR2", "CDR3", "framework", "도메인 플래그", "CDR1 서열", "CDR2 서열", "CDR3 서열", "pI", "GRAVY", "net charge", "입력 오류"];
-    const lines = [head.join("\t")];
-    for (const s of p.sequences) {
-      const row = p.summary.rows.find((r) => r.id === s.id) || {};
-      const cdrs = s.annotation ? Object.values(s.annotation.cdrs || {}) : [];
-      const whole = s.properties ? Object.values(s.properties)[0] : null;
-      const reg = (k) => row.regions_unassigned ? "주석 실패" : row.regions ? counts(row.regions[k]) : "";
-      lines.push([s.id, s.annotation ? s.annotation.chain || "" : "", s.triage.status, s.input_ok ? (s.annotation.confident ? "신뢰 가능" : "신뢰 불가") : "",
-        s.input_ok ? reg("CDR1") : "", s.input_ok ? reg("CDR2") : "", s.input_ok ? reg("CDR3") : "", row.regions ? counts(row.regions.framework) : "",
-        (row.domain_flags || []).map((f) => `${f.label} (${f.risk})`).join(", "), ...[0, 1, 2].map((i) => cdrs[i] ? cdrs[i].seq : ""),
-        whole ? whole.pI : "", whole ? whole.GRAVY : "", whole ? whole.net_charge : "", s.errors.join(" / ")].map((x) => String(x).replace(/[\t\n]/g, " ")).join("\t"));
+  function compareView() {
+    const rows = ABUI.filterRows(state.rows, { view: "all", chain: "all", query: state.query }).filter((r) => r.cdrs.length);
+    state.openList = rows;
+    let h = `<div class="bar"><h2>CDR 비교</h2><span class="cnt">${rows.length}건</span></div>
+      <p class="sub">같은 체인끼리 CDR 서열을 나란히 표시. 밑줄 = liability 모티프 (마우스를 올리면 내용). 숫자 = 잔기 수.</p>`;
+    const shared = ABUI.sharedCdrs(rows);
+    if (shared.length) {
+      h += `<div class="sect"><h3>같은 CDR 서열을 가진 후보</h3><div class="callout">` +
+        shared.map((g) => `<div><strong>${esc(g.name)}</strong> <span class="mono">${esc(g.seq)}</span> — ${g.ids.map(esc).join(", ")}</div>`).join("") +
+        `</div></div>`;
     }
-    return lines.join("\n");
+    if (!rows.length) return h + `<div class="blank"><b>비교할 CDR 없음</b>CDR 주석이 성공한 서열이 없거나 검색 결과가 없음.</div>`;
+    [["H", "중쇄 (VH)", ["CDR-H1", "CDR-H2", "CDR-H3"]], ["L", "경쇄 (VL)", ["CDR-L1", "CDR-L2", "CDR-L3"]]].forEach(([chain, title, names]) => {
+      const group = rows.filter((r) => r.chain === chain);
+      if (!group.length) return;
+      h += `<div class="sect"><h3>${title} <span class="muted small">${group.length}건</span></h3><div class="scroll"><table class="list"><thead><tr>
+        <th>서열</th><th>분류</th>${names.map((n) => `<th>${n}</th>`).join("")}</tr></thead><tbody>` +
+        group.map((r) => {
+          const hits = seqObj(r).liabilities ? seqObj(r).liabilities.hits : [];
+          const cells = names.map((n) => {
+            const c = r.cdrs.find((x) => x.name === n);
+            return `<td class="seqcell">${c ? markedCdr(c, hits) + `<small>${c.length}</small>` : `<span class="muted">-</span>`}</td>`;
+          }).join("");
+          return `<tr data-i="${r.index}"><td class="nowrap"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button></td><td>${tag(r.status)}</td>${cells}</tr>`;
+        }).join("") + `</tbody></table></div></div>`;
+    });
+    return h;
   }
-  function copyTsv() { copy(tsv(lastPayload), "표를 복사했다. 엑셀에 붙여넣으면 된다."); }
-  function copy(text, done) {
-    const st = $("copy-status");
-    const fallback = () => {
-      const ta = document.createElement("textarea"); ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
-      document.body.appendChild(ta); ta.select();
-      st.textContent = "자동 복사가 막혀 있어 내용을 선택해 두었다. Ctrl+C(Mac 은 ⌘C)를 누르면 된다.";
-      setTimeout(() => ta.remove(), 15000);
+
+  function scatter(rows) {
+    const pts = rows.filter((r) => r.pI !== null && r.gravy !== null);
+    const W = 760, H = 430, m = { l: 62, r: 30, t: 20, b: 52 };
+    const xs = pts.map((r) => r.pI), ys = pts.map((r) => r.gravy);
+    const xt = ABUI.niceTicks(Math.min(...xs) - 0.3, Math.max(...xs) + 0.3, 7);
+    const yt = ABUI.niceTicks(Math.min(...ys) - 0.1, Math.max(...ys) + 0.1, 6);
+    const X = (v) => m.l + (v - xt.lo) / (xt.hi - xt.lo) * (W - m.l - m.r);
+    const Y = (v) => H - m.b - (v - yt.lo) / (yt.hi - yt.lo) * (H - m.t - m.b);
+    const label = pts.length <= 15;
+    let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="도메인 pI 와 GRAVY 산점도, 서열 ${pts.length}개">`;
+    s += `<g class="grid">` + xt.ticks.map((v) => `<line x1="${X(v)}" x2="${X(v)}" y1="${m.t}" y2="${H - m.b}"/>`).join("") +
+      yt.ticks.map((v) => `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}"/>`).join("") + `</g>`;
+    s += `<g class="axis"><line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}"/><line x1="${m.l}" x2="${m.l}" y1="${m.t}" y2="${H - m.b}"/></g>`;
+    s += xt.ticks.map((v) => `<text x="${X(v)}" y="${H - m.b + 18}" text-anchor="middle">${v}</text>`).join("");
+    s += yt.ticks.map((v) => `<text x="${m.l - 9}" y="${Y(v) + 4}" text-anchor="end">${v}</text>`).join("");
+    s += `<text class="ttl" x="${(m.l + W - m.r) / 2}" y="${H - 10}" text-anchor="middle">pI (도메인 전체)</text>`;
+    s += `<text class="ttl" transform="translate(16 ${(m.t + H - m.b) / 2}) rotate(-90)" text-anchor="middle">GRAVY</text>`;
+    s += pts.map((r) => {
+      const x = X(r.pI), y = Y(r.gravy);
+      const mark = r.chain === "L"
+        ? `<rect class="mark-l" x="${x - 5}" y="${y - 5}" width="10" height="10" rx="1.5"/>`
+        : `<circle class="mark-h" cx="${x}" cy="${y}" r="5.5"/>`;
+      // labels sit right of the point, or left of it near the right edge so they stay inside the plot
+      const right = x < W - m.r - 120;
+      const lab = label ? `<text class="lab" x="${right ? x + 9 : x - 9}" y="${y + 4}" text-anchor="${right ? "start" : "end"}">${esc(r.id)}</text>` : "";
+      return `<g class="pt" tabindex="0" role="button" data-open="${r.index}" data-x="${x}" data-y="${y}" aria-label="${esc(r.id)}, pI ${fmt(r.pI, 2)}, GRAVY ${fmt(r.gravy, 3)}">
+        <circle class="hitarea" cx="${x}" cy="${y}" r="13"/>${mark}${lab}</g>`;
+    }).join("");
+    return { svg: s + `</svg>`, count: pts.length, W };
+  }
+
+  function propertiesView() {
+    const rows = ABUI.filterRows(state.rows, { view: "all", chain: state.chain, query: state.query }).filter((r) => r.pI !== null);
+    state.openList = rows;
+    const t = ABUI.tally(state.rows);
+    let h = `<div class="bar"><h2>물성 분포</h2><span class="cnt">${rows.length}건</span></div>
+      <p class="sub">도메인 전체의 pI(EMBOSS pKa) 와 GRAVY(Kyte-Doolittle). 판정선 없음 — 어디까지 괜찮은지는 연구자가 정함. 점을 누르면 상세가 열림.</p>
+      <div class="toolbar">
+        <div class="seg" role="group" aria-label="체인">
+          ${[["all", "전체", state.rows.filter((r) => r.pI !== null).length], ["H", "VH", t.H], ["L", "VL", t.L]].map(([k, l, n]) =>
+            `<button type="button" data-chain="${k}" aria-pressed="${state.chain === k}"${n ? "" : " disabled"}>${l}<b>${n}</b></button>`).join("")}
+        </div>
+        <span class="spacer"></span>
+        <span class="key small"><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="var(--vh)"/></svg>VH</span>
+        <span class="key small"><svg width="12" height="12" aria-hidden="true"><rect x="1" y="1" width="10" height="10" rx="1.5" fill="var(--vl)"/></svg>VL</span>
+      </div>`;
+    if (!rows.length) return h + `<div class="blank"><b>표시할 서열 없음</b>입력 검증을 통과한 서열이 없거나 검색 결과가 없음.</div>`;
+    const sc = scatter(rows);
+    h += `<div class="figure" id="fig">${sc.svg}<div class="tip" id="tip" hidden></div></div>`;
+    if (sc.count > 15) h += `<p class="small muted" style="margin-top:6px">서열이 많아 이름은 점에 마우스를 올릴 때만 표시.</p>`;
+    h += `<div class="sect"><h3>값 표 <span class="muted small">net charge 는 pH ${esc(state.ph)}</span></h3><div class="scroll"><table class="list"><thead><tr>
+      <th>서열</th><th>체인</th><th class="num">길이</th><th class="num">pI</th><th class="num">GRAVY</th><th class="num">net charge</th><th class="num">CDR3 pI</th><th class="num">CDR3 GRAVY</th></tr></thead><tbody>` +
+      rows.slice(0, state.limit).map((r) => {
+        const p = seqObj(r).properties || {};
+        const c3 = r.cdr3 ? p[r.cdr3.name] : null;
+        return `<tr data-i="${r.index}"><td class="nowrap"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button></td>
+          <td>${r.chain === "H" ? "VH" : r.chain === "L" ? "VL" : "-"}</td><td class="num">${r.length}</td>
+          <td class="num">${fmt(r.pI, 2)}</td><td class="num">${fmt(r.gravy, 3)}</td><td class="num">${signed(r.charge)}</td>
+          <td class="num">${c3 ? fmt(c3.pI, 2) : "-"}</td><td class="num">${c3 ? fmt(c3.GRAVY, 3) : "-"}</td></tr>`;
+      }).join("") + `</tbody></table></div>
+      <p class="small muted">CDR 별 pI 는 조각을 독립 펩타이드로 계산한 값 — 구간끼리 상대 비교용.</p></div>`;
+    return h;
+  }
+
+  function rulesView() {
+    const s = state.payload.summary;
+    const shift = (base, step) => { const L = ["낮음", "중간", "높음"]; return L[Math.max(0, Math.min(2, L.indexOf(base) + step))]; };
+    return `<div class="bar"><h2>선별 규칙</h2></div>
+      <p class="sub">점수를 매기지 않고, 정해 둔 규칙에 걸리는지만 표시. 규칙은 연구자가 정한 것이고 도구는 그대로 적용만 함.</p>
+      <div class="sect"><h3>지금 적용 중인 규칙</h3><div class="callout">${s.triage_rules.map((d) => `<div>${esc(d)}</div>`).join("")}</div>
+        <p class="small muted">${esc(s.triage_notice)}</p></div>
+      <div class="sect"><h3>분류의 뜻</h3><div class="scroll"><table><tbody>
+        <tr><td>${tag("검토 필요")}</td><td>위 규칙에 하나 이상 걸림 · 먼저 들여다볼 서열</td></tr>
+        <tr><td>${tag("기준 해당 없음")}</td><td>규칙에 걸리지 않음 · 안전하다는 뜻은 아님</td></tr>
+        <tr><td>${tag("판정 불가")}</td><td>입력 오류 · CDR 주석 실패 · 주석 신뢰도가 낮아 CDR 경계를 믿을 수 없음 · 사람이 직접 확인</td></tr>
+      </tbody></table></div></div>
+      <div class="sect"><h3>liability 모티프와 위험도</h3>
+        <p class="small muted">같은 모티프라도 CDR 안이면 한 단계 올리고 framework 면 한 단계 내림. 선별 규칙은 각 분류에서 가장 빠른 모티프만 봄.</p>
+        <div class="scroll"><table><thead><tr><th>모티프</th><th>항목</th><th>기본</th><th>CDR 안</th><th>framework</th><th>선별 대상</th></tr></thead><tbody>` +
+        ABUI.MOTIFS.map((x) => `<tr><td class="seqcell">${esc(x.pattern)}</td><td>${esc(x.name)}</td><td>${x.base}</td><td>${shift(x.base, 1)}</td><td>${shift(x.base, -1)}</td><td>${x.top ? "예" : "-"}</td></tr>`).join("") +
+        `<tr><td class="seqcell">Cys 홀수</td><td>비결합 Cys 가능성</td><td>-</td><td>높음</td><td>중간</td><td>예 (높음일 때)</td></tr>
+        </tbody></table></div>
+        <p class="small muted">규칙 원본: abcheck/triage.py · abcheck/liabilities.py — 웹 엔진도 같은 규칙 사용.</p></div>`;
+  }
+
+  function validationView() {
+    const v = ABUI.VALIDATION;
+    return `<div class="bar"><h2>검증 기록</h2></div>
+      <p class="sub">공개 항체 레퍼토리 OAS(Observed Antibody Space) ${v.sequences} 서열, ${v.datasets}개 데이터셋으로 측정. 숫자는 저장소 스크립트로 다시 재현 가능.</p>
+      <div class="tiles">
+        <div class="tile"><span>측정한 서열</span><b>${v.sequences}</b><i>공개 데이터셋 ${v.datasets}개 · 사람 · 마우스</i></div>
+        <div class="tile"><span>체인(H/L) 오판</span><b>${v.chainWrong}</b><i>입력 검증 통과 ${v.passedInput}건 중</i></div>
+        <div class="tile"><span>CDR 주석 성공</span><b>${v.annotation}</b><i>신뢰 가능 ${v.confident}</i></div>
+        <div class="tile"><span>ANARCI 대비 CDR 경계 불일치</span><b>${v.boundary}</b><i>${v.boundaryOf} · 계열 · IMGT 길이 고정</i></div>
+      </div>
+      <div class="sect"><h3>데이터셋별</h3><div class="scroll"><table><thead><tr>
+        <th>데이터셋</th><th>세포</th><th class="num">CDR 주석 성공</th><th class="num">신뢰 가능</th><th class="num">체인 판별</th><th class="num">경계 불일치</th></tr></thead><tbody>` +
+        v.rows.map((r) => `<tr><td class="nowrap">${esc(r[0])}</td><td>${esc(r[1])}</td>${r.slice(2).map((c) => `<td class="num">${esc(c)}</td>`).join("")}</tr>`).join("") +
+        `</tbody></table></div>
+        <p class="small muted">세포 종류가 정확도를 가름 — 체세포 과변이가 적은 naive B 가 가장 높음. 실제 서열은 저장소에 넣지 않음.</p></div>
+      <div class="sect"><h3>이 화면의 엔진</h3><div class="callout">
+        <div>브라우저 엔진은 Python 도구를 JavaScript 로 옮긴 것. 같은 ${v.sequences} 서열에서 두 엔진의 결과를 글자 단위로 비교해 <strong>차이 0건</strong>.</div>
+        <div>FR3 모티프 → 보존 Cys 거리 29 잔기: ${v.fr3Gap} (예외 14건은 모두 모티프가 엉뚱한 자리에 걸린 경우)</div>
+      </div></div>
+      <div class="sect"><h3>더 보기</h3><p><a href="https://github.com/strawberryHunter/ab-seq-selfcheck/blob/main/VALIDATION.md" target="_blank" rel="noopener">측정 방법 · 실제 데이터로 찾아 고친 버그 7개 · 알려진 한계 (VALIDATION.md)</a></p></div>`;
+  }
+
+  function guideView() {
+    const p = state.payload;
+    return `<div class="bar"><h2>사용법 · 한계</h2></div>
+      <p class="sub">후보 서열을 들여다볼 순서를 정하는 스크리닝 도구. numbering 엔진이 아니고 종합 판정을 내리지 않음.</p>
+      <div class="sect"><h3>쓰는 순서</h3><ol class="steps">
+        <li><b>서열 넣기</b><p>'+ 새 분석' 에서 붙여넣기 · 파일 열기 · 끌어다 놓기. FASTA, 엑셀 표, JSON, 서열 하나 모두 가능.</p></li>
+        <li><b>먼저 볼 서열 고르기</b><p>왼쪽 '검토 필요' 와 '재확인 필요' 숫자부터 확인. 둘 다 0 이어도 안전하다는 뜻은 아님.</p></li>
+        <li><b>근거 확인</b><p>행을 누르면 CDR 위치, 서열 위 모티프 위치, 위험도 조정 이유, 물성이 한 화면에 나옴.</p></li>
+        <li><b>비교 · 내보내기</b><p>'CDR 비교' 와 '물성 분포' 로 후보를 나란히 보고, 목록의 '표 복사' 로 엑셀에 붙여넣기.</p></li>
+      </ol></div>
+      <div class="sect"><h3>이 도구의 한계</h3><div class="callout">${p.limitations.map((l) => `<div>${esc(l)}</div>`).join("")}<div><strong>${esc(p.no_verdict)}</strong></div></div></div>
+      <div class="sect"><h3>개인정보</h3><p class="sub" style="margin-top:0">분석은 이 브라우저 안에서만 실행됨. 서열은 어디로도 전송되지 않음. '최근 분석' 기록도 이 브라우저에만 저장되고 다른 사람에게 보이지 않음.</p></div>`;
+  }
+
+  /* ---------- detail sheet ---------- */
+  function sheetBody(r) {
+    const s = seqObj(r);
+    if (!s.input_ok) {
+      return `<div class="blk"><h4>분석하지 않음 · 고칠 것</h4><ul>${s.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div>`;
+    }
+    const a = s.annotation, L = s.liabilities, P = s.properties || {};
+    let h = "";
+    if (s.triage.reasons.length || s.triage.note) {
+      h += `<div class="blk"><h4>선별 근거</h4><ul>${s.triage.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}${s.triage.note ? `<li>${esc(s.triage.note)}</li>` : ""}</ul></div>`;
+    }
+    const memos = [...a.reasons.map((x) => ["신뢰 불가 사유", x]), ...a.warnings.map((x) => ["주의", x]), ...s.warnings.map((x) => ["참고", x])];
+    if (memos.length) h += `<div class="blk"><h4>주석 메모</h4><ul>${memos.map(([k, x]) => `<li><strong>${k}</strong> · ${esc(x)}</li>`).join("")}</ul></div>`;
+    if (r.cdrs.length) {
+      h += `<div class="blk"><h4>CDR · 좌표 1-based, 양끝 포함</h4><div class="scroll"><table><thead><tr><th>CDR</th><th class="num">위치</th><th class="num">길이</th><th>서열</th></tr></thead><tbody>` +
+        r.cdrs.map((c) => `<tr><td class="nowrap">${esc(c.name)}</td><td class="num">${c.start}-${c.end}</td><td class="num">${c.length}</td><td class="seqcell">${markedCdr(c, L.hits)}</td></tr>`).join("") +
+        `</tbody></table></div></div>`;
+    }
+    h += `<div class="blk"><h4>서열</h4><p class="legend"><span><span class="c">ABC</span> CDR</span><span><u>NG</u> liability 모티프 (마우스를 올리면 내용)</span></p>
+      <div class="scroll"><pre class="ruler">${ruler(s.sequence, r.cdrs, L.hits)}</pre></div></div>`;
+    h += `<div class="blk"><h4>liability 플래그 · CDR 안은 한 단계 올리고 framework 는 한 단계 내림</h4>`;
+    if (L.domain_flags.length) h += `<div class="callout">${L.domain_flags.map((f) => `<div><strong>${esc(f.label)} (${esc(f.risk)})</strong> · ${esc(f.rationale)}</div>`).join("")}</div>`;
+    h += L.hits.length
+      ? `<div class="scroll"><table><thead><tr><th>위험도</th><th>항목 · 근거</th><th class="num">위치</th><th>구간</th></tr></thead><tbody>` +
+        L.hits.map((x) => `<tr class="hit"><td>${esc(x.risk)}</td><td>${esc(x.label)} <span class="mono">${esc(x.match)}</span><span class="why">${esc(x.risk_note)} ${esc(x.rationale)}</span></td><td class="num">${x.start === x.end ? x.start : x.start + "-" + x.end}</td><td class="nowrap">${esc(x.region)}</td></tr>`).join("") +
+        `</tbody></table></div>`
+      : `<p class="small muted">검출된 모티프 없음.</p>`;
+    L.warnings.forEach((w) => { h += `<p class="small muted">${esc(w)}</p>`; });
+    h += `</div>`;
+    const props = Object.values(P);
+    if (props.length) {
+      h += `<div class="blk"><h4>물성 · pI(EMBOSS) · GRAVY(Kyte-Doolittle) · net charge pH ${esc(props[0].pH)}</h4><div class="scroll"><table><thead><tr><th>구간</th><th class="num">길이</th><th class="num">pI</th><th class="num">GRAVY</th><th class="num">net charge</th></tr></thead><tbody>` +
+        props.map((x) => `<tr><td>${esc(x.label)}</td><td class="num">${x.length}</td><td class="num">${fmt(x.pI, 2)}</td><td class="num">${fmt(x.GRAVY, 3)}</td><td class="num">${signed(x.net_charge)}</td></tr>`).join("") +
+        `</tbody></table></div></div>`;
+    }
+    return h;
+  }
+
+  function openSheet(index, opener) {
+    const r = state.rows[index];
+    if (!r) return;
+    state.open = index;
+    if (opener) state.opener = opener;
+    const list = state.openList.length ? state.openList : state.rows;
+    const pos = list.findIndex((x) => x.index === index);
+    $("sheet-title").innerHTML = `${esc(r.id)} ${tag(r.status)}`;
+    $("sheet-sub").textContent = r.inputOk
+      ? `${r.chain === "H" ? "중쇄 (VH)" : r.chain === "L" ? "경쇄 (VL)" : "체인 판별 실패"} · ${r.length} 잔기 · ${r.confident ? "주석 신뢰 가능" : "주석 신뢰 불가"}`
+      : "입력 오류";
+    $("sheet-body").innerHTML = sheetBody(r);
+    $("sheet-body").scrollTop = 0;
+    $("sheet-pos").textContent = pos >= 0 ? `${pos + 1} / ${list.length}` : "";
+    $("sheet-prev").disabled = pos <= 0;
+    $("sheet-next").disabled = pos < 0 || pos >= list.length - 1;
+    $("sheet-copy").disabled = !r.inputOk;
+    const sheet = $("sheet");
+    if (!sheet.classList.contains("on")) {
+      sheet.classList.add("on"); sheet.setAttribute("aria-hidden", "false"); $("scrim").classList.add("on");
+      $("sheet-close").focus();
+    }
+  }
+  function closeSheet() {
+    const sheet = $("sheet");
+    if (!sheet.classList.contains("on")) return;
+    sheet.classList.remove("on"); sheet.setAttribute("aria-hidden", "true"); $("scrim").classList.remove("on");
+    state.open = null;
+    if (state.opener && document.contains(state.opener)) state.opener.focus();
+    state.opener = null;
+  }
+  function stepSheet(d) {
+    const list = state.openList.length ? state.openList : state.rows;
+    const pos = list.findIndex((x) => x.index === state.open);
+    const next = list[pos + d];
+    if (next) openSheet(next.index);
+  }
+  $("sheet-close").addEventListener("click", closeSheet);
+  $("scrim").addEventListener("click", closeSheet);
+  $("sheet-prev").addEventListener("click", () => stepSheet(-1));
+  $("sheet-next").addEventListener("click", () => stepSheet(1));
+  $("sheet-copy").addEventListener("click", () => {
+    const r = state.rows[state.open];
+    if (r) copy(ABUI.toFasta([r]), r.id + " 서열을 FASTA 로 복사함");
+  });
+  document.addEventListener("keydown", (ev) => {
+    if (!$("sheet").classList.contains("on")) return;
+    if (ev.key === "Escape") { ev.preventDefault(); closeSheet(); }
+    else if (ev.key === "ArrowDown" || ev.key === "ArrowRight") { if (!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { ev.preventDefault(); stepSheet(1); } }
+    else if (ev.key === "ArrowUp" || ev.key === "ArrowLeft") { if (!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { ev.preventDefault(); stepSheet(-1); } }
+  });
+
+  /* ---------- sidebar ---------- */
+  function renderSidebar() {
+    const t = ABUI.tally(state.rows);
+    ["all", "review", "recheck", "errors"].forEach((k) => {
+      $("n-" + k).textContent = t[k];
+      $("n-" + k).parentElement.classList.toggle("zero", !t[k]);
+    });
+    document.querySelectorAll(".nav").forEach((a) => {
+      if (a.dataset.v === state.view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+    });
+    if (state.view === "new") $("nav-new").setAttribute("aria-current", "page"); else $("nav-new").removeAttribute("aria-current");
+    const list = store.get(RECENT_KEY, []);
+    $("recgroup").hidden = !list.length;
+    $("recent").innerHTML = list.map((r, i) => {
+      const d = new Date(r.at);
+      return `<button class="rec" type="button" data-rec="${i}"><span>${esc(r.fileName || r.source)}</span><small>서열 ${r.count}건 · ${d.toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</small></button>`;
+    }).join("");
+  }
+  $("recent").addEventListener("click", (ev) => {
+    const b = ev.target.closest("[data-rec]");
+    if (!b) return;
+    const r = store.get(RECENT_KEY, [])[Number(b.dataset.rec)];
+    if (!r) return;
+    state.input = r.text; state.fileName = r.fileName || "";
+    if (analyze(r.text, r.fileName || "", r.ph, false)) { toast(`${r.fileName || r.source} 다시 분석함`); go("all"); }
+    else go("new");
+  });
+  $("rec-clear").addEventListener("click", () => { store.set(RECENT_KEY, []); renderSidebar(); toast("최근 분석 기록을 지움"); });
+
+  /* ---------- render + routing ---------- */
+  function render() {
+    renderSidebar();
+    const v = state.view;
+    let html;
+    if (v === "new") html = viewNew();
+    else if (LIST_VIEWS[v]) html = listView(v);
+    else if (v === "compare") html = compareView();
+    else if (v === "properties") html = propertiesView();
+    else if (v === "rules") html = rulesView();
+    else if (v === "validation") html = validationView();
+    else html = guideView();
+    $("view").innerHTML = html;
+    bindView();
+  }
+
+  function go(view) {
+    if (location.hash !== "#" + view) location.hash = view; else { state.view = view; render(); }
+  }
+  function route() {
+    const h = (location.hash || "").replace(/^#/, "");
+    const v = VIEWS.includes(h) ? h : "all";
+    const changed = v !== state.view;
+    state.view = v;
+    closeSheet();
+    render();
+    if (changed) { window.scrollTo(0, 0); }
+  }
+  window.addEventListener("hashchange", route);
+
+  function bindView() {
+    const view = $("view");
+    view.querySelectorAll("[data-chain]").forEach((b) => b.addEventListener("click", () => { state.chain = b.dataset.chain; render(); }));
+    const sort = $("sort");
+    if (sort) sort.addEventListener("change", () => { state.sort = sort.value; render(); });
+    const more = $("more");
+    if (more) more.addEventListener("click", () => { state.limit += 300; render(); });
+    const ct = $("copy-tsv");
+    if (ct) ct.addEventListener("click", () => copy(ABUI.toTsv(state.openList), `표 ${state.openList.length}행을 복사함 · 엑셀에 붙여넣으면 됨`));
+    const sc = $("save-csv");
+    if (sc) sc.addEventListener("click", () => save(`abcheck-${stamp()}.csv`, ABUI.toCsv(state.openList)));
+    const sj = $("save-json");
+    if (sj) sj.addEventListener("click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(state.payload)));
+    // open detail from any row, link, or chart point
+    view.querySelectorAll("tr[data-i]").forEach((tr) => tr.addEventListener("click", (ev) => {
+      if (ev.target.closest("button, a")) return;
+      openSheet(Number(tr.dataset.i), tr.querySelector("[data-open]"));
+    }));
+    view.querySelectorAll("button[data-open]").forEach((b) => b.addEventListener("click", () => openSheet(Number(b.dataset.open), b)));
+    const fig = $("fig");
+    if (fig) bindFigure(fig);
+    if (state.view === "new") bindNew();
+  }
+
+  function bindFigure(fig) {
+    const tip = $("tip"), svg = fig.querySelector("svg");
+    const show = (g) => {
+      const r = state.rows[Number(g.dataset.open)];
+      const box = svg.getBoundingClientRect(), k = box.width / Number(svg.viewBox.baseVal.width);
+      tip.innerHTML = `<b>${esc(r.id)}</b> · ${r.chain === "H" ? "VH" : "VL"}<br>pI ${fmt(r.pI, 2)} · GRAVY ${fmt(r.gravy, 3)} · net charge ${signed(r.charge)}`;
+      tip.style.left = (Number(g.dataset.x) * k) + "px";
+      tip.style.top = (Number(g.dataset.y) * k) + "px";
+      tip.hidden = false;
     };
-    try { navigator.clipboard.writeText(text).then(() => { st.textContent = done; }, fallback); } catch (e) { fallback(); }
+    const hide = () => { tip.hidden = true; };
+    fig.querySelectorAll(".pt").forEach((g) => {
+      g.addEventListener("pointerenter", () => show(g));
+      g.addEventListener("pointerleave", hide);
+      g.addEventListener("focus", () => show(g));
+      g.addEventListener("blur", hide);
+      g.addEventListener("click", () => openSheet(Number(g.dataset.open), g));
+      g.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openSheet(Number(g.dataset.open), g); } });
+    });
   }
 
-  function setStatus(msg, isError) {
-    $("status").textContent = msg;
-    $("status").classList.toggle("error", !!isError);
-    $("input").setAttribute("aria-invalid", isError ? "true" : "false");
-  }
-
-  function run() {
-    const text = $("input").value;
-    if (!text.trim()) { setStatus("서열이 비어 있다. 서열이나 FASTA 를 붙여넣거나 파일을 열어라.", true); $("results").innerHTML = `<p class="empty">분석할 서열을 넣으면 여기에 결과가 나온다.</p>`; return; }
-    const ph = parseFloat($("ph").value);
-    if (!(ph >= 0 && ph <= 14)) { setStatus("pH 는 0 에서 14 사이 숫자로 넣어라.", true); $("ph").focus(); return; }
-    let entries, source;
-    try { [entries, source] = ABCHECK.readInput(text, currentName); }
-    catch (e) { setStatus("입력을 읽을 수 없다: " + e.message, true); return; }
-    if (!entries.length) { setStatus("처리할 서열이 없다.", true); return; }
-    filter = "all";
-    const p = ABCHECK.analyze(entries, ph);
-    $("detected").textContent = "";
-    if (p.sequences.every((x) => !x.input_ok)) {
-      /* Nothing passed validation: show what to fix, not a report full of empty tables. */
-      lastPayload = p; renderLimits(p);
-      $("results").innerHTML = `<div class="errors" role="alert"><strong>분석할 수 있는 서열이 없다. 고칠 것:</strong>` +
-        p.sequences.map((x) => `<div><span class="mono">${esc(x.id)}</span><ul class="plain">${x.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div>`).join("") +
-        `<p class="small muted">고친 뒤 '분석하기' 를 다시 누르면 된다.</p></div>`;
-      setStatus(`${source} — 서열 ${p.count}건 모두 입력 오류.`, true);
-      return;
-    }
-    render(p);
-    const rejected = p.sequences.filter((s) => !s.input_ok).length;
-    setStatus(`${source} — 서열 ${p.count}건 중 ${p.count - rejected}건 분석${rejected ? `, ${rejected}건은 입력 오류로 제외` : ""}.`);
-  }
-
-  let currentName = "";
+  /* ---------- new-analysis screen ---------- */
   function decode(buf) {
     const b = new Uint8Array(buf);
     if (b[0] === 0xef && b[1] === 0xbb && b[2] === 0xbf) return new TextDecoder("utf-8").decode(b.subarray(3));
     if (b[0] === 0xff && b[1] === 0xfe) return new TextDecoder("utf-16le").decode(b.subarray(2));
     if (b[0] === 0xfe && b[1] === 0xff) return new TextDecoder("utf-16be").decode(b.subarray(2));
-    try { return new TextDecoder("utf-8", { fatal: true }).decode(b); } catch (e) { /* not UTF-8 */ }
-    try { return new TextDecoder("euc-kr", { fatal: true }).decode(b); } catch (e) { /* not cp949 */ }
-    throw new Error("파일의 글자 인코딩을 알 수 없다. 메모장이나 엑셀에서 'UTF-8' 로 다시 저장한 뒤 열어라.");
+    try { return new TextDecoder("utf-8", { fatal: true }).decode(b); } catch (e) { /* not UTF-8: try the Korean code page next */ }
+    try { return new TextDecoder("euc-kr", { fatal: true }).decode(b); } catch (e) { /* neither: reported below */ }
+    throw new Error("파일의 글자 인코딩을 알 수 없음. 메모장이나 엑셀에서 'UTF-8' 로 다시 저장한 뒤 열 것.");
   }
-  function openFile(f) {
-    if (!f) return;
-    if (/\.xlsx?$/i.test(f.name)) { setStatus("엑셀 파일은 바로 읽지 않는다. 엑셀에서 '파일 → 다른 이름으로 저장 → CSV UTF-8' 로 저장한 .csv 를 열어라.", true); return; }
-    f.arrayBuffer().then((buf) => {
-      try { $("input").value = decode(buf); } catch (e) { setStatus(e.message, true); return; }
-      currentName = f.name; detect(); run();
+
+  function bindNew() {
+    const ta = $("input");
+    const detect = () => {
+      const text = ta.value;
+      if (!text.trim()) { $("detect").textContent = ""; return; }
+      try {
+        const [entries, source] = ABCHECK.readInput(text, state.fileName);
+        $("detect").textContent = `${source} · 서열 ${entries.length}개 감지`;
+      } catch (e) { $("detect").textContent = "아직 읽을 수 없는 형식: " + e.message; }
+    };
+    const run = () => {
+      state.input = ta.value;
+      const ph = parseFloat($("ph").value);
+      if (analyze(ta.value, state.fileName, ph, false)) {
+        const rej = state.payload.sequences.filter((s) => !s.input_ok).length;
+        toast(`서열 ${state.payload.count}건 분석${rej ? ` · 입력 오류 ${rej}건 제외` : ""}`);
+        go("all");
+      } else { render(); $("input").focus(); }
+    };
+    const openFile = (f) => {
+      if (!f) return;
+      if (/\.xlsx?$/i.test(f.name)) { state.inputError = "엑셀 파일은 바로 읽지 않음. 엑셀에서 '파일 → 다른 이름으로 저장 → CSV UTF-8' 로 저장한 .csv 를 열 것."; render(); return; }
+      f.arrayBuffer().then((buf) => {
+        let text;
+        try { text = decode(buf); } catch (e) { state.inputError = e.message; render(); return; }
+        state.input = text; state.fileName = f.name; ta.value = text;
+        run();
+      }, (e) => { console.error("abcheck: reading " + f.name + " failed", e); state.inputError = f.name + " 을 읽지 못함."; render(); });
+    };
+    let timer = 0;
+    ta.addEventListener("input", () => { state.input = ta.value; state.fileName = ""; clearTimeout(timer); timer = setTimeout(detect, 200); });
+    ta.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); run(); } });
+    ta.addEventListener("dragover", (ev) => { ev.preventDefault(); ta.classList.add("drag"); });
+    ta.addEventListener("dragleave", () => ta.classList.remove("drag"));
+    ta.addEventListener("drop", (ev) => { ev.preventDefault(); ta.classList.remove("drag"); openFile(ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]); });
+    $("file").addEventListener("change", (ev) => { openFile(ev.target.files && ev.target.files[0]); ev.target.value = ""; });
+    $("run").addEventListener("click", run);
+    $("example").addEventListener("click", () => {
+      state.input = EXAMPLE; state.fileName = "";
+      if (analyze(EXAMPLE, "", parseFloat($("ph").value) || 7.4, true)) go("all");
     });
+    $("clear").addEventListener("click", () => { state.input = ""; state.fileName = ""; state.inputError = ""; state.rejected = null; render(); $("input").focus(); });
+    detect();
   }
-  $("file").addEventListener("change", (ev) => { openFile(ev.target.files && ev.target.files[0]); ev.target.value = ""; });
-  const ta = $("input");
-  ta.addEventListener("dragover", (ev) => { ev.preventDefault(); ta.classList.add("drag"); });
-  ta.addEventListener("dragleave", () => ta.classList.remove("drag"));
-  ta.addEventListener("drop", (ev) => {
-    ev.preventDefault(); ta.classList.remove("drag");
-    openFile(ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]);
+
+  /* ---------- search + theme ---------- */
+  let qTimer = 0;
+  $("q").addEventListener("input", () => {
+    clearTimeout(qTimer);
+    qTimer = setTimeout(() => {
+      state.query = $("q").value; state.limit = 300;
+      $("q-clear").hidden = !state.query;
+      if (!["all", "review", "recheck", "errors", "compare", "properties"].includes(state.view)) go("all"); else render();
+    }, 150);
   });
-  ta.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); run(); } });
-  let detectTimer = 0;
-  function detect() {
-    const text = ta.value;
-    if (!text.trim()) { $("detected").textContent = ""; return; }
-    try {
-      const [entries, source] = ABCHECK.readInput(text, currentName);
-      $("detected").textContent = `${source} · 서열 ${entries.length}개 감지 — '분석하기' 를 누르면 결과가 갱신된다.`;
-    } catch (e) { $("detected").textContent = "아직 읽을 수 없는 형식이다: " + e.message; }
+  $("q-clear").addEventListener("click", () => { $("q").value = ""; state.query = ""; $("q-clear").hidden = true; render(); $("q").focus(); });
+
+  function effectiveTheme() {
+    const set = document.documentElement.getAttribute("data-theme");
+    if (set === "dark" || set === "light") return set;
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
-  ta.addEventListener("input", () => { currentName = ""; setStatus(""); clearTimeout(detectTimer); detectTimer = setTimeout(detect, 250); });
-  $("run").addEventListener("click", run);
-  $("example").addEventListener("click", () => { $("input").value = EXAMPLE; currentName = ""; detect(); run(); });
-  $("clear").addEventListener("click", () => { $("input").value = ""; currentName = ""; detect(); setStatus(""); $("input").focus(); });
-  $("results").addEventListener("click", (ev) => {
-    const a = ev.target.closest("a[data-open]");
-    if (!a) return;
-    const card = document.getElementById(a.dataset.open);
-    if (card) {
-      if (card.hidden) { filter = "all"; applyFilter(); }
-      card.open = true;
-    }
+  const savedTheme = store.get(THEME_KEY, null);
+  if (savedTheme === "dark" || savedTheme === "light") document.documentElement.setAttribute("data-theme", savedTheme);
+  $("theme").addEventListener("click", () => {
+    const next = effectiveTheme() === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    store.set(THEME_KEY, next);
   });
 
-  /* Open in a working state: the synthetic example, analysed. */
-  $("input").value = EXAMPLE;
-  detect();
-  run();
-  setStatus("예시(합성 서열)를 분석해 두었다. 자기 서열을 붙여넣거나 파일을 열고 '분석하기'를 누르면 된다.");
+  /* ---------- start in a working state: the synthetic example, analysed ---------- */
+  if (!analyze(EXAMPLE, "", 7.4, true)) console.error("abcheck: the built-in example failed to analyse", state.inputError, state.rejected);
+  route();
 })();
 </script>
