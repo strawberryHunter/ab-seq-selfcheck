@@ -438,27 +438,37 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     try { navigator.clipboard.writeText(text).then(() => toast(done), fallback); }
     catch (e) { fallback(e); }
   }
-  let downloads = null;
-  if (window.claude && typeof window.claude.use === "function") {
-    window.claude.use("downloads").then((d) => { downloads = d; },
-      (e) => console.warn("abcheck: downloads capability did not load", e));
-  }
+  /* Saving a file: inside the artifact viewer only the downloads capability can do it (a
+     plain download link is inert there, so claiming "saved" would be false); as a plain
+     file in a browser an ordinary download works. */
+  const inViewer = !!(window.claude && typeof window.claude.use === "function");
+  const downloadsReady = inViewer
+    ? window.claude.use("downloads").catch((e) => { console.warn("abcheck: downloads capability did not load", e); return null; })
+    : Promise.resolve(null);
   function save(filename, data, mime) {
-    if (downloads) {
-      downloads.save({ filename, data }).then(() => toast(filename + " 저장"), (e) => {
-        const code = e && e.code;
-        if (code === "declined") toast("저장 취소");
-        else if (code === "rate_limited") toast("저장 창이 이미 열려 있음");
-        else { console.error("abcheck: saving " + filename + " failed", e); toast("저장 실패 · Excel용 복사 사용"); }
-      });
-      return;
-    }
-    // Opened as a plain file (outside the artifact viewer): an ordinary browser download.
-    const url = URL.createObjectURL(new Blob([data], { type: mime }));
-    const a = document.createElement("a");
-    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
-    toast(filename + " 저장");
+    downloadsReady.then((dl) => {
+      if (dl) {
+        return dl.save({ filename, data }).then(() => toast(filename + " 저장"), (e) => {
+          const code = e && e.code;
+          if (code === "declined") toast("저장 취소");
+          else if (code === "rate_limited") toast("저장 창이 이미 열려 있음");
+          else { console.error("abcheck: saving " + filename + " failed", e); copy(data, "파일 저장 불가 · 내용을 복사함"); }
+        });
+      }
+      if (inViewer) return copy(data, "파일 저장 불가 · 내용을 복사함");
+      const url = URL.createObjectURL(new Blob([data], { type: mime }));
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast(filename + " 저장");
+    });
+  }
+  /** Read pasted or loaded text. Pasted tables and JSON go through the engine's own readers. */
+  function readText(text, fileName) {
+    if (fileName) return ABCHECK.readInput(text, fileName);
+    const kind = ABUI.pastedKind(text);
+    if (!kind) return ABCHECK.readInput(text, "");
+    return [ABCHECK.readInput(text, "pasted" + kind)[0], kind === ".json" ? "붙여넣은 JSON" : "붙여넣은 표"];
   }
   const pad = (n) => String(n).padStart(2, "0");
   const stamp = () => { const d = state.at || new Date(); return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + "-" + pad(d.getHours()) + pad(d.getMinutes()); };
@@ -520,7 +530,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (!String(text).trim()) return fail("입력이 비어 있음", "서열 · FASTA 붙여넣기 또는 파일 열기");
     if (!(ph >= 0 && ph <= 14)) return fail("pH 값이 범위를 벗어남", "0–14 사이 숫자 입력");
     let entries, source;
-    try { [entries, source] = ABCHECK.readInput(text, fileName); }
+    try { [entries, source] = readText(text, fileName); }
     catch (e) { return fail(e.message, "형식을 고친 뒤 다시 분석"); }
     if (!entries.length) return fail("읽은 서열이 없음", "FASTA 는 '>' 줄 아래에 서열 필요");
     run(() => finish(analyzeEntries(entries, source, ph, Object.assign({ text }, opts || {}))), entries.length);
@@ -1106,7 +1116,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const ta = $("input");
     const detect = () => {
       if (!ta.value.trim()) { $("detect").textContent = ""; return; }
-      try { const [entries, source] = ABCHECK.readInput(ta.value, state.fileName); $("detect").textContent = `${source} · 서열 ${entries.length}개`; }
+      try { const [entries, source] = readText(ta.value, state.fileName); $("detect").textContent = `${source} · 서열 ${entries.length}개`; }
       catch (e) { $("detect").textContent = "읽을 수 없는 형식"; }
     };
     const start = () => analyzeText(ta.value, state.fileName, parseFloat($("ph").value));
@@ -1237,7 +1247,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     catch (e) { console.error("abcheck: the stored last analysis could not be restored", e); }
   }
   if (!started) {
-    const [entries, source] = ABCHECK.readInput(EXAMPLE, "");
+    const [entries, source] = readText(EXAMPLE, "");
     if (!analyzeEntries(entries, source, 7.4, { example: true })) console.error("abcheck: the built-in example failed to analyse", state.rejected);
   }
   route();

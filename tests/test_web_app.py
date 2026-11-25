@@ -264,6 +264,34 @@ def test_combine_entries_from_several_files():
 
 
 @needs_node
+def test_pasted_tables_are_recognised():
+    """Rows copied from Excel used to be read as one sequence and fail with a misleading error."""
+    out = _node("""
+      const s = entries.map(e => e[1]);
+      const kinds = {
+        fasta: ABUI.pastedKind(">a\\n" + s[0]),
+        single: ABUI.pastedKind(s[0]),
+        wrapped: ABUI.pastedKind(s[0].slice(0, 60) + "\\n" + s[0].slice(60)),
+        rows: ABUI.pastedKind("mAb1_VH\\t" + s[0] + "\\nmAb1_VL\\t" + s[2]),
+        header: ABUI.pastedKind("이름\\t서열\\r\\nmAb1_VH\\t" + s[0] + "\\r\\n"),
+        column: ABUI.pastedKind(s[0] + "\\n" + s[2] + "\\n"),
+        csv: ABUI.pastedKind("id,sequence\\nx," + s[0]),
+        json: ABUI.pastedKind('  [{"id": "x"}]'),
+        empty: ABUI.pastedKind("  "),
+      };
+      const read = (t) => ABCHECK.readInput(t, "pasted" + ABUI.pastedKind(t))[0].map(e => e[0]);
+      console.log(JSON.stringify({kinds,
+        rows: read("mAb1_VH\\t" + s[0] + "\\nmAb1_VL\\t" + s[2]),
+        header: read("이름\\t서열\\nmAb1_VH\\t" + s[0]),
+        column: read(s[0] + "\\n" + s[2])}));""")
+    assert out["kinds"] == {"fasta": "", "single": "", "wrapped": "", "rows": ".tsv", "header": ".tsv",
+                            "column": ".tsv", "csv": ".csv", "json": ".json", "empty": ""}
+    assert out["rows"] == ["mAb1_VH", "mAb1_VL"]
+    assert out["header"] == ["mAb1_VH"]
+    assert out["column"] == ["seq1", "seq2"]
+
+
+@needs_node
 def test_shared_cdrs_finds_identical_cdrs():
     out = _node("""
       const rows = ABUI.buildRows(ABCHECK.analyze([["a", entries[0][1]], ["b", entries[0][1]], ["c", entries[2][1]]], 7.4));

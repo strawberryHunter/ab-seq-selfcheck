@@ -321,6 +321,26 @@
     return { entries: entries, source: source };
   }
 
+  /**
+   * What pasted text is, when it is not FASTA or a single sequence: ".tsv" (rows copied from
+   * Excel: name<TAB>sequence, or one sequence per line), ".csv", ".json", or "" (let the
+   * engine treat it as FASTA / one raw sequence). The app then asks the engine to read it
+   * as a file of that kind, so the engine's own table and JSON readers do the work.
+   */
+  function pastedKind(text) {
+    var t = String(text).trim();
+    if (!t || t.charAt(0) === ">") return "";
+    if (t.charAt(0) === "{" || t.charAt(0) === "[") return ".json";
+    var lines = t.split(/\r?\n/).filter(function (l) { return l.trim(); });
+    if (lines.every(function (l) { return l.indexOf("\t") >= 0; })) return ".tsv";
+    if (lines.every(function (l) { return l.indexOf(",") >= 0; })) return ".csv";
+    // One domain per line (a single column copied from Excel). A wrapped single sequence
+    // has short lines (60-80 residues with a shorter last line), so require every line to
+    // be a whole domain by itself.
+    if (lines.length >= 2 && lines.every(function (l) { var n = l.replace(/\s+/g, "").length; return n >= 70 && n <= 200; })) return ".tsv";
+    return "";
+  }
+
   /* ------------------------------------------------------------------ exports */
 
   var TABLE_HEAD = ["순번", "서열 이름", "체인", "분류", "주석", "CDR1", "CDR2", "CDR3",
@@ -468,7 +488,7 @@
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
-    combineEntries: combineEntries, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
+    combineEntries: combineEntries, pastedKind: pastedKind, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
 });
