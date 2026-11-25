@@ -285,7 +285,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   background: var(--text); color: var(--card); border-radius: 10px; padding: 10px 16px; font-weight: 700;
   opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; max-width: calc(100vw - 32px);
 }
-.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.toast.on { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.toast button { margin-left: 12px; border: 1px solid currentColor; background: none; color: inherit; border-radius: 10px; padding: 2px 10px; font-weight: 700; }
 
 @media (max-width: 1024px) {
   .app { grid-template-columns: minmax(0, 1fr); }
@@ -2980,7 +2981,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const ui = Object.assign({ chain: "all", conf: "all", sort: "input", view: "all" }, store.get(K.ui, {}));
   const state = {
     payload: null, rows: [], source: "", ph: 7.4, at: null, isExample: false, recentId: null,
-    view: "all", query: "", limit: PAGE, hero: 0, picked: new Set(),
+    view: "all", query: "", limit: PAGE, tableLimit: 200, hero: 0, picked: new Set(),
     input: "", fileName: "", error: null, rejected: null,
     rules: { active: "default", sets: [] }, pairs: {},
     open: null, openList: [], opener: null
@@ -2989,10 +2990,17 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
 
   /* ---------- toast, clipboard, files ---------- */
   let toastTimer = 0;
-  function toast(msg) {
+  function toast(msg, action, fn) {
     const t = $("toast");
-    t.textContent = msg; t.classList.add("on");
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), 2800);
+    t.textContent = msg;
+    if (action) {
+      const b = document.createElement("button");
+      b.type = "button"; b.textContent = action;
+      b.addEventListener("click", () => { t.classList.remove("on"); fn(); });
+      t.appendChild(b);
+    }
+    t.classList.add("on");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("on"), action ? 6000 : 2800);
   }
   function copy(text, done) {
     const fallback = (err) => {
@@ -3431,6 +3439,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function viewCompare() {
     const rows = ABUI.filterRows(state.rows, { view: "all", query: state.query }).filter((r) => r.cdrs.length);
     state.openList = rows;
+    let more = 0;
     let h = `<div class="titlebar"><h1>CDR 비교</h1><span class="cnt num">${rows.length}건</span></div>`;
     if (!rows.length) return h + `<div class="blank"><span>비교할 CDR 없음</span></div>`;
     const shared = ABUI.sharedCdrs(rows);
@@ -3443,10 +3452,12 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       const group = rows.filter((r) => r.chain === chain);
       if (!group.length) return;
       h += `<section class="card"><div class="scroll"><table><thead><tr><th>${title} ${group.length}</th><th>분류</th>${names.map((n) => `<th>${n}</th>`).join("")}</tr></thead><tbody>` +
-        group.map((r) => `<tr class="click" data-i="${r.index}"><td class="nw"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button></td><td>${tag(r)}</td>` +
+        group.slice(0, state.tableLimit).map((r) => `<tr class="click" data-i="${r.index}"><td class="nw"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button></td><td>${tag(r)}</td>` +
           names.map((n) => { const c = r.cdrs.find((x) => x.name === n); return `<td class="seqcell">${c ? marked(c, r.hits) + `<small>${c.length}</small>` : "-"}</td>`; }).join("") + `</tr>`).join("") +
         `</tbody></table></div></section>`;
+      if (group.length > state.tableLimit) more = Math.max(more, group.length - state.tableLimit);
     });
+    if (more) h += `<div class="row"><button class="btn" type="button" id="more-rows">체인별 ${more}건 더 보기</button></div>`;
     return h;
   }
 
@@ -3631,7 +3642,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const h = (location.hash || "").replace(/^#/, "");
     const v = VIEWS.includes(h) ? h : !h && VIEWS.includes(ui.view) ? ui.view : "all";
     const changed = v !== state.view;
-    state.view = v; state.limit = PAGE;
+    state.view = v; state.limit = PAGE; state.tableLimit = 200;
     closeSheet(); closeMenu(); saveUi();
     render();
     if (changed) window.scrollTo(0, 0);
@@ -3654,6 +3665,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     on("f-sort", "change", (e) => { ui.sort = e.target.value; saveUi(); render(); });
     on("f-reset", "click", () => { ui.chain = "all"; ui.conf = "all"; state.query = ""; $("q").value = ""; saveUi(); render(); });
     on("more", "click", () => { state.limit += PAGE; render(); });
+    on("more-rows", "click", () => { state.tableLimit += 200; render(); });
     on("x-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name), `표 ${state.openList.length}행 복사`));
     on("x-mail", "click", () => copy(ABUI.toMailText(state.rows, meta()), "메일용 글 복사"));
     on("x-fasta", "click", () => { const n = state.openList.filter((r) => r.inputOk).length; copy(ABUI.toFasta(state.openList), `FASTA ${n}건 복사`); });
@@ -3743,8 +3755,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     });
     on("r-del", "click", () => {
       const rs = editable(); if (!rs) return;
+      const at = state.rules.sets.indexOf(rs);
       state.rules.sets = state.rules.sets.filter((s) => s.id !== rs.id); state.rules.active = "default";
-      changed(); toast(`${rs.name} 삭제`);
+      changed();
+      toast(`${rs.name} 삭제`, "되돌리기", () => { state.rules.sets.splice(at, 0, rs); state.rules.active = rs.id; changed(); });
     });
     on("r-name", "change", (e) => {
       const rs = editable(); if (!rs) return;
