@@ -189,6 +189,15 @@ select, input[type="text"], input[type="number"] { border: 1px solid var(--line)
 .cstate { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cfoot .s13 { color: var(--muted); }
+.cand.ab { cursor: default; }
+.abrow { display: grid; gap: 4px; width: 100%; min-width: 0; border: none; background: none; padding: 0; text-align: left; cursor: pointer; }
+.abrow + .abrow { border-top: 1px solid var(--line); padding-top: 8px; }
+.abtop { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.abrow:hover .abseq.seq { color: var(--brand); }
+.abseq { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.abseq.seq { font-family: var(--fm); font-size: 17px; color: var(--text); }
+.abseq .k { font-family: var(--ff); font-size: 13px; color: var(--muted); margin-right: 8px; }
+.cfoot .row { flex-wrap: nowrap; }
 u.m { text-decoration: underline 2px; text-underline-offset: 3px; text-decoration-color: currentColor; cursor: help; }
 
 /* ---------- tables ---------- */
@@ -2728,6 +2737,20 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return rest.length ? rest.join("-").toLowerCase() : null;
   }
 
+  /** An antibody's display name from one chain's name: the name without its chain token
+      ("mAb02_VH" -> "mAb02", "SYN-VL-003" -> "SYN-003"). null when there is no chain token. */
+  function pairName(id) {
+    var parts = String(id).split(/([-_. ]+)/);   // tokens at even positions, separators at odd
+    for (var i = 0; i < parts.length; i += 2) {
+      if (CHAIN_TOKEN.test(parts[i])) {
+        if (i > 0) parts.splice(i - 1, 2); else parts.splice(i, 2);
+        return parts.join("") || null;
+      }
+    }
+    var m = /^(.*[0-9a-z])(VH|VL|HC|LC)$/.exec(String(id));
+    return m ? m[1] : null;
+  }
+
   /** Partner chains by name: {index: partnerIndex} for names that differ only in the chain
       token and whose chains the engine called H and L. Ambiguous groups are left unpaired. */
   function pairMap(rows) {
@@ -2756,6 +2779,27 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       var partner = byIndex[pairs[r.index]];
       var first = partner && !done[partner.index] && partner.chain === "H" ? partner : r;
       [first, first === r ? partner : r].forEach(function (x) { if (x && !done[x.index]) { done[x.index] = true; out.push(x); } });
+    });
+    return out;
+  }
+
+  /**
+   * Cards for the antibody view. A listed row that has a partner becomes one unit
+   * {name, h, l} -- the partner is attached even when the current filter left it out, so an
+   * antibody always shows both chains. Other rows stay single: {row}. Order of first
+   * appearance. The two chains keep their own triage results; nothing is merged.
+   */
+  function antibodyUnits(shown, all, pairs) {
+    var done = {}, out = [];
+    shown.forEach(function (r) {
+      if (done[r.index]) return;
+      var p = pairs[r.index];
+      done[r.index] = true;
+      if (p === undefined) { out.push({ row: r }); return; }
+      done[p] = true;
+      var partner = all[p];
+      var h = r.chain === "H" ? r : partner, l = r.chain === "H" ? partner : r;
+      out.push({ name: pairName(h.id) || h.id, h: h, l: l });
     });
     return out;
   }
@@ -2844,6 +2888,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     ];
     var section = function (title, list, line) {
       if (!list.length) return;
+      if (meta.pairs) list = withPartnersAdjacent(list, meta.pairs);   // an antibody's two chains on adjacent lines
       out.push("", title);
       list.forEach(function (r) { out.push("- " + r.id + (r.chain ? " (" + chainName(r) + ")" : "") + ": " + line(r)); });
     };
@@ -2927,7 +2972,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
-    combineEntries: combineEntries, pastedKind: pastedKind, pairKey: pairKey, pairMap: pairMap,
+    combineEntries: combineEntries, pastedKind: pastedKind, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
@@ -2978,7 +3023,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   };
   const K = { recent: "abcheck.recent.v2", theme: "abcheck.theme.v2", ui: "abcheck.ui.v1", rules: "abcheck.rules.v1" };
 
-  const ui = Object.assign({ chain: "all", conf: "all", sort: "input", view: "all" }, store.get(K.ui, {}));
+  const ui = Object.assign({ chain: "all", conf: "all", sort: "input", unit: "seq", view: "all" }, store.get(K.ui, {}));
   const state = {
     payload: null, rows: [], source: "", ph: 7.4, at: null, isExample: false, recentId: null,
     view: "all", query: "", limit: PAGE, tableLimit: 200, hero: 0, picked: new Set(),
@@ -2986,7 +3031,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     rules: { active: "default", sets: [] }, pairs: {},
     open: null, openList: [], opener: null
   };
-  const saveUi = () => store.set(K.ui, { chain: ui.chain, conf: ui.conf, sort: ui.sort, view: state.view });
+  const saveUi = () => store.set(K.ui, { chain: ui.chain, conf: ui.conf, sort: ui.sort, unit: ui.unit, view: state.view });
 
   /* ---------- toast, clipboard, files ---------- */
   let toastTimer = 0;
@@ -3066,7 +3111,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const rules = () => state.rules.sets.find((s) => s.id === state.rules.active) || ABUI.DEFAULT_RULESET;
   const saveRules = () => store.set(K.rules, state.rules);
   const retriage = () => { if (state.payload) { state.rows = ABUI.buildRows(state.payload, rules()); state.pairs = ABUI.pairMap(state.rows); } };
-  const meta = () => ({ ruleName: rules().name, when: when(state.at) });
+  const meta = () => ({ ruleName: rules().name, when: when(state.at), pairs: state.pairs });
 
   /* ---------- analysis ---------- */
   function setBusy(msg) { $("busy").innerHTML = msg ? `<div class="busy" role="status"><div>${esc(msg)}</div></div>` : ""; }
@@ -3245,12 +3290,24 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       ${nav}</section>`;
   }
 
-  function candCard(r) {
-    let title, sub = "", stateLine;
+  /** The numbers line of one chain: motif counts by region, Cys flag, pI, length. */
+  function stateLineOf(r) {
+    if (!r.inputOk) return "분석 안 함";
     const cnt = (c) => { const x = ABUI.countText(c); return x === "-" ? "없음" : x; };
+    const parts = [];
+    if (!r.regionsUnassigned) parts.push("CDR " + cnt(r.cdrCounts));
+    parts.push((r.regionsUnassigned ? "모티프 " : "FR ") + cnt(r.fwCounts));
+    if (r.flags.length) parts.push("비결합 Cys");
+    parts.push("pI " + fmt(r.pI, 2), r.length + " aa");
+    return parts.join(" · ");
+  }
+
+  function candCard(r) {
+    let title, sub = "";
+    const stateLine = stateLineOf(r);
+    const partner = state.rows[state.pairs[r.index]];
     if (!r.inputOk) {
       title = `<div class="ctitle why">${esc(first(r.errors[0] || ""))}</div>`;
-      stateLine = "분석 안 함";
     } else {
       // not confident: say why on the card itself (the engine's own first reason)
       const reasons = seqObj(r).annotation.reasons;
@@ -3262,18 +3319,31 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         sub = why ? `<div class="csub" title="${esc(why)}">${esc(why)}</div>`
           : `<div class="csub seq">${r.cdrs.slice(0, 2).map((c) => esc(c.name.slice(-2) + " " + c.seq)).join(" · ")}</div>`;
       }
-      const parts = [];
-      if (!r.regionsUnassigned) parts.push("CDR " + cnt(r.cdrCounts));
-      parts.push((r.regionsUnassigned ? "모티프 " : "FR ") + cnt(r.fwCounts));
-      if (r.flags.length) parts.push("비결합 Cys");
-      parts.push("pI " + fmt(r.pI, 2), r.length + " aa");
-      stateLine = parts.join(" · ");
     }
     return `<article class="card cand" data-i="${r.index}">
       <div class="chead"><span class="chain">${chainText(r)}</span><button class="cname" type="button" data-open="${r.index}">${esc(r.id)}</button>${r.inputOk ? pickBtn(r) : ""}</div>
       ${title}${sub}
       <div class="cstate" title="${esc(stateLine)}">${esc(stateLine)}</div>
-      <div class="cfoot">${tag(r)}<span class="s13">${r.inputOk ? (r.confident ? "신뢰 가능" : "신뢰 불가") : ""}</span></div>
+      <div class="cfoot">${tag(r)}<span class="row s13">${partner ? `<button class="chip" type="button" data-open="${partner.index}" title="${esc(partner.id)}">짝 ${chainText(partner)}</button>` : ""}<span>${r.inputOk ? (r.confident ? "신뢰 가능" : "신뢰 불가") : ""}</span></span></div>
+    </article>`;
+  }
+
+  /** One antibody = its two chains on one card. Each chain keeps its own tag: nothing is merged. */
+  function abCard(u) {
+    const block = (r) => {
+      const reasons = seqObj(r).annotation.reasons;
+      const why = !r.confident && reasons.length ? first(reasons[0]) : "";
+      const body = r.cdr3 ? `<span class="k">${r.cdr3.name.slice(-2)}</span>${marked(r.cdr3, r.hits)}` : esc(why || "CDR 주석 실패");
+      const under = r.cdr3 && why ? why : stateLineOf(r);
+      return `<button class="abrow" type="button" data-open="${r.index}" aria-label="${esc(r.id)} 상세">
+        <span class="abtop"><span class="chain">${chainText(r)}</span><span class="abseq${r.cdr3 ? " seq" : ""}">${body}</span>${tag(r)}</span>
+        <span class="cstate" title="${esc(under)}">${esc(under)}</span></button>`;
+    };
+    const both = state.picked.has(u.h.index) && state.picked.has(u.l.index);
+    return `<article class="card cand ab">
+      <div class="chead"><span class="chain">VH+VL</span><span class="cname">${esc(u.name)}</span>
+        <button class="pick" type="button" data-pick-pair="${u.h.index},${u.l.index}" aria-pressed="${both}" aria-label="${esc(u.name)} 두 체인 고르기" title="한 장에 넣기">${icon("bookmark")}</button></div>
+      ${block(u.h)}${block(u.l)}
     </article>`;
   }
 
@@ -3281,11 +3351,15 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const t = ABUI.tally(state.rows, state.picked);
     if (!state.payload) return hero(t) + `<div class="blank"><span>분석한 후보 없음</span></div>`;
     const shown = ABUI.sortRows(ABUI.filterRows(state.rows, { view, chain: ui.chain, conf: ui.conf, query: state.query, picked: state.picked }), ui.sort);
-    state.openList = shown;
     const cur = (v) => (view === v ? ' aria-current="true"' : "");
     const opt = (list, val) => list.map(([k, l]) => `<option value="${k}"${val === k ? " selected" : ""}>${l}</option>`).join("");
     let h = view === "all" && !state.query ? hero(t) : "";
-    h += `<div class="titlebar"><h1>${LISTS[view]}</h1><span class="cnt num">${shown.length}건</span>
+    const hasPairs = Object.keys(state.pairs).length > 0;
+    const units = hasPairs && ui.unit === "ab" ? ABUI.antibodyUnits(shown, state.rows, state.pairs) : null;
+    state.openList = units ? units.flatMap((u) => (u.h ? [u.h, u.l] : [u.row])) : shown;
+    const nPairs = units ? units.filter((u) => u.h).length : 0;
+    const count = units ? `항체 ${nPairs}쌍${units.length > nPairs ? ` · 단독 ${units.length - nPairs}건` : ""}` : `${shown.length}건`;
+    h += `<div class="titlebar"><h1>${LISTS[view]}</h1><span class="cnt num">${count}</span>
         <div class="row"><button class="btn" type="button" id="x-tsv">Excel용 복사</button><button class="btn" type="button" id="x-mail">메일용 복사</button>
           <button class="btn" type="button" id="x-fasta" title="ANARCI · IMGT 에 붙여넣기용">FASTA 복사</button>
           <button class="btn" type="button" id="x-csv">CSV</button><button class="btn" type="button" id="x-json">JSON</button></div></div>
@@ -3304,6 +3378,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
           ${[["all", "전체", t.all], ["review", "검토 필요", t.review], ["unknown", "판정 불가", t.unknown], ["clear", "기준 해당 없음", t.clear]].map(([k, l, n]) =>
             `<a href="#${k}"${cur(k)}>${l} <b>${n}</b></a>`).join("")}
         </div>
+        ${hasPairs ? `<div class="seg" role="group" aria-label="단위">${[["seq", "서열"], ["ab", "항체"]].map(([k, l]) => `<button type="button" data-unit="${k}" aria-pressed="${ui.unit === k}">${l}</button>`).join("")}</div>` : ""}
         <label class="sr" for="f-sort">정렬</label><select id="f-sort" class="spacer">${opt([["input", "입력 순"], ["name", "이름 순"], ["pi-desc", "pI 높은 순"], ["pi-asc", "pI 낮은 순"]], ui.sort)}</select>
       </div>`;
     if (!shown.length) {
@@ -3311,8 +3386,9 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       const msg = view === "picked" && !filtered ? "고른 후보 없음 · 카드의 북마크로 고르기" : filtered ? "조건에 맞는 후보 없음" : `${LISTS[view]} 후보 없음`;
       h += `<div class="blank"><span>${msg}</span>${filtered ? `<button class="btn" type="button" id="f-reset">필터 지우기</button>` : ""}</div>`;
     } else {
-      h += `<div class="grid">${shown.slice(0, state.limit).map(candCard).join("")}</div>`;
-      if (shown.length > state.limit) h += `<div class="row"><button class="btn" type="button" id="more">${shown.length - state.limit}건 더 보기</button></div>`;
+      const cards = units ? units.map((u) => (u.h ? abCard(u) : candCard(u.row))) : shown.map(candCard);
+      h += `<div class="grid">${cards.slice(0, state.limit).join("")}</div>`;
+      if (cards.length > state.limit) h += `<div class="row"><button class="btn" type="button" id="more">${cards.length - state.limit}건 더 보기</button></div>`;
     }
     return h;
   }
@@ -3395,8 +3471,19 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function togglePick(index) {
     if (state.picked.has(index)) state.picked.delete(index); else state.picked.add(index);
     savePicked();
-    document.querySelectorAll(`[data-pick="${index}"]`).forEach((b) => b.setAttribute("aria-pressed", String(state.picked.has(index))));
     if (state.open === index) $("sheet-pick").setAttribute("aria-pressed", String(state.picked.has(index)));
+    refreshPicks();
+  }
+  /** Bookmark of an antibody card: both chains in, or both out. */
+  function togglePair(h, l) {
+    const both = state.picked.has(h) && state.picked.has(l);
+    [h, l].forEach((i) => { if (both) state.picked.delete(i); else state.picked.add(i); });
+    savePicked();
+    refreshPicks();
+  }
+  function refreshPicks() {
+    document.querySelectorAll("[data-pick]").forEach((b) => b.setAttribute("aria-pressed", String(state.picked.has(Number(b.dataset.pick)))));
+    document.querySelectorAll("[data-pick-pair]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.pickPair.split(",").every((i) => state.picked.has(Number(i))))));
     renderSidebar();
     if (state.view === "picked" || state.view === "onepage") render();
     else { const b = document.querySelector('.stat[href="#picked"] b'); if (b) b.textContent = state.picked.size; }
@@ -3592,7 +3679,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>FASTA 복사</dt><dd>지금 보이는 목록의 서열. 판정 불가 목록을 ANARCI · IMGT 에 붙여넣을 때</dd>
         <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준, JSON 은 엔진 원본(기본 규칙) 출력</dd>
         <dt>한 장</dt><dd>북마크로 고른 후보만 A4 한 장 HTML 로 저장. 브라우저에서 열어 인쇄</dd>
-        <dt>짝 체인</dt><dd>이름이 체인 표시(VH · VL · HC · LC · heavy · light)만 다른 두 서열. 한 장에 함께 넣고 나란히 표시</dd></dl></section>
+        <dt>짝 체인</dt><dd>이름이 체인 표시(VH · VL · HC · LC · heavy · light)만 다른 두 서열. 한 장에 함께 넣고 나란히 표시</dd>
+        <dt>항체 단위</dt><dd>목록의 '항체' 를 누르면 짝 체인을 한 카드에 묶어 표시. 분류는 체인별로 따로 두고 합치지 않음</dd></dl></section>
       <section class="card guide"><h2>단축키</h2><dl>
         <dt><kbd>/</kbd></dt><dd>검색</dd><dt><kbd>Esc</kbd></dt><dd>상세 · 메뉴 닫기</dd>
         <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>상세에서 이전 · 다음 후보</dd><dt><kbd>Ctrl</kbd> <kbd>Enter</kbd></dt><dd>분석</dd></dl></section>
@@ -3652,12 +3740,14 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const on = (id, type, fn) => { const el = $(id); if (el) el.addEventListener(type, fn); };
   function bind() {
     const view = $("view");
-    view.querySelectorAll(".cand, tr.click").forEach((el) => el.addEventListener("click", (ev) => {
+    view.querySelectorAll(".cand[data-i], tr.click").forEach((el) => el.addEventListener("click", (ev) => {
       if (ev.target.closest("button, a")) return;
       openSheet(Number(el.dataset.i), el.querySelector("[data-open]"));
     }));
     view.querySelectorAll("button[data-open]").forEach((b) => b.addEventListener("click", () => openSheet(Number(b.dataset.open), b)));
     view.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => togglePick(Number(b.dataset.pick))));
+    view.querySelectorAll("[data-pick-pair]").forEach((b) => b.addEventListener("click", () => { const [h, l] = b.dataset.pickPair.split(",").map(Number); togglePair(h, l); }));
+    view.querySelectorAll("[data-unit]").forEach((b) => b.addEventListener("click", () => { ui.unit = b.dataset.unit; saveUi(); render(); }));
     view.querySelectorAll("[data-chain]").forEach((b) => b.addEventListener("click", () => { ui.chain = b.dataset.chain; saveUi(); render(); }));
     // home
     on("f-chain", "change", (e) => { ui.chain = e.target.value; saveUi(); render(); });

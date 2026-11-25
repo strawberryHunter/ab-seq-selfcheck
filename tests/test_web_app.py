@@ -310,6 +310,26 @@ def test_partner_chains_are_found_by_name():
 
 
 @needs_node
+def test_antibody_units_keep_both_chains_and_their_own_results():
+    out = _node("""
+      const s = Object.fromEntries(entries);
+      const named = [["mAb01_VL", s["SYN-VL-001"]], ["mAb02_VH", s["SYN-VH-003"]], ["mAb01_VH", s["SYN-VH-001"]],
+                     ["mAb02_VL", s["SYN-VL-005"]], ["solo-VH", s["SYN-VH-007"]]];
+      const rows = ABUI.buildRows(ABCHECK.analyze(named, 7.4));
+      const pairs = ABUI.pairMap(rows);
+      const show = (units) => units.map(u => u.h ? [u.name, u.h.id, u.h.status, u.l.id, u.l.status] : [u.row.id]);
+      console.log(JSON.stringify({
+        names: ["mAb02_VH", "SYN-VL-003", "Ab7 heavy", "mAb01VH", "plain"].map(ABUI.pairName),
+        all: show(ABUI.antibodyUnits(rows, rows, pairs)),
+        review: show(ABUI.antibodyUnits(rows.filter(r => r.cats[0] === "review"), rows, pairs))}));""")
+    assert out["names"] == ["mAb02", "SYN-003", "Ab7", "mAb01", None]
+    assert out["all"] == [["mAb01", "mAb01_VH", "기준 해당 없음", "mAb01_VL", "기준 해당 없음"],
+                          ["mAb02", "mAb02_VH", "검토 필요", "mAb02_VL", "기준 해당 없음"], ["solo-VH"]]
+    # filtered to 검토 필요: the flagged chain brings its partner, and each keeps its own status
+    assert out["review"] == [["mAb02", "mAb02_VH", "검토 필요", "mAb02_VL", "기준 해당 없음"], ["solo-VH"]]
+
+
+@needs_node
 def test_shared_cdrs_finds_identical_cdrs():
     out = _node("""
       const rows = ABUI.buildRows(ABCHECK.analyze([["a", entries[0][1]], ["b", entries[0][1]], ["c", entries[2][1]]], 7.4));
@@ -348,6 +368,21 @@ def test_mail_text_lists_rule_hits_without_verdicts():
     assert any(line.startswith("- bad: 서열이 너무 짧다 (5 잔기).") for line in lines)
     for word in ["통과", "불합격", "안전", "pass", "fail", "점수"]:
         assert word not in out, word
+
+
+@needs_node
+def test_mail_text_keeps_an_antibodys_chains_together():
+    out = _node("""
+      const s = Object.fromEntries(entries);
+      // as a sheet gives them: heavy chains first, light chains after
+      const named = [["mAb01_VH", s["SYN-VH-003"]], ["mAb02_VH", s["SYN-VH-007"]], ["mAb01_VL", s["SYN-VL-004"]], ["mAb02_VL", s["SYN-VL-001"]]];
+      const rows = ABUI.buildRows(ABCHECK.analyze(named, 7.4));
+      const ids = (text) => text.split("\\n").filter(l => l.startsWith("- ")).map(l => l.slice(2).split(" ")[0]);
+      console.log(JSON.stringify({
+        plain: ids(ABUI.toMailText(rows, {ruleName: "기본", when: "t"})),
+        paired: ids(ABUI.toMailText(rows, {ruleName: "기본", when: "t", pairs: ABUI.pairMap(rows)}))}));""")
+    assert out["plain"] == ["mAb01_VH", "mAb02_VH", "mAb01_VL"]        # input order
+    assert out["paired"] == ["mAb01_VH", "mAb01_VL", "mAb02_VH"]       # partner moved next to its heavy chain
 
 
 @needs_node

@@ -335,6 +335,20 @@
     return rest.length ? rest.join("-").toLowerCase() : null;
   }
 
+  /** An antibody's display name from one chain's name: the name without its chain token
+      ("mAb02_VH" -> "mAb02", "SYN-VL-003" -> "SYN-003"). null when there is no chain token. */
+  function pairName(id) {
+    var parts = String(id).split(/([-_. ]+)/);   // tokens at even positions, separators at odd
+    for (var i = 0; i < parts.length; i += 2) {
+      if (CHAIN_TOKEN.test(parts[i])) {
+        if (i > 0) parts.splice(i - 1, 2); else parts.splice(i, 2);
+        return parts.join("") || null;
+      }
+    }
+    var m = /^(.*[0-9a-z])(VH|VL|HC|LC)$/.exec(String(id));
+    return m ? m[1] : null;
+  }
+
   /** Partner chains by name: {index: partnerIndex} for names that differ only in the chain
       token and whose chains the engine called H and L. Ambiguous groups are left unpaired. */
   function pairMap(rows) {
@@ -363,6 +377,27 @@
       var partner = byIndex[pairs[r.index]];
       var first = partner && !done[partner.index] && partner.chain === "H" ? partner : r;
       [first, first === r ? partner : r].forEach(function (x) { if (x && !done[x.index]) { done[x.index] = true; out.push(x); } });
+    });
+    return out;
+  }
+
+  /**
+   * Cards for the antibody view. A listed row that has a partner becomes one unit
+   * {name, h, l} -- the partner is attached even when the current filter left it out, so an
+   * antibody always shows both chains. Other rows stay single: {row}. Order of first
+   * appearance. The two chains keep their own triage results; nothing is merged.
+   */
+  function antibodyUnits(shown, all, pairs) {
+    var done = {}, out = [];
+    shown.forEach(function (r) {
+      if (done[r.index]) return;
+      var p = pairs[r.index];
+      done[r.index] = true;
+      if (p === undefined) { out.push({ row: r }); return; }
+      done[p] = true;
+      var partner = all[p];
+      var h = r.chain === "H" ? r : partner, l = r.chain === "H" ? partner : r;
+      out.push({ name: pairName(h.id) || h.id, h: h, l: l });
     });
     return out;
   }
@@ -451,6 +486,7 @@
     ];
     var section = function (title, list, line) {
       if (!list.length) return;
+      if (meta.pairs) list = withPartnersAdjacent(list, meta.pairs);   // an antibody's two chains on adjacent lines
       out.push("", title);
       list.forEach(function (r) { out.push("- " + r.id + (r.chain ? " (" + chainName(r) + ")" : "") + ": " + line(r)); });
     };
@@ -534,7 +570,7 @@
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
-    combineEntries: combineEntries, pastedKind: pastedKind, pairKey: pairKey, pairMap: pairMap,
+    combineEntries: combineEntries, pastedKind: pastedKind, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
