@@ -365,6 +365,35 @@
     return out;
   }
 
+  /**
+   * Position numbers and a closing stop mark that come along when a sequence is copied from a
+   * database page or a PDF ("   61 gkglewvsai ..." or a final "*"). Returns {text, digits, stops}:
+   * the text without digits on sequence lines and without a "*" that ends a record, and how
+   * many of each were removed. Header lines (">name") stay as they are. A "*" inside a sequence
+   * stays too: that is a stop in the middle, and the engine should say so. Pasted tables and
+   * JSON are returned unchanged -- their names may hold digits.
+   */
+  function stripNumbering(text) {
+    text = String(text);
+    if (pastedKind(text)) return { text: text, digits: 0, stops: 0 };
+    var lines = text.split("\n"), digits = 0, stops = 0, last = -1;
+    var closeRecord = function () {
+      if (last < 0) return;
+      var m = /^(.*)\*(\s*)$/.exec(lines[last]);
+      if (m) { lines[last] = m[1] + m[2]; stops++; }
+      last = -1;
+    };
+    for (var i = 0; i < lines.length; i++) {
+      if (/^\s*>/.test(lines[i])) { closeRecord(); continue; }
+      var cleaned = lines[i].replace(/[0-9]/g, "");
+      digits += lines[i].length - cleaned.length;
+      lines[i] = cleaned;
+      if (cleaned.trim()) last = i;
+    }
+    closeRecord();
+    return { text: lines.join("\n"), digits: digits, stops: stops };
+  }
+
   /** An antibody's display name from one chain's name: the name without its chain token
       ("mAb02_VH" -> "mAb02", "SYN-VL-003" -> "SYN-003"). null when there is no chain token. */
   function pairName(id) {
@@ -600,7 +629,7 @@
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
-    combineEntries: combineEntries, pastedKind: pastedKind, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits,
+    combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };

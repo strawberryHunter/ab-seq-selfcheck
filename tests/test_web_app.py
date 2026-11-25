@@ -325,6 +325,32 @@ def test_pasted_tables_are_recognised():
 
 
 @needs_node
+def test_position_numbers_and_closing_stop_are_removed_on_request():
+    out = _node("""
+      const seq = entries[0][1];
+      const numbered = ">mAb12 lot 2024\\n" + seq.match(/.{1,10}/g).map((c, i) => String(i * 10 + 1).padStart(6) + " " + c.toLowerCase()).join("\\n") + "*\\n";
+      const a = ABUI.stripNumbering(numbered);
+      const again = ABCHECK.analyze(ABCHECK.readInput(a.text, "pasted.fasta")[0], 7.4).sequences[0];
+      const clean = ABCHECK.analyze([["x", seq]], 7.4).sequences[0];
+      const mid = ABUI.stripNumbering(">a\\nACDEF*GHIK\\n>b\\nLMNPQ*  \\n");
+      const table = "mAb01\\t" + seq + "\\nmAb02\\t" + seq;
+      console.log(JSON.stringify({
+        header: a.text.split("\\n")[0], digits: a.digits, stops: a.stops,
+        rejectedBefore: ABCHECK.analyze(ABCHECK.readInput(numbered, "pasted.fasta")[0], 7.4).sequences[0].input_ok,
+        okAfter: again.input_ok, sameSequence: again.sequence === clean.sequence,
+        sameCdrs: JSON.stringify(again.annotation.cdrs) === JSON.stringify(clean.annotation.cdrs),
+        mid: mid, table: ABUI.stripNumbering(table), tableSame: ABUI.stripNumbering(table).text === table,
+        nothing: ABUI.stripNumbering(">a\\n" + seq)}));""")
+    assert out["header"] == ">mAb12 lot 2024"                    # digits in a name are not touched
+    assert out["digits"] > 0 and out["stops"] == 1
+    assert out["rejectedBefore"] is False and out["okAfter"] is True
+    assert out["sameSequence"] and out["sameCdrs"]
+    assert out["mid"] == {"text": ">a\nACDEF*GHIK\n>b\nLMNPQ  \n", "digits": 0, "stops": 1}   # a stop in the middle stays
+    assert out["tableSame"] and out["table"]["digits"] == 0      # names in a pasted table keep their digits
+    assert out["nothing"]["digits"] == 0 and out["nothing"]["stops"] == 0
+
+
+@needs_node
 def test_partner_chains_are_found_by_name():
     out = _node("""
       const s = Object.fromEntries(entries);

@@ -2767,6 +2767,35 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return out;
   }
 
+  /**
+   * Position numbers and a closing stop mark that come along when a sequence is copied from a
+   * database page or a PDF ("   61 gkglewvsai ..." or a final "*"). Returns {text, digits, stops}:
+   * the text without digits on sequence lines and without a "*" that ends a record, and how
+   * many of each were removed. Header lines (">name") stay as they are. A "*" inside a sequence
+   * stays too: that is a stop in the middle, and the engine should say so. Pasted tables and
+   * JSON are returned unchanged -- their names may hold digits.
+   */
+  function stripNumbering(text) {
+    text = String(text);
+    if (pastedKind(text)) return { text: text, digits: 0, stops: 0 };
+    var lines = text.split("\n"), digits = 0, stops = 0, last = -1;
+    var closeRecord = function () {
+      if (last < 0) return;
+      var m = /^(.*)\*(\s*)$/.exec(lines[last]);
+      if (m) { lines[last] = m[1] + m[2]; stops++; }
+      last = -1;
+    };
+    for (var i = 0; i < lines.length; i++) {
+      if (/^\s*>/.test(lines[i])) { closeRecord(); continue; }
+      var cleaned = lines[i].replace(/[0-9]/g, "");
+      digits += lines[i].length - cleaned.length;
+      lines[i] = cleaned;
+      if (cleaned.trim()) last = i;
+    }
+    closeRecord();
+    return { text: lines.join("\n"), digits: digits, stops: stops };
+  }
+
   /** An antibody's display name from one chain's name: the name without its chain token
       ("mAb02_VH" -> "mAb02", "SYN-VL-003" -> "SYN-003"). null when there is no chain token. */
   function pairName(id) {
@@ -3002,7 +3031,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks,
-    combineEntries: combineEntries, pastedKind: pastedKind, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits,
+    combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
@@ -3532,9 +3561,12 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     let err = "";
     if (state.error) err = `<div class="err" role="alert"><b>${esc(state.error[0])}</b><span>${esc(state.error[1])}</span></div>`;
     else if (state.rejected) {
+      // numbers or a closing "*" that came with the copy: one click removes them (never done silently)
+      const strip = /\.(csv|tsv|json)$/i.test(state.fileName) ? null : ABUI.stripNumbering(state.input);
+      const what = strip ? [strip.digits ? `숫자 ${strip.digits}자` : "", strip.stops ? `끝의 * ${strip.stops}개` : ""].filter(Boolean).join(" · ") : "";
       err = `<div class="err" role="alert"><b>분석 가능한 서열 없음</b>` +
         state.rejected.sequences.slice(0, 8).map((s) => `<span><span class="mono">${esc(s.id)}</span> · ${esc(first(s.errors[0] || ""))}</span>`).join("") +
-        `<span>고친 뒤 다시 분석</span></div>`;
+        (what ? `<span><button class="btn" type="button" id="strip">${what} 지우고 분석</button></span>` : `<span>고친 뒤 다시 분석</span>`) + `</div>`;
     }
     return `<div class="titlebar"><h1>새 분석</h1></div>
       <section class="card" style="display:grid;gap:12px">
@@ -3695,6 +3727,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       <section class="card guide"><h2>입력</h2><dl>
         <dt>붙여넣기</dt><dd>서열 하나 · FASTA 여러 개 · 엑셀 표(이름, 서열 두 열)</dd>
         <dt>파일</dt><dd>FASTA · CSV · TSV · JSON 여러 개를 한 번에 끌어다 놓기. .xlsx 는 'CSV UTF-8' 로 저장 후 열기</dd>
+        <dt>번호 섞인 복사</dt><dd>위치 번호 · 끝의 * 가 섞인 서열은 오류 아래 버튼으로 한 번에 지움. 서열 중간의 * 는 지우지 않음</dd>
         <dt>자동 정리</dt><dd>공백 · 줄바꿈 · 소문자 · 정렬 갭(. -)</dd>
         <dt>서열 단위</dt><dd>VH 또는 VL 도메인 하나, 70–200 잔기. scFv · Fab 는 VH 와 VL 로 나눠서</dd></dl></section>
       <section class="card guide"><h2>분류</h2><dl>
@@ -3843,6 +3876,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       catch (e) { out.textContent = "읽을 수 없는 형식"; }
     };
     const start = () => analyzeText(ta.value, state.fileName, parseFloat($("ph").value));
+    on("strip", "click", () => { ta.value = ABUI.stripNumbering(ta.value).text; analyzeText(ta.value, "", parseFloat($("ph").value)); });
     let timer = 0;
     ta.addEventListener("input", () => { state.input = ta.value; state.fileName = ""; clearTimeout(timer); timer = setTimeout(detect, 200); });
     ta.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); start(); } });
