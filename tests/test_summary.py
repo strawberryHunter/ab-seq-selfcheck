@@ -1,7 +1,7 @@
-"""CDR별 liability 집계 표 테스트.
+"""Tests for the per-CDR liability summary table.
 
-집계는 후보 여러 건을 나란히 비교하기 위한 것이다. 점수를 매기거나 순위를
-내지 않고 건수만 센다 — 그 선을 지키는지도 함께 확인한다.
+The summary is for comparing several candidates side by side. It only counts; it does not
+score or rank -- these tests also check that it stays within that line.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ def _row(summary: dict, seq_id: str) -> dict:
 
 
 # --------------------------------------------------------------------------
-# 집계 내용
+# Summary contents
 # --------------------------------------------------------------------------
 
 def test_summary_has_one_row_per_sequence(records):
@@ -37,7 +37,7 @@ def test_summary_has_one_row_per_sequence(records):
 
 
 def test_cdr_hit_lands_in_the_right_cdr_column(records):
-    """CDR-H2 의 NG 는 CDR2 칸에, CDR-H3 의 DG 는 CDR3 칸에 들어간다."""
+    """NG in CDR-H2 goes in the CDR2 cell, DG in CDR-H3 in the CDR3 cell."""
     summary = summarize(_reports(records, "SYN-VH-003", "SYN-VH-007"))
 
     h003 = _row(summary, "SYN-VH-003")["regions"]
@@ -51,10 +51,10 @@ def test_cdr_hit_lands_in_the_right_cdr_column(records):
 
 
 def test_light_chain_cdrs_share_the_same_columns(records):
-    """CDR-L1 은 CDR-H1 과 같은 CDR1 칸을 쓴다 — 중쇄·경쇄를 한 표에서 비교하기 위함."""
+    """CDR-L1 uses the same CDR1 cell as CDR-H1 -- so heavy and light chains can be compared in one table."""
     summary = summarize(_reports(records, "SYN-VL-004"))
     regions = _row(summary, "SYN-VL-004")["regions"]
-    assert regions["CDR1"]["높음"] == 1          # CDR-L1 의 DP
+    assert regions["CDR1"]["높음"] == 1          # DP in CDR-L1
 
 
 def test_framework_hits_are_separated_from_cdr(records):
@@ -62,7 +62,7 @@ def test_framework_hits_are_separated_from_cdr(records):
     regions = _row(summary, "SYN-VH-006")["regions"]
 
     assert regions["framework"]["중간"] == 1     # framework DG
-    assert regions["framework"]["낮음"] == 3     # Met + 보존 Trp 2개
+    assert regions["framework"]["낮음"] == 3     # Met + 2 conserved Trp
     for cdr in ["CDR1", "CDR2", "CDR3"]:
         assert sum(regions[cdr].values()) == 0
 
@@ -109,11 +109,11 @@ def test_totals_account_for_every_hit(records):
 
 
 # --------------------------------------------------------------------------
-# 주석이 실패한 서열 / 입력 오류
+# Sequences with failed annotation / input errors
 # --------------------------------------------------------------------------
 
 def test_unannotated_sequence_is_marked_and_not_attributed_to_cdr(records):
-    """구간을 가를 수 없는 서열의 모티프를 CDR 칸에 넣지 않는다."""
+    """Motifs from sequences that cannot be split into regions are not placed in CDR cells."""
     summary = summarize(_reports(records, "SYN-VH-901"))
     row = _row(summary, "SYN-VH-901")
 
@@ -126,7 +126,7 @@ def test_unannotated_sequence_is_marked_and_not_attributed_to_cdr(records):
 
 
 def test_length_outlier_is_counted_normally(records):
-    """앵커가 멀쩡한 서열은 confident=False 여도 CDR별로 집계된다."""
+    """Sequences with intact anchors are summarized per CDR even when confident=False."""
     summary = summarize(_reports(records, "SYN-VH-903"))
     row = _row(summary, "SYN-VH-903")
     assert row["annotated"] is True
@@ -145,7 +145,7 @@ def test_invalid_input_row_is_present_but_empty():
 
 
 # --------------------------------------------------------------------------
-# 출력에 실리는지
+# Does it appear in the output?
 # --------------------------------------------------------------------------
 
 def test_summary_appears_before_sequence_sections_in_html(records):
@@ -170,7 +170,7 @@ def test_html_summary_links_to_each_sequence_section(records):
 
 
 def test_text_summary_tables_are_aligned(records):
-    """표가 체인별로 나뉘므로 표마다 따로 정렬을 확인한다."""
+    """Tables are split by chain, so check alignment for each table separately."""
     out = as_text(build_many([(r["id"], r["sequence"]) for r in records]))
     section = out.split("CDR별 liability 집계")[1].split("[SYN-VH-001]")[0]
 
@@ -182,7 +182,7 @@ def test_text_summary_tables_are_aligned(records):
         rows = [ln for ln in table.splitlines() if ln.strip().startswith("SYN-")]
         assert rows
         total_rows += len(rows)
-        # 한글은 표시 폭이 2칸이므로 문자열 인덱스가 아니라 표시 폭으로 비교해야 한다
+        # Korean characters are 2 columns wide, so compare by display width, not string index
         positions = {
             tuple(_display_width(row[:i]) for i, ch in enumerate(row) if ch == "|")
             for row in rows
@@ -216,7 +216,7 @@ def test_summary_note_warns_it_is_not_a_verdict(records):
 
 
 def test_summary_does_not_rank_or_score(records):
-    """집계는 건수만 낸다 — 점수·순위·정렬 재배치를 하지 않는다."""
+    """The summary only reports counts -- no scores, ranks or reordering."""
     records_order = [r["id"] for r in records]
     summary = summarize(build_many([(r["id"], r["sequence"]) for r in records]))
     assert [r["id"] for r in summary["rows"]] == records_order
@@ -224,7 +224,7 @@ def test_summary_does_not_rank_or_score(records):
 
 
 # --------------------------------------------------------------------------
-# 중쇄 / 경쇄 표 분리
+# Separate heavy / light chain tables
 # --------------------------------------------------------------------------
 
 def test_groups_split_heavy_light_and_unknown(records):
@@ -255,7 +255,7 @@ def test_group_columns_use_chain_specific_cdr_names(records):
 
 
 def test_unannotated_but_chain_known_stays_in_its_chain_group(records):
-    """SYN-VH-902 는 체인은 H 로 판별되므로 중쇄 표에 남는다."""
+    """SYN-VH-902 is still detected as chain H, so it stays in the heavy chain table."""
     summary = summarize(_reports(records, "SYN-VH-902", "SYN-VH-901"))
     groups = {g["chain"]: g for g in summary["groups"]}
 
@@ -270,7 +270,7 @@ def test_invalid_input_goes_to_unknown_group():
 
 
 def test_empty_groups_are_omitted(records):
-    """경쇄만 넣으면 중쇄 표를 만들지 않는다."""
+    """With only light chains as input, no heavy chain table is built."""
     summary = summarize(_reports(records, "SYN-VL-001", "SYN-VL-003"))
     assert [g["chain"] for g in summary["groups"]] == ["L"]
 
@@ -302,7 +302,7 @@ def test_html_renders_one_table_per_chain(records):
     assert "중쇄 (VH)" in out
     assert "경쇄 (VL)" in out
     assert "체인 판별 실패" in out
-    # 중쇄 표는 CDR-H 열, 경쇄 표는 CDR-L 열을 쓴다
+    # The heavy table uses CDR-H columns, the light table CDR-L columns
     assert "<th>CDR-H2</th>" in out
     assert "<th>CDR-L2</th>" in out
     assert "<th>CDR2</th>" not in out
@@ -318,7 +318,7 @@ def test_text_renders_one_table_per_chain(records):
 
 
 def test_unknown_group_has_no_cdr_columns(records):
-    """체인을 모르면 CDR 칸 자체를 두지 않는다 — 0으로 적으면 '깨끗함'으로 오독된다."""
+    """If the chain is unknown, no CDR cells exist at all -- writing 0 would be misread as 'clean'."""
     out = as_text(_reports(records, "SYN-VH-901"))
     section = out.split("CDR별 liability 집계")[1].split("[SYN-VH-901]")[0]
 

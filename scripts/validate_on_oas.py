@@ -1,31 +1,31 @@
 #!/usr/bin/env python3
-"""OAS 공개 데이터로 주석기의 정확도를 측정한다.
+"""Measure the annotator's accuracy on public OAS data.
 
-왜 이 스크립트가 있나
---------------------
-합성 데이터는 생성 규칙이 곧 정답이라 "내가 만든 가정" 안에서만 맞는다. 실제 서열에는
-합성 데이터에 넣지 않은 패턴이 있고, 실제로 이 저장소의 버그 네 개가 전부 그렇게 드러났다.
-그래서 공개 데이터로 재는 절차를 코드로 남긴다 — 숫자를 남이 다시 확인할 수 있어야 한다.
+Why this script exists
+----------------------
+With synthetic data the generation rules are the ground truth, so it is only right within "assumptions I made".
+Real sequences have patterns never put into the synthetic data, and in fact all four bugs in this repository surfaced that way.
+So the procedure for measuring on public data is kept as code -- others must be able to re-check the numbers.
 
-무엇을 재나
-----------
-OAS paired 데이터는 VH/VL 이 짝지어져 있고 어느 쪽이 중쇄인지 알려져 있다. 그래서
-**체인 판별은 정답이 있는 검증**이 된다. CDR 위치는 정답이 없으므로 아래로 대신한다.
-  - 주석 성공률 — 앵커를 찾아 CDR 을 끊어냈는가
-  - 신뢰 가능률 — 스스로 '믿을 만하다'고 한 비율
-  - 실패 사유 분포 — 못 한 경우 왜 못 했다고 말하는가
-  - FR3↔보존Cys 거리 — 구조적으로 일정해야 하는 값이 실제로 일정한가 (내부 일관성)
+What it measures
+----------------
+OAS paired data has VH/VL paired up, and which one is the heavy chain is known. So
+**chain detection becomes validation against ground truth**. CDR positions have no ground truth, so these stand in:
+  - annotation success rate -- were anchors found and CDRs cut out?
+  - confident rate -- fraction it judged 'trustworthy' itself
+  - failure reason distribution -- when it failed, what reason does it give?
+  - FR3<->conserved Cys distance -- is a structurally constant value actually constant? (internal consistency)
 
-쓰는 법
-------
-    # 1) OAS 에서 paired 데이터 단위(.csv.gz)를 받는다
-    #    https://opig.stats.ox.ac.uk/webapps/oas/  →  Paired Sequences → Search
-    # 2) FASTA 로 바꾼다
-    python3 scripts/oas_to_fasta.py 받은파일.csv.gz 후보.fasta --count 500
-    # 3) 측정한다
-    python3 scripts/validate_on_oas.py 후보.fasta [다른.fasta ...]
+Usage
+-----
+    # 1) Download a paired data unit (.csv.gz) from OAS
+    #    https://opig.stats.ox.ac.uk/webapps/oas/  ->  Paired Sequences -> Search
+    # 2) Convert to FASTA
+    python3 scripts/oas_to_fasta.py downloaded.csv.gz candidates.fasta --count 500
+    # 3) Measure
+    python3 scripts/validate_on_oas.py candidates.fasta [other.fasta ...]
 
-받은 서열 파일은 저장소에 커밋하지 말 것. 이 저장소는 합성 데이터만 담는다.
+Do not commit downloaded sequence files to the repository. This repository holds synthetic data only.
 """
 
 from __future__ import annotations
@@ -58,7 +58,7 @@ def read_fasta(path: Path) -> list[tuple[str, str]]:
 
 
 def truth_chain(seq_id: str) -> str | None:
-    """oas_to_fasta.py 가 붙인 이름에서 정답 체인을 읽는다 (…-VH / …-VL)."""
+    """Read the true chain from the name oas_to_fasta.py assigned (...-VH / ...-VL)."""
     if seq_id.endswith("-VH"):
         return "H"
     if seq_id.endswith("-VL"):

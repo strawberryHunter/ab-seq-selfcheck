@@ -1,11 +1,11 @@
-// 사용 설명서의 스크린샷을 찍고 PDF 로 인쇄한다.
+// Take screenshots for the user manual and print it to PDF.
 //
-// 이 파일은 문서 빌드용이다. abcheck 자체는 외부 라이브러리를 쓰지 않으며,
-// 이 스크립트(Playwright)는 설명서 PDF 를 다시 만들 때만 필요하다.
+// This file is for building the docs. abcheck itself uses no external libraries;
+// this script (Playwright) is needed only when rebuilding the manual PDF.
 //
 //   node docs/manual/render.js
 //
-// 순서는 docs/manual/build.sh 참고.
+// See docs/manual/build.sh for the order of steps.
 
 const path = require("path");
 const { chromium } = require("playwright");
@@ -26,7 +26,7 @@ async function shot(page, selector, file) {
 (async () => {
   const browser = await chromium.launch();
 
-  // 1) 리포트 스크린샷 — 매뉴얼 6장에 들어간다
+  // 1) Report screenshots -- used in chapter 6 of the manual
   const shotPage = await browser.newPage({
     viewport: { width: 1000, height: 1400 },
     deviceScaleFactor: 2,
@@ -37,7 +37,7 @@ async function shot(page, selector, file) {
   await shot(shotPage, "#seq-SYN-VH-901", "report_failed.png");
   await shotPage.close();
 
-  // 2) 매뉴얼 PDF
+  // 2) Manual PDF
   const page = await browser.newPage();
   await page.goto(MANUAL, { waitUntil: "load" });
   await page.pdf({

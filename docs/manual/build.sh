@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# 사용 설명서 PDF 를 다시 만든다.
+# Rebuild the user manual PDF.
 #
-# 필요: python3, node, Playwright(Chromium)
-#   Playwright 는 설명서를 만들 때만 쓴다. abcheck 자체는 표준 라이브러리만 쓴다.
+# Requires: python3, node, Playwright (Chromium)
+#   Playwright is used only to build the manual. abcheck itself uses only the standard library.
 #
 #   bash docs/manual/build.sh
 #
-# 순서
-#   1) build_manual.py — 현재 코드의 실제 출력으로 manual.html 생성
-#   2) render.js       — sample_output 리포트 스크린샷 + PDF 인쇄
-#   3) --stamp         — PDF 를 만든 원본 HTML 의 해시 기록 (테스트가 낡았는지 확인)
+# Steps
+#   1) build_manual.py — generate manual.html from the current code's actual output
+#   2) render.js       — screenshot the sample_output report + print the PDF
+#   3) --stamp         — record the hash of the source HTML the PDF was built from (tests check for staleness)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 

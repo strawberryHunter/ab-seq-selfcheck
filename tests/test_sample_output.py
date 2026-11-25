@@ -1,8 +1,8 @@
-"""커밋된 `sample_output/report.html` 이 현재 코드의 출력과 같은지 확인한다.
+"""Check that the committed `sample_output/report.html` matches the current code's output.
 
-리포트에는 생성 날짜가 들어가므로 그대로 비교하면 매일 깨진다. 날짜만 치환해
-놓고 나머지를 비교한다. 이렇게 하면 "출력 양식을 바꿨는데 예시 리포트를 다시
-만들지 않은 채 커밋" 하는 것을 pytest 가 잡고, pre-push 훅과 CI 가 그걸 막는다.
+The report includes the generation date, so comparing it as-is would break daily. Only the
+date is substituted and the rest is compared. This way pytest catches "changed the output
+format but committed without regenerating the sample report", and the pre-push hook and CI block it.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from abcheck.report import build_many
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SAMPLE_HTML = REPO_ROOT / "sample_output" / "report.html"
 
-#: 리포트 안의 ISO 날짜. 이것만 변동값이다.
+#: ISO date inside the report. This is the only varying value.
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 REGENERATE_HINT = (
@@ -28,12 +28,12 @@ REGENERATE_HINT = (
 
 
 def _normalize(html: str) -> str:
-    """날짜를 고정 문자열로 바꿔 비교 가능하게 만든다."""
+    """Replace dates with a fixed string so the reports can be compared."""
     return _ISO_DATE.sub("DATE", html)
 
 
 def _current_html(records: list[dict]) -> str:
-    """CLI 가 코퍼스로 만드는 것과 같은 리포트를 메모리에서 생성한다."""
+    """Generate in memory the same report the CLI builds from the corpus."""
     return as_html(build_many([(r["id"], r["sequence"]) for r in records]))
 
 
@@ -44,12 +44,12 @@ def test_sample_output_exists():
 
 
 def test_committed_sample_output_matches_current_render(records):
-    """날짜를 뺀 내용이 현재 코드의 출력과 완전히 같아야 한다."""
+    """Apart from the date, the content must be identical to the current code's output."""
     committed = _normalize(SAMPLE_HTML.read_text(encoding="utf-8"))
     current = _normalize(_current_html(records))
 
     if committed != current:
-        # 어디가 달라졌는지 한 줄이라도 보여준다
+        # Show at least one line of what changed
         import difflib
 
         diff = list(difflib.unified_diff(
@@ -62,13 +62,13 @@ def test_committed_sample_output_matches_current_render(records):
 
 
 def test_normalization_only_touches_dates():
-    """날짜 치환이 다른 내용을 건드리지 않는지 — 비교가 헐거워지는 것을 막는다."""
+    """Date substitution must not touch other content -- keeps the comparison from getting loose."""
     sample = '<p>생성 2026-11-24 · 서열 16건</p><td>31-35</td><td>95-104</td>'
     assert _normalize(sample) == '<p>생성 DATE · 서열 16건</p><td>31-35</td><td>95-104</td>'
 
 
 def test_stale_sample_output_is_detected(records):
-    """양식이 바뀌면 실제로 잡히는지 — 이 테스트 자체가 헛돌지 않는지 확인한다."""
+    """Is a format change actually caught? Checks that this test itself is not a no-op."""
     committed = _normalize(SAMPLE_HTML.read_text(encoding="utf-8"))
     tampered = committed.replace("CDR별 liability 집계", "집계", 1)
 

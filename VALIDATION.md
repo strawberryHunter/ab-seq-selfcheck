@@ -1,64 +1,69 @@
-# 검증 기록
+# Validation record
 
-공개 레퍼토리 데이터로 주석기를 측정한 결과다. **합성 데이터는 생성 규칙이 곧 정답이라
-"내가 세운 가정" 안에서만 맞는다.** 실제 서열에는 그 가정에 없던 패턴이 있고, 이 저장소에서
-고친 버그 네 개가 전부 그렇게 드러났다.
+These are the results of measuring the annotator on public repertoire data. **With synthetic
+data, the generation rules are the ground truth, so it is only correct within "the assumptions
+I made."** Real sequences contain patterns those assumptions never anticipated, and that is
+exactly how every bug fixed in this repository came to light.
 
-재현하려면:
+To reproduce:
 
 ```bash
-# 1) OAS 에서 paired 데이터 단위(.csv.gz)를 받는다 — https://opig.stats.ox.ac.uk/webapps/oas/
-python3 scripts/oas_to_fasta.py 받은파일.csv.gz 후보.fasta --count 500
-python3 scripts/validate_on_oas.py 후보.fasta
+# 1) Download a paired data unit (.csv.gz) from OAS — https://opig.stats.ox.ac.uk/webapps/oas/
+python3 scripts/oas_to_fasta.py downloaded.csv.gz candidates.fasta --count 500
+python3 scripts/validate_on_oas.py candidates.fasta
 ```
 
 ---
 
-## 데이터
+## Data
 
-OAS(Observed Antibody Space, CC-BY 4.0)의 paired 데이터 단위 7개. 세포 종류와 체세포
-과변이(SHM) 정도가 다르도록 골랐다. 각 500쌍(VH+VL = 1,000 서열), 합계 **7,000 서열**.
+7 paired data units from OAS (Observed Antibody Space, CC-BY 4.0), chosen to differ in
+cell type and degree of somatic hypermutation (SHM). 500 pairs each (VH+VL = 1,000 sequences),
+**7,000 sequences** in total.
 
-| 데이터셋 | 종 | 세포 | 비고 |
+| Dataset | Species | Cells | Notes |
 |---|---|---|---|
-| Jaffe 2022 | 사람 | naive B | SHM 거의 없음 |
-| Alsoiussi 2020 | 마우스 | plasmablast | SHM 심함 |
-| King 2020 | 사람 | memory B | 편도, 소아 |
-| Ota 2024 | 사람 | memory B | 땅콩 알레르기 |
-| Phad 2022 | 사람 | plasma B | |
-| Setliff 2019 | 사람 | unsorted B | HIV — 긴 CDR-H3 |
-| Sokal 2021 | 사람 | memory B | COVID-19, 잘린 리드 포함 |
+| Jaffe 2022 | Human | naive B | Almost no SHM |
+| Alsoiussi 2020 | Mouse | plasmablast | Heavy SHM |
+| King 2020 | Human | memory B | Tonsil, pediatric |
+| Ota 2024 | Human | memory B | Peanut allergy |
+| Phad 2022 | Human | plasma B | |
+| Setliff 2019 | Human | unsorted B | HIV — long CDR-H3 |
+| Sokal 2021 | Human | memory B | COVID-19, includes truncated reads |
 
-실제 서열은 저장소에 넣지 않았다. 변환·측정 스크립트만 있다.
+The real sequences are not committed to the repository. Only the conversion and measurement
+scripts are.
 
-## 결과
+## Results
 
-| 데이터셋 | 입력 검증 | CDR 주석 성공 | 신뢰 가능 | 체인 판별 |
+| Dataset | Input validation | CDR annotation succeeded | Confident | Chain identification |
 |---|---|---|---|---|
-| Jaffe 2022 (사람 naive) | 100% | 99.9% | 99.8% | 999/1000 |
-| Alsoiussi 2020 (마우스) | 100% | **100%** | 99.2% | **1000/1000** |
+| Jaffe 2022 (human naive) | 100% | 99.9% | 99.8% | 999/1000 |
+| Alsoiussi 2020 (mouse) | 100% | **100%** | 99.2% | **1000/1000** |
 | King 2020 | 100% | 99.1% | 94.7% | 994/1000 |
 | Ota 2024 | 100% | 99.0% | 95.0% | 991/1000 |
 | Phad 2022 | 100% | 99.0% | 93.1% | 990/1000 |
 | Setliff 2019 (HIV) | 100% | 99.9% | 97.7% | 999/1000 |
 | Sokal 2021 | 98.4% | 91.2% | 89.4% | 975/984 |
-| **합계** | **99.8%** | **98.3%** | **95.6%** | **6948/6984** |
+| **Total** | **99.8%** | **98.3%** | **95.6%** | **6948/6984** |
 
-### CDR 경계 — ANARCI 정답과 비교
+### CDR boundaries — compared with ANARCI ground truth
 
-OAS 데이터에는 **ANARCI 가 IMGT 번호로 매긴 CDR** 이 함께 들어 있다. 이걸 정답으로 쓴다.
+OAS data ships with **CDRs assigned by ANARCI using IMGT numbering**. We use these as ground
+truth.
 
-주의: 이 도구는 **Kabat** 경계를 근사하므로 문자열이 그대로 같을 수 없고, 같아서도 안 된다.
-그래서 일치율이 아니라 **오프셋이 일정한가**를 본다. 일정하면 체계 차이일 뿐이고,
-들쭉날쭉한 건이 진짜 오류다.
+Caveat: this tool approximates **Kabat** boundaries, so the strings cannot be identical, and
+should not be. We therefore check not the match rate but **whether the offset is constant**.
+A constant offset is just a difference between numbering schemes; the cases that vary are the
+real errors.
 
 ```
-python3 scripts/compare_with_anarci.py 받은파일.csv.gz --count 500
+python3 scripts/compare_with_anarci.py downloaded.csv.gz --count 500
 ```
 
-사람 naive B 500쌍 (2,996건 비교):
+Human naive B, 500 pairs (2,996 comparisons):
 
-| CDR | 비교 | 최빈 오프셋 | 일치 |
+| CDR | Compared | Modal offset | Agreement |
 |---|---|---|---|
 | CDR-H1 | 500 | (+5, +2) | 100.0% |
 | CDR-H2 | 500 | (−1, +8) | 100.0% |
@@ -66,226 +71,251 @@ python3 scripts/compare_with_anarci.py 받은파일.csv.gz --count 500
 | CDR-L1 | 499 | (−3, +2) | 100.0% |
 | CDR-L2 | 498 | (+0, +4) | 99.2% |
 | **CDR-L3** | 499 | (+0, +0) | **100.0%** |
-| **합계** | **2,996** | | **99.87%** |
+| **Total** | **2,996** | | **99.87%** |
 
-**germline 계열과 IMGT CDR 길이를 고정하면 불일치 0.00% (0/2,996).**
+**Holding germline family and IMGT CDR length fixed, the mismatch rate is 0.00% (0/2,996).**
 
-7개 데이터셋 전체(각 400쌍, 16,427건 비교):
+All 7 datasets (400 pairs each, 16,427 comparisons):
 
-| 데이터셋 | 계열·길이 고정 시 불일치 |
+| Dataset | Mismatch with family and length fixed |
 |---|---|
-| Jaffe 2022 (사람 naive) | **0.00%** (0/2,396) |
-| Alsoiussi 2020 (마우스) | **0.00%** (0/2,385) |
+| Jaffe 2022 (human naive) | **0.00%** (0/2,396) |
+| Alsoiussi 2020 (mouse) | **0.00%** (0/2,385) |
 | Setliff 2019 (HIV) | 0.25% (6/2,387) |
 | Sokal 2021 | 0.28% (6/2,169) |
 | King 2020 | 0.46% (11/2,369) |
 | Ota 2024 | 0.63% (15/2,363) |
 | Phad 2022 | 0.85% (20/2,358) |
-| **합계** | **0.35%** (58/16,427) |
+| **Total** | **0.35%** (58/16,427) |
 
-CDR1/CDR2 의 오프셋이 계열마다 다른 것은 계열별 삽입 위치가 달라 Kabat↔IMGT 관계가
-달라지기 때문이고, 같은 계열·같은 길이 안에서는 완전히 일정하다.
+The CDR1/CDR2 offsets differ between families because each family places its insertions
+differently, which changes the Kabat↔IMGT relationship. Within the same family and the same
+length, the offset is perfectly constant.
 
-CDR-H3 와 CDR-L3 는 계열·길이와 무관하게 오프셋이 하나뿐이다. 결합에 가장 중요한
-루프에서 경계가 체계적으로 일정하다는 뜻이다.
+CDR-H3 and CDR-L3 have a single offset regardless of family or length. In other words, the
+boundaries are systematically consistent on the loops that matter most for binding.
 
-### 체인 판별 — 오판 0건
+### Chain identification — 0 misclassifications
 
-OAS paired 데이터는 어느 쪽이 중쇄인지 알려져 있으므로 **정답이 있는 검증**이다.
+In OAS paired data it is known which chain is the heavy chain, so this is **validation against
+ground truth**.
 
 ```
 체인 판별 정확   6948 / 6984  (99.5%)   오판 0,  판별 실패 36
 ```
 
-**틀린 답을 낸 적이 한 번도 없다.** 못 하는 36건은 전부 "판별 실패"로 보고한다.
-말단 모티프(`WGxG`/`FGxG`)가 없는 잘린 리드들이다.
+(Gloss: chain identified correctly 6948 / 6984 (99.5%), misclassified 0, identification failed 36.)
 
-### 내부 일관성 — FR3↔보존Cys 거리
+**It never gave a wrong answer.** All 36 cases it cannot handle are reported as
+"identification failed." They are truncated reads missing the terminal motif (`WGxG`/`FGxG`).
 
-FR3 시작 모티프에서 보존 Cys 까지의 거리는 구조적으로 일정해야 한다. 측정값:
+### Internal consistency — FR3↔conserved Cys distance
+
+The distance from the FR3 start motif to the conserved Cys should be structurally constant.
+Measured:
 
 ```
-29 잔기   3443 / 3443   100.0%
+29 residues   3443 / 3443   100.0%
 ```
 
-주석기는 이 거리를 **교차검증에 쓴다.** 모티프가 엉뚱한 자리에 걸리면 거리가 어긋나고,
-그때 Cys 기준으로 고쳐 잡는다. 이 장치를 넣기 전에는 3429/3443 이었고, 어긋난 14건은
-전부 CDR-H2 가 15 또는 29 잔기로 잘못 나온 경우였다.
+The annotator **uses this distance as a cross-check.** If the motif matches in the wrong place,
+the distance comes out wrong, and the annotator then re-anchors from the Cys. Before this check
+was added the figure was 3429/3443, and all 14 mismatches were cases where CDR-H2 came out
+as 15 or 29 residues.
 
-### 신뢰 불가 사유 (7,000건 중 311건)
+### Reasons for low confidence (311 of 7,000)
 
-| 건수 | 사유 | 성격 |
+| Count | Reason | Nature |
 |---|---|---|
-| 145 | FR3 모티프를 못 찾아 Cys 에서 역산 | 과변이. 위치는 복원하되 보수적으로 표시 |
-| 39 | 보존 Cys23 못 찾음 | N-말단 잘린 리드 |
-| 36 | 말단 모티프 못 찾음 | C-말단 잘린 리드 |
-| 25 | 보존 Cys22 못 찾음 | N-말단 잘린 리드 |
-| 12 | CDR-H2 끝을 정할 수 없음 | 앵커 둘 다 실패 |
-| 12 | CDR-H2 길이 이탈 (15 또는 21) | 비정형 germline |
-| 5 | FR3 모티프가 거리와 불일치 → 교정 | 교차검증이 잡아낸 건 |
-| 6 | CDR-H1 길이 이탈 (9~17) | 보존 Trp 변이 |
+| 145 | FR3 motif not found; back-calculated from Cys | Hypermutation. Position recovered but flagged conservatively |
+| 39 | Conserved Cys23 not found | N-terminally truncated read |
+| 36 | Terminal motif not found | C-terminally truncated read |
+| 25 | Conserved Cys22 not found | N-terminally truncated read |
+| 12 | End of CDR-H2 cannot be determined | Both anchors failed |
+| 12 | CDR-H2 length out of range (15 or 21) | Atypical germline |
+| 5 | FR3 motif inconsistent with distance → corrected | Caught by the cross-check |
+| 6 | CDR-H1 length out of range (9–17) | Conserved Trp mutated |
 
-**세포 종류가 결과를 가른다.** 사람 naive B(SHM 거의 없음)는 99.8%, 과변이가 심한
-memory/plasma B 는 93~95%다. FR3 모티프는 germline 보존을 전제하는데 과변이가 그 전제를 깬다.
+**Cell type decides the outcome.** Human naive B (almost no SHM) reaches 99.8%; heavily
+hypermutated memory/plasma B cells reach 93–95%. The FR3 motif assumes germline conservation,
+and hypermutation breaks that assumption.
 
 ---
 
-## 실제 데이터로 찾아 고친 버그
+## Bugs found and fixed using real data
 
-합성 데이터만으로는 하나도 못 잡았을 것들이다. 전부 회귀 케이스로 고정했다.
+None of these would have been caught with synthetic data alone. Each is pinned as a regression
+case.
 
-### 1. CDR-H1 안의 Trp 을 앵커로 오인
+### 1. A Trp inside CDR-H1 mistaken for the anchor
 
 ```
 ...CKASGYTFT SYWMQ W VKQ...
-              ↑       ↑진짜 Trp36
+              ↑       ↑real Trp36
 ```
 
-"CDR1 이후 첫 Trp"을 쓰면 CDR-H1 안의 Trp 을 집어 CDR-H1 이 2잔기로 잘렸다.
-실제 항체의 CDR-H1 에는 Trp 이 흔하다. Kabat 최소 길이(5)만큼 건너뛴 뒤부터 찾도록 고쳤다.
-→ 합성 데이터는 CDR 에서 W 를 빼고 만들었기에 이 경우가 **한 번도 없었다.**
-회귀: `SYN-VH-009`, `SYN-VL-006`
+Using "the first Trp after CDR1" picked up a Trp inside CDR-H1 and truncated CDR-H1 to 2
+residues. Trp is common in the CDR-H1 of real antibodies. Fixed by skipping the Kabat minimum
+length (5) before searching.
+→ The synthetic data was built without W in the CDRs, so this case **never occurred** there.
+Regression: `SYN-VH-009`, `SYN-VL-006`
 
-### 2. FR3 안의 여분 Cys 를 앵커로 오인 — 조용한 오류
+### 2. An extra Cys in FR3 mistaken for the anchor — a silent error
 
 ```
 ...LTIS C LQSEDFATYY C QQYYSYPPT FGGGTK...
-       ↑가짜          ↑진짜 Cys88
+       ↑fake          ↑real Cys88
 ```
 
-CDR-L3 가 11잔기 앞에서 시작했다. **그중 하나(MOU-259-VH)는 CDR-H3 길이가 25 로
-통상 범위 안이라 길이 검사로도 안 걸리고 `신뢰 가능`으로 통과했다** — 조용히 틀린 답.
-보존 Cys 앞 잔기가 실측 Y 83.2% + F 16.1% = 99.3% 이므로 `[YF]C` 문맥으로 찾도록 고쳤다.
-회귀: `SYN-VL-007`
+CDR-L3 started 11 residues too early. **One of these (MOU-259-VH) had a CDR-H3 length of 25,
+within the normal range, so it slipped past the length check and passed as `confident`** — a
+silently wrong answer. The residue preceding the conserved Cys is measured as Y 83.2% + F 16.1%
+= 99.3%, so the search was changed to use the `[YF]C` context.
+Regression: `SYN-VL-007`
 
-### 3. FR3 모티프의 germline 변형 미검출
+### 3. Germline variants of the FR3 motif not detected
 
-IGHV2 계열의 `QVTIS`(첫 자리 Q)와 `RITIN`(끝 자리 N)이 정규식 밖이었다. VH 1,000건 중
-26건이 CDR-H2/H3 주석에 실패했다. 후보 패턴 4개를 실측 비교해
-`[RKQ].[TSAV][IMLFV][STAN]` 로 넓혔다 — 실패 26→8, **기존 성공 1,000건은 변화 없음.**
-회귀: `SYN-VH-011`, `SYN-VH-012`
+The IGHV2 family's `QVTIS` (Q in the first position) and `RITIN` (N in the last position) fell
+outside the regex. 26 of 1,000 VH sequences failed CDR-H2/H3 annotation. 4 candidate patterns
+were compared on real data, and the motif was widened to `[RKQ].[TSAV][IMLFV][STAN]` — failures
+went from 26 to 8, **with no change to the 1,000 previously successful annotations.**
+Regression: `SYN-VH-011`, `SYN-VH-012`
 
-### 4. 과변이로 모티프가 깨진 경우
+### 4. Motif broken by hypermutation
 
-`EATLT`, `RLNIS`, `KAILT` — 1번 또는 3번 자리 치환. 정규식을 더 넓히는 대신, FR3↔보존Cys
-거리가 실측 992건 전부 29 인 점을 이용해 역산한다. 위치는 복원하되 근거가 약하므로
-`신뢰 불가`로 표시한다.
-회귀: `SYN-VH-013`
+`EATLT`, `RLNIS`, `KAILT` — substitutions in position 1 or 3. Rather than widening the regex
+further, the annotator back-calculates from the fact that the FR3↔conserved Cys distance was
+29 in all 992 measured cases. The position is recovered, but because the evidence is weaker it
+is flagged as `low confidence`.
+Regression: `SYN-VH-013`
 
-### 5. CDR-H2 안의 가짜 FR3 모티프
+### 5. A spurious FR3 motif inside CDR-H2
 
-모티프가 CDR-H2 안에서 먼저 걸려 CDR-H2 가 15 또는 29 잔기로 나왔다. 거리 29 로
-교차검증해 바로잡는다.
-회귀: `SYN-VH-014`
+The motif matched first inside CDR-H2, producing a CDR-H2 of 15 or 29 residues. The distance-29
+cross-check corrects this.
+Regression: `SYN-VH-014`
 
-### 6. CDR1 안의 Trp 을 앵커로 오인 — ANARCI 비교로 드러남
+### 6. A Trp inside CDR1 mistaken for the anchor — revealed by the ANARCI comparison
 
 ```
 IGKV1   ...SCRAS QGISSW LA W YQQKPG...
-                      ↑        ↑진짜 Trp35
+                      ↑        ↑real Trp35
 ```
 
-CDR-L1 끝과 FR2 에 Trp 이 둘 있는 germline 에서 앞의 것을 집어 이후 경계가 3잔기씩 밀렸다.
-보존 Trp 뒤 FR2 문맥(`W[VIA][RKQ]Q` / `W[YF][QL]Q`)을 우선하도록 고쳤다.
+In germlines with two Trp residues, one at the end of CDR-L1 and one in FR2, the annotator took
+the first one, shifting every subsequent boundary by 3 residues. Fixed by preferring the FR2
+context after the conserved Trp (`W[VIA][RKQ]Q` / `W[YF][QL]Q`).
 
-5개 데이터셋 약 12,000건 비교에서 **CDR 경계 불일치 3.83% → 0.31%**,
-사람 naive B 2,996건에서는 **계열·길이 고정 시 0.00%** 가 됐다.
+Across roughly 12,000 comparisons on 5 datasets, **CDR boundary mismatches fell from 3.83% to
+0.31%**, and on the 2,996 human naive B comparisons the rate became **0.00% with family and
+length fixed**.
 
-> **이 건은 한 번 잘못 기각했다.** 정답 없이 분포만 보고 "`LAW` 6% 는 정상 germline 이니
-> 이 패턴을 쓰면 안 된다"고 판단했는데, ANARCI 정답으로 보니 그 6% 가 바로 내 오류였다.
-> 분포만으로는 "흔한 것"과 "맞는 것"을 구분할 수 없다는 교훈으로 남긴다.
+> **I wrongly rejected this fix once.** Looking only at the distribution, without ground truth,
+> I concluded that "the 6% with `LAW` is normal germline, so this pattern must not be used." When
+> I checked against ANARCI ground truth, that 6% turned out to be exactly my error. The lesson I
+> keep from this: a distribution alone cannot tell "common" apart from "correct."
 
-회귀: `test_trp_anchor_uses_fr2_context_for_light_chain`
+Regression: `test_trp_anchor_uses_fr2_context_for_light_chain`
 
 ---
 
-## 알려진 한계 — 고치지 않기로 한 것
+## Known limitations — not fixed on purpose
 
-측정해 보고 **일부러 안 고친** 것들이다. 고치면 더 큰 것을 망가뜨린다.
+These were measured and **deliberately left unfixed**. Fixing them would break something bigger.
 
-### 보존 Trp 이 변이된 서열
+### Sequences with a mutated conserved Trp
 
 ```
-KING-133-VL   ...RASQTVNINLA F YQQKPGQ...      (정상은 W YQQ)
-SOKA-351-VH   CDR-H1 이 9잔기로 나옴
+KING-133-VL   ...RASQTVNINLA F YQQKPGQ...      (normally W YQQ)
+SOKA-351-VH   CDR-H1 comes out as 9 residues
 ```
 
-Trp35/Trp36 이 다른 잔기로 치환되면 앵커를 못 찾고 엉뚱한 Trp 을 집는다.
+When Trp35/Trp36 is substituted by another residue, the anchor cannot be found and the annotator
+picks up the wrong Trp.
 
-**FR2 문맥(`W` 다음 3잔기)으로 되찾을 수 있을까 싶어 측정했다:**
+**I measured whether the FR2 context (the 3 residues after `W`) could recover it:**
 
-| 체인 | 후보 패턴 | 적중률 |
+| Chain | Candidate pattern | Hit rate |
 |---|---|---|
 | VH | `[VI][RK]Q` | 85.6% |
 | VL | `[YF][QL]Q` | 83.1% |
 
-**처음에는 기각했다가, ANARCI 정답으로 비교한 뒤 번복했다.** 분포만 보고 "안 맞는
-6~8% 가 정상 germline 일 것"이라고 판단했는데, 정답과 맞춰 보니 그중 상당수가 내 오류였다.
-문맥 우선 규칙을 넣자 CDR 경계 불일치가 3.83% → 0.31% 로 떨어졌다 (위 6번 항목).
+**I first rejected this, then reversed the decision after comparing with ANARCI ground truth.**
+Looking only at the distribution, I assumed "the 6–8% that don't match must be normal germline,"
+but when matched against ground truth, a substantial share of them were my errors. Adding the
+context-first rule brought CDR boundary mismatches down from 3.83% to 0.31% (item 6 above).
 
-다만 **보존 Trp 자체가 다른 잔기로 치환된 서열**은 여전히 못 찾는다. FR2 문맥에도 Trp 이
-들어 있기 때문이다. 이런 서열(3,426건 중 1건 수준)은 지금도 `신뢰 불가` 로 거부한다.
+However, sequences where **the conserved Trp itself is substituted** by another residue still
+cannot be recovered, because the FR2 context pattern itself contains the Trp. Such sequences
+(about 1 in 3,426) are still rejected as `low confidence`.
 
-**현재 동작이 맞다 — 추측하지 않고 `신뢰 불가`로 거부한다.**
+**The current behavior is correct — it does not guess; it rejects as `low confidence`.**
 
-### 잘린 리드
+### Truncated reads
 
-Sokal 2021 처럼 5'/3' 가 잘린 리드가 섞인 데이터에서는 앵커를 못 찾는다(그 데이터셋
-주석 성공률 91.2%). 입력 길이 검증(70-200)을 통과하더라도 도메인 일부가 없으면
-앵커가 없다. 이것도 거부가 맞는 동작이다.
+In data that mixes in reads truncated at the 5'/3' end, such as Sokal 2021, the anchors cannot
+be found (annotation success on that dataset: 91.2%). Even if a sequence passes input length
+validation (70-200), if part of the domain is missing the anchor is simply absent. Rejection is
+the correct behavior here too.
 
-### 나노바디(VHH) — 돌아가지만 검증 범위 밖
+### Nanobodies (VHH) — runs, but outside the validated scope
 
-PDB 에서 실제 나노바디 구조 5건의 서열을 받아 돌려봤다. **주석은 나온다** — 보존 Cys,
-Trp, 말단 `WGxG` 를 모두 찾고 CDR-H1 5잔기, CDR-H2 17잔기, CDR-H3 15-20잔기로
-그럴듯한 값이 나온다. N-말단에 발현 태그(`MA…`)가 붙은 서열에서도 앵커가 함께 밀려
-자체 일관성은 유지된다.
+I took sequences from 5 real nanobody structures in the PDB and ran them. **Annotations are
+produced** — the conserved Cys, the Trp and the terminal `WGxG` are all found, and the values
+look plausible: CDR-H1 5 residues, CDR-H2 17 residues, CDR-H3 15-20 residues. For sequences
+with an N-terminal expression tag (`MA…`), the anchors shift together, so the annotation stays
+self-consistent.
 
-다만 **FR2 문맥 경고가 반드시 뜬다.**
+However, **the FR2 context warning always appears.**
 
 ```
 참고: 보존 Trp36 을 FR2 문맥(W[VIA][RKQ]Q)으로 찾지 못해 38번의 Trp 을 그대로 썼다.
 ```
 
-VHH 의 hallmark 치환(V37F) 때문이다 — 통상 VH 의 `W V R Q` 가 VHH 에서는 `W F R Q` 다.
-이 자리가 VHH 를 VHH 이게 하는 자리이므로, 문맥 패턴에 `F` 를 넣어 "고치는" 것은
-옳지 않다. 경고가 뜨는 것이 오히려 정확한 신호다.
+(Gloss: "Note: conserved Trp36 could not be found via the FR2 context (W[VIA][RKQ]Q), so the Trp
+at position 38 was used as is.")
 
-**검증은 하지 못했다.** OAS 91개 연구에 낙타류 데이터가 없어 ANARCI 정답과 비교할
-방법이 없었다. 따라서 VHH 에 대해서는 정확도를 주장하지 않는다. 쓰시려면 ANARCI 로
-경계를 확인한 뒤 쓸 것.
+This is due to the VHH hallmark substitution (V37F) — the `W V R Q` of a typical VH is `W F R Q`
+in a VHH. This position is what makes a VHH a VHH, so "fixing" it by adding `F` to the context
+pattern would be wrong. The warning is, if anything, an accurate signal.
 
-### 보존 Trp 의 FR2 문맥을 못 찾을 때 신뢰도를 내리지 않는 이유
+**I could not validate this.** None of the 91 OAS studies include camelid data, so there was no
+way to compare against ANARCI ground truth. Accordingly, no accuracy claim is made for VHH. If
+you use it, confirm the boundaries with ANARCI first.
 
-FR3 모티프를 역산했을 때는 `신뢰 불가` 로 내리는데, Trp FR2 문맥 실패는 경고만 남긴다.
-일관성이 없어 보여 측정했다.
+### Why a failed FR2 context lookup for the conserved Trp does not lower confidence
+
+A back-calculated FR3 motif lowers the result to `low confidence`, but a failed Trp FR2 context
+lookup only leaves a warning. That looked inconsistent, so I measured it.
 
 ```
-통상 항체 6,881건 중 Trp FR2 문맥 실패: 503건 (7.31%)
+Trp FR2 context failures among 6,881 conventional antibodies: 503 (7.31%)
 ```
 
-그런데 같은 데이터에서 ANARCI 대비 CDR 경계 불일치는 0.35% 다. 즉 **문맥을 못 찾아도
-대부분 올바른 Trp 을 집고 있다.** 7.31% 를 전부 `신뢰 불가` 로 내리면 오탐이 500건
-늘어나고 경고가 무뎌진다. 반면 FR3 역산은 근거가 한 단계 더 간접적이라 내린다.
+Yet on the same data, the CDR boundary mismatch against ANARCI is 0.35%. In other words,
+**even without the context, it picks the correct Trp in most cases.** Downgrading all 7.31% to
+`low confidence` would add 500 false alarms and dull the warning. The FR3 back-calculation, by
+contrast, rests on one more level of indirect evidence, so it is downgraded.
 
-### 구조를 보지 않는다
+### No structural information
 
-liability 플래그는 서열 모티프만 본다. 묻혀 있어 실제로는 문제되지 않는 자리도 플래그된다.
-이건 설계 범위 밖이고 README 와 모든 출력에 명시돼 있다.
+The liability flags look only at sequence motifs. Sites that are buried and pose no real problem
+are flagged too. This is outside the design scope and is stated in the README and in every output.
 
 ---
 
-## 요약
+## Summary
 
-| 항목 | 값 |
+| Item | Value |
 |---|---|
-| 측정 서열 | 7,000 (공개 데이터 7개 데이터셋) |
-| **CDR 경계 (ANARCI 정답 대비)** | **불일치 0.35%** (16,427건, 7개 데이터셋) |
-| 체인 판별 **오판** | **0건** |
-| CDR 주석 성공 | 98.3% |
-| 내부 일관성 (FR3↔Cys) | 100% |
-| 실제 데이터로 찾아 고친 버그 | 6건 |
-| 한 번 기각했다가 정답 비교 후 번복한 수정 | 1건 |
+| Sequences measured | 7,000 (7 public datasets) |
+| **CDR boundaries (vs. ANARCI ground truth)** | **0.35% mismatch** (16,427 comparisons, 7 datasets) |
+| Chain identification **misclassifications** | **0** |
+| CDR annotation succeeded | 98.3% |
+| Internal consistency (FR3↔Cys) | 100% |
+| Bugs found and fixed using real data | 6 |
+| Fixes rejected once, then reversed after ground-truth comparison | 1 |
 
-**못 하는 경우에 추측하지 않고 이유를 말하는 것**이 이 도구의 설계 목표였다. 7,000건에서
-체인 판별 오판 0건, 그리고 모든 실패에 한글 사유가 붙는다는 점으로 그 목표는 확인됐다.
+The design goal of this tool was **to state the reason rather than guess when it cannot do
+something.** 0 chain misclassifications across 7,000 sequences, and a Korean-language reason
+attached to every failure, confirm that goal.

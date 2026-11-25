@@ -1,12 +1,12 @@
-"""PDF 사용 설명서가 현재 코드와 어긋나지 않는지 확인한다.
+"""Check that the PDF user manual has not drifted from the current code.
 
-설명서에는 실제 터미널 출력·오류 메시지·JSON 이 들어 있다. 코드를 바꾸고 설명서를
-다시 만들지 않으면 조용히 낡는다. 그래서 세 겹으로 막는다.
-  1. 커밋된 manual.html 이 지금 코드로 생성한 것과 같은가
-  2. 커밋된 PDF 가 그 manual.html 로 만든 것인가 (원본 해시)
-  3. README / TUTORIAL 에서 설명서로 가는 링크가 있는가
+The manual contains real terminal output, error messages and JSON. If the code changes
+and the manual is not rebuilt, it silently goes stale. So there are three layers of defense:
+  1. Is the committed manual.html identical to one generated from the current code?
+  2. Was the committed PDF built from that manual.html? (source hash)
+  3. Do README / TUTORIAL link to the manual?
 
-다시 만들려면:  bash docs/manual/build.sh
+To rebuild:  bash docs/manual/build.sh
 """
 
 from __future__ import annotations
@@ -46,7 +46,7 @@ def test_screenshots_exist():
 
 
 def test_committed_manual_matches_current_code(builder):
-    """설명서의 터미널 출력·오류 메시지·JSON 이 지금 코드의 실제 출력과 같은지."""
+    """Do the manual's terminal output, error messages and JSON match the current code's actual output?"""
     assert HTML.exists(), f"manual.html 이 없다. {REBUILD}"
     committed = HTML.read_text(encoding="utf-8")
     current = builder.build_html()
@@ -54,7 +54,7 @@ def test_committed_manual_matches_current_code(builder):
 
 
 def test_pdf_was_built_from_current_manual():
-    """PDF 를 만든 원본 HTML 해시가 지금 manual.html 과 같은지 — PDF 가 낡지 않았는지."""
+    """Does the source HTML hash of the PDF match the current manual.html -- i.e. is the PDF not stale?"""
     assert STAMP.exists(), f"원본 해시 파일이 없다. {REBUILD}"
     recorded = STAMP.read_text(encoding="utf-8").strip()
     actual = hashlib.sha256(HTML.read_bytes()).hexdigest()
@@ -68,7 +68,7 @@ def test_manual_is_linked_from_readme_and_tutorial():
 
 
 def test_manual_covers_input_output_and_usage():
-    """사용자가 물어본 세 가지 — 입력·결과·사용법 — 가 다 들어 있는지."""
+    """Are all three things the user asked about -- input, results, usage -- covered?"""
     text = HTML.read_text(encoding="utf-8")
     for section in ["입력 — 무엇을 어떤 형식으로 넣는가", "실행 — 명령 네 가지",
                     "터미널 출력 읽는 법", "HTML 리포트", "JSON",
@@ -77,7 +77,7 @@ def test_manual_covers_input_output_and_usage():
 
 
 def test_manual_uses_only_synthetic_examples():
-    """설명서의 예시 서열은 전부 합성 코퍼스에 있는 것이어야 한다."""
+    """Every example sequence in the manual must come from the synthetic corpus."""
     import json
     import re
 

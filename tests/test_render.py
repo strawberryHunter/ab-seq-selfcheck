@@ -1,4 +1,4 @@
-"""출력 테스트 — 한계 고지가 세 출력 모두에 실리는지, HTML 양식 제약을 지키는지."""
+"""Output tests -- does the limitations notice appear in all three outputs, and does HTML respect the style constraints?"""
 
 from __future__ import annotations
 
@@ -18,12 +18,12 @@ def _reports(records, *ids):
 
 
 # --------------------------------------------------------------------------
-# 한계 고지 — 세 출력 모두에 반드시 들어간다
+# Limitations notice -- must appear in all three outputs
 # --------------------------------------------------------------------------
 
 def test_text_output_carries_limitation_notice(records):
     text = as_text(_reports(records, "SYN-VH-001"))
-    #  줄바꿈 때문에 통째로 비교할 수 없으니 특징적인 조각으로 확인한다
+    #  Line wrapping prevents comparing it whole, so check distinctive fragments
     assert "numbering 엔진이" in text
     assert "ANARCI" in text
     assert "종합 판정" in text
@@ -31,7 +31,7 @@ def test_text_output_carries_limitation_notice(records):
 
 def test_html_output_carries_limitation_notice(records):
     out = as_html(_reports(records, "SYN-VH-001"))
-    # HTML 은 따옴표까지 이스케이프하므로 이스케이프한 형태로 비교한다
+    # HTML escapes quotes too, so compare against the escaped form
     for note in LIMITATION_NOTICE:
         assert html_module.escape(note) in out, note[:30]
     assert html_module.escape(NO_VERDICT_NOTICE) in out
@@ -41,19 +41,19 @@ def test_json_output_carries_limitation_notice(records):
     payload = json.loads(as_json(_reports(records, "SYN-VH-001")))
     assert payload["limitations"] == list(LIMITATION_NOTICE)
     assert payload["no_verdict"] == NO_VERDICT_NOTICE
-    # 서열별 레코드에도 들어 있어야 한다 — 한 건만 떼어 써도 고지가 따라간다
+    # Must also be in each per-sequence record -- the notice travels with any single record
     assert payload["sequences"][0]["limitations"] == list(LIMITATION_NOTICE)
     assert payload["sequences"][0]["no_verdict"] == NO_VERDICT_NOTICE
 
 
 def test_no_output_contains_overall_verdict_wording(records):
-    """'개발 가능성 높음/낮음' 같은 종합 판정 문구를 내지 않는다.
+    """Never emit overall verdict phrases like 'high/low developability'.
 
-    "내리지 않는다"고 선언하는 고지문 자체는 예외다. 출력에서 공백을 정규화한 뒤
-    고지문을 떼어내고 나서 검사한다 — 터미널 출력은 고지문을 줄바꿈하기 때문이다.
+    The notice text that declares "we do not make verdicts" is the exception. Whitespace in the
+    output is normalized and the notice removed before checking -- the terminal output wraps the notice.
     """
     reports = build_many([(r["id"], r["sequence"]) for r in records])
-    # 판정을 "하지 않는다"고 선언하는 고지문 두 개는 예외로 떼어낸다
+    # The two notices declaring that no verdict is made are removed as exceptions
     notices = [re.sub(r"\s+", " ", n) for n in (NO_VERDICT_NOTICE, SUMMARY_NOTE)]
 
     for text in [as_text(reports), as_html(reports), as_json(reports)]:
@@ -68,7 +68,7 @@ def test_no_output_contains_overall_verdict_wording(records):
 
 
 # --------------------------------------------------------------------------
-# confident=False 사유가 출력에 보이는지
+# Is the confident=False reason visible in the output?
 # --------------------------------------------------------------------------
 
 def test_failure_reason_appears_in_every_output(records):
@@ -103,7 +103,7 @@ def test_invalid_input_is_reported_not_crashed():
 
 
 # --------------------------------------------------------------------------
-# HTML 양식 제약 — Arial, 검정 헤더, 회색 지브라, 컬러 강조 없음
+# HTML style constraints -- Arial, black header, gray zebra, no color highlighting
 # --------------------------------------------------------------------------
 
 def test_html_uses_arial(records):
@@ -113,12 +113,12 @@ def test_html_uses_arial(records):
 
 def test_html_header_is_black_and_rows_are_gray_zebra(records):
     out = as_html(_reports(records, "SYN-VH-001"))
-    assert "background: #000000" in out          # 검정 헤더
-    assert "nth-child(even) { background: #f0f0f0" in out   # 회색 지브라
+    assert "background: #000000" in out          # Black header
+    assert "nth-child(even) { background: #f0f0f0" in out   # Gray zebra
 
 
 def test_html_has_no_chromatic_colors(records):
-    """회색/흑백 외의 색을 쓰지 않는다 — 위험도를 색으로 칠하지 않기 위한 제약."""
+    """No colors other than gray/black-and-white -- a constraint so risk is never color-coded."""
     out = as_html(build_many([(r["id"], r["sequence"]) for r in records]))
 
     hex_colors = set(re.findall(r"#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b", out))
@@ -128,7 +128,7 @@ def test_html_has_no_chromatic_colors(records):
         r, g, b = (int(value[i:i + 2], 16) for i in (0, 2, 4))
         assert r == g == b, f"무채색이 아닌 색이 있다: #{value}"
 
-    # 색 이름이나 다른 색 표기도 쓰지 않는다
+    # No color names or other color notations either
     for banned in ["rgb(", "hsl(", "red", "green", "blue", "orange", "yellow", "crimson"]:
         assert banned not in out.lower(), banned
 
@@ -137,11 +137,11 @@ def test_html_marks_cdr_with_bold_only(records):
     out = as_html(_reports(records, "SYN-VH-001"))
     ann = _reports(records, "SYN-VH-001")[0].annotation
 
-    # CDR 서열이 <b> 로 감싸여 나타난다
+    # CDR sequences appear wrapped in <b>
     for cdr in ann.cdrs.values():
         assert f"<b>{cdr.seq}</b>" in out, cdr.name
 
-    # 강조는 굵게만 — 밑줄·기울임·형광펜 없음
+    # Emphasis is bold only -- no underline, italics or highlighter
     for banned in ["<u>", "<em>", "<i>", "<mark>", "text-decoration", "font-style: italic"]:
         assert banned not in out, banned
 
@@ -156,7 +156,7 @@ def test_html_sequence_block_splits_into_lines(records):
 
 
 def test_html_is_single_self_contained_file(records):
-    """단일 HTML — 외부 CSS/JS/이미지를 불러오지 않는다."""
+    """Single HTML file -- loads no external CSS/JS/images."""
     out = as_html(build_many([(r["id"], r["sequence"]) for r in records]))
     assert "<style>" in out
     for banned in ["<link", "<script", "<img", "http://", "https://", "@import"]:
@@ -171,7 +171,7 @@ def test_html_escapes_content():
 
 
 # --------------------------------------------------------------------------
-# 터미널 표 — 컬러 없음, 정렬
+# Terminal table -- no color, aligned
 # --------------------------------------------------------------------------
 
 def test_text_output_has_no_ansi_escapes(records):
@@ -181,13 +181,13 @@ def test_text_output_has_no_ansi_escapes(records):
 
 def test_text_table_columns_are_aligned(records):
     out = as_text(_reports(records, "SYN-VH-001"))
-    # CDR 표는 4열이다. 물성 표에도 CDR-H 로 시작하는 행이 있으므로 열 수로 가린다.
+    # The CDR table has 4 columns. The property table also has rows starting with CDR-H, so filter by column count.
     rows = [
         ln for ln in out.splitlines()
         if ln.strip().startswith("CDR-H") and ln.count("|") == 3
     ]
     assert len(rows) == 3
-    # 구분자 '|' 위치가 모든 행에서 같아야 한다
+    # The '|' separator must be at the same position on every row
     positions = {tuple(i for i, ch in enumerate(row) if ch == "|") for row in rows}
     assert len(positions) == 1, f"열 정렬이 틀어졌다: {positions}"
 
@@ -200,7 +200,7 @@ def test_text_marks_cdr_positions_under_sequence(records):
 
 
 def test_text_wraps_without_repeating_bullet(records):
-    """줄바꿈된 설명문에 글머리표가 반복되지 않는다."""
+    """Bullets are not repeated in wrapped description text."""
     out = as_text(_reports(records, "SYN-VH-903"))
     bullet_lines = [ln for ln in out.splitlines() if ln.strip().startswith("* ")]
     for line in bullet_lines:
@@ -208,7 +208,7 @@ def test_text_wraps_without_repeating_bullet(records):
 
 
 # --------------------------------------------------------------------------
-# JSON 구조
+# JSON structure
 # --------------------------------------------------------------------------
 
 def test_json_round_trips_cdr_coordinates(records):

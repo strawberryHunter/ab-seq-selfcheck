@@ -1,4 +1,4 @@
-"""liability 검출 테스트 — CDR 과 framework 의 위험도 구분이 핵심이다."""
+"""Liability detection tests -- the key is distinguishing risk between CDR and framework."""
 
 from __future__ import annotations
 
@@ -19,13 +19,13 @@ def _kinds(hits) -> set[str]:
 
 
 # --------------------------------------------------------------------------
-# 구간별 위험도 구분 — 이 모듈의 존재 이유
+# Per-region risk distinction -- the reason this module exists
 # --------------------------------------------------------------------------
 
 def test_same_motif_is_riskier_inside_cdr(records):
-    """같은 DG 모티프가 CDR 안이면 '높음', framework 면 '중간' 이어야 한다."""
-    _, _, fr_report = _scan(records, "SYN-VH-006")       # framework 에 DG
-    _, _, cdr_report = _scan(records, "SYN-VH-007")      # CDR-H3 에 DG
+    """The same DG motif must be 'high' inside a CDR and 'medium' in the framework."""
+    _, _, fr_report = _scan(records, "SYN-VH-006")       # DG in framework
+    _, _, cdr_report = _scan(records, "SYN-VH-007")      # DG in CDR-H3
 
     fr_dg = [h for h in fr_report.hits if h.match == "DG"]
     cdr_dg = [h for h in cdr_report.hits if h.match == "DG"]
@@ -38,14 +38,14 @@ def test_same_motif_is_riskier_inside_cdr(records):
     assert fr_dg[0].risk == "중간", "framework DG 는 한 단계 내려야 한다"
     assert cdr_dg[0].risk == "높음", "CDR DG 는 최고 등급이어야 한다"
 
-    # 조정 근거가 한글로 남는다
+    # The adjustment rationale is recorded in Korean
     assert "framework" in fr_dg[0].note
     assert "CDR-H3" in cdr_dg[0].note
 
 
 def test_framework_met_is_lowest_but_cdr_met_is_raised(records):
-    _, _, fr_report = _scan(records, "SYN-VH-006")       # framework 에 Met
-    _, _, cdr_report = _scan(records, "SYN-VH-008")      # CDR-H3 에 Met
+    _, _, fr_report = _scan(records, "SYN-VH-006")       # Met in framework
+    _, _, cdr_report = _scan(records, "SYN-VH-008")      # Met in CDR-H3
 
     fr_met = [h for h in fr_report.hits if h.match == "M"]
     cdr_met = [h for h in cdr_report.hits if h.match == "M" and h.in_cdr]
@@ -65,11 +65,11 @@ def test_risk_never_leaves_the_three_levels(records):
 
 
 # --------------------------------------------------------------------------
-# 정상 케이스 — CDR liability 가 없어야 한다
+# Normal cases -- there must be no CDR liabilities
 # --------------------------------------------------------------------------
 
 def test_normal_cases_have_no_cdr_liabilities(records):
-    """주입한 liability 가 없는 케이스는 CDR 안이 깨끗하다."""
+    """Cases without injected liabilities are clean inside the CDRs."""
     for seq_id in ["SYN-VH-001", "SYN-VH-002", "SYN-VL-001", "SYN-VL-002"]:
         _, _, report = _scan(records, seq_id)
         assert report.cdr_hits == [], f"{seq_id}: CDR liability 가 있다 — {report.cdr_hits}"
@@ -77,10 +77,10 @@ def test_normal_cases_have_no_cdr_liabilities(records):
 
 
 def test_normal_cases_only_flag_conserved_trp_in_framework(records):
-    """정상 케이스의 framework 플래그는 보존 Trp 앵커 산화뿐이다.
+    """In normal cases the only framework flags are oxidation of the conserved Trp anchors.
 
-    framework filler 알파벳에서 C/W/M/N/D 를 뺐으므로, 남는 것은 앵커 Trp 밖에 없다.
-    중쇄는 Trp36 + WGxG 의 Trp 로 2건, 경쇄는 Trp35 로 1건.
+    C/W/M/N/D were removed from the framework filler alphabet, so only anchor Trp remain.
+    Heavy chains have 2 (Trp36 + the Trp of WGxG); light chains have 1 (Trp35).
     """
     for seq_id, expected in [("SYN-VH-001", 2), ("SYN-VH-002", 2),
                              ("SYN-VL-001", 1), ("SYN-VL-002", 1)]:
@@ -92,7 +92,7 @@ def test_normal_cases_only_flag_conserved_trp_in_framework(records):
         )
         for hit in report.framework_hits:
             assert hit.risk == "낮음"
-        # 앵커 위치와 일치하는지
+        # Check they match the anchor positions
         anchor_positions = {ann.anchors["trp"]}
         if ann.chain == "H":
             anchor_positions.add(ann.anchors["terminal_motif"])
@@ -100,7 +100,7 @@ def test_normal_cases_only_flag_conserved_trp_in_framework(records):
 
 
 # --------------------------------------------------------------------------
-# 주입한 liability 를 정확히 검출하는지
+# Detect injected liabilities exactly
 # --------------------------------------------------------------------------
 
 def test_cdr_deamidation_ng_detected(records):
@@ -142,7 +142,7 @@ def test_cdr_oxidation_met_and_trp_detected(records):
 
 
 # --------------------------------------------------------------------------
-# 비결합 Cys — 도메인 단위 플래그
+# Unpaired Cys -- a domain-level flag
 # --------------------------------------------------------------------------
 
 def test_unpaired_cysteine_flagged_when_count_is_odd(records):
@@ -169,14 +169,14 @@ def test_even_cysteine_count_is_not_flagged(records):
 
 
 def test_cdr_cysteine_also_appears_as_regular_hit(records):
-    """CDR 안의 여분 Cys 는 도메인 플래그로 보고하고, 위치 기반 모티프로는 잡지 않는다."""
+    """An extra Cys inside a CDR is reported as a domain flag, not caught as a position-based motif."""
     _, _, report = _scan(records, "SYN-VH-005")
     assert "cysteine" not in _kinds(report.hits)
     assert report.domain_flags[0]["positions"] == [22, 95, 103]
 
 
 # --------------------------------------------------------------------------
-# 주석이 실패한 서열에서도 동작해야 한다
+# Must work even on sequences whose annotation failed
 # --------------------------------------------------------------------------
 
 def test_works_without_annotation_and_warns(records):
@@ -186,7 +186,7 @@ def test_works_without_annotation_and_warns(records):
     assert report.hits, "주석 실패와 무관하게 모티프는 검출해야 한다"
     assert all(h.region == "구간 미확정" for h in report.hits)
     assert all(h.in_cdr is False for h in report.hits)
-    # 등급 조정을 하지 않았으므로 기본 등급 그대로다
+    # No severity adjustment was made, so the base severity stays
     assert all(h.risk == h.base_risk for h in report.hits)
 
     assert report.warnings
@@ -206,11 +206,11 @@ def test_odd_cysteine_without_annotation_still_flagged(records):
 
 
 # --------------------------------------------------------------------------
-# 겹치는 모티프 처리
+# Handling overlapping motifs
 # --------------------------------------------------------------------------
 
 def test_higher_risk_motif_wins_within_same_kind():
-    """NG 를 잡은 자리를 같은 분류의 약한 패턴으로 다시 잡지 않는다."""
+    """Do not re-flag a spot already caught as NG with a weaker pattern of the same category."""
     from abcheck.annotate import Annotation
 
     ann = Annotation(sequence="AANGSAA")
@@ -222,7 +222,7 @@ def test_higher_risk_motif_wins_within_same_kind():
 
 
 def test_glycosylation_and_deamidation_both_reported_for_ngs():
-    """NGS 는 당화 수용 서열이면서 NG deamidation 이기도 하다 — 분류가 다르므로 둘 다 본다."""
+    """NGS is both a glycosylation sequon and an NG deamidation site -- different categories, so both are reported."""
     from abcheck.annotate import Annotation
 
     ann = Annotation(sequence="AANGSAA")
@@ -232,7 +232,7 @@ def test_glycosylation_and_deamidation_both_reported_for_ngs():
 
 
 def test_motif_on_cdr_boundary_counts_as_cdr(records):
-    """경계에 걸친 모티프는 위험도를 과소평가하지 않도록 CDR 쪽으로 본다."""
+    """A motif spanning a boundary is treated as CDR so its risk is not underestimated."""
     from abcheck.annotate import CDR, Annotation
 
     seq = "A" * 10 + "NG" + "A" * 10
@@ -241,13 +241,13 @@ def test_motif_on_cdr_boundary_counts_as_cdr(records):
     report = find_liabilities(ann)
 
     ng = [h for h in report.hits if h.match == "NG"]
-    assert ng[0].start == 11 and ng[0].end == 12     # 11번은 framework, 12번은 CDR
+    assert ng[0].start == 11 and ng[0].end == 12     # Position 11 is framework, 12 is CDR
     assert ng[0].in_cdr is True
     assert ng[0].region == "CDR-H3"
 
 
 # --------------------------------------------------------------------------
-# 집계
+# Aggregation
 # --------------------------------------------------------------------------
 
 def test_counts_by_risk_is_ordered_high_first(records):
@@ -258,10 +258,10 @@ def test_counts_by_risk_is_ordered_high_first(records):
 
 
 def test_every_spec_has_korean_rationale():
-    """근거는 반드시 한글이어야 한다.
+    """Rationales must always be in Korean.
 
-    라벨은 'deamidation (NG)' 처럼 영문 용어를 그대로 쓴다 — 연구실에서 통용되는
-    표현이라 억지로 번역하면 오히려 알아보기 어렵다.
+    Labels keep the English term as-is, like 'deamidation (NG)' -- that is how labs
+    say it, and a forced translation would actually be harder to recognize.
     """
     for spec in MOTIF_SPECS:
         assert any("가" <= ch <= "힣" for ch in spec.rationale), spec.kind

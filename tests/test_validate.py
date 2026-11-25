@@ -1,4 +1,4 @@
-"""입력 검증 테스트 — 거부 사유가 한글로 나오는지까지 본다."""
+"""Input validation tests -- including whether rejection reasons are in Korean."""
 
 from __future__ import annotations
 
@@ -58,7 +58,7 @@ def test_non_amino_acid_characters_rejected():
 
 
 def test_dna_like_input_rejected():
-    """DNA 서열은 전부 유효한 아미노산 문자지만, 핵산 오입력으로 걸러야 한다."""
+    """DNA sequences consist entirely of valid amino acid letters, but must be rejected as mistyped nucleic acid."""
     result = validate("ATGGCCATTGTAATGGGCCGCTGAAAGGGTGCCCGATAG" * 3)
     assert not result.ok
     joined = " ".join(result.errors)
@@ -67,7 +67,7 @@ def test_dna_like_input_rejected():
 
 
 def test_homopolymer_is_not_mistaken_for_dna():
-    """poly-A 는 핵산 판정에서 제외한다 (ACGT 중 3종 이상일 때만 핵산으로 본다)."""
+    """poly-A is excluded from the nucleic acid check (only 3+ distinct letters of ACGT count as nucleic acid)."""
     result = validate("A" * 120)
     assert result.ok, result.errors
 
@@ -122,10 +122,10 @@ def test_ensure_valid_returns_cleaned(records):
 
 
 def test_error_messages_only_mention_options_that_exist():
-    """오류 메시지가 없는 옵션을 안내하면 안 된다.
+    """Error messages must not point to options that do not exist.
 
-    한때 FASTA 헤더 오류가 존재하지 않는 '--fasta' 옵션을 안내했다. 매뉴얼을 만들며
-    실제 메시지를 옮기다 발견했다. CLI 의 실제 옵션과 대조한다.
+    A FASTA header error once suggested a nonexistent '--fasta' option. It was found while
+    copying real messages into the manual. This checks against the CLI's actual options.
     """
     import re
 

@@ -1,12 +1,12 @@
-"""developability liability 모티프 검출.
+"""Detection of developability liability motifs.
 
-핵심은 **CDR 안에 있는 것과 framework 에 있는 것의 위험도를 구분**하는 것이다.
-같은 `NG` 라도 CDR 안이면 결합에 직접 영향을 주므로 더 위험하고, framework 면
-상대적으로 덜 위험하다. 그래서 모티프별 기본 등급을 두고 구간에 따라 한 단계
-올리거나 내린다.
+The key point is **distinguishing risk inside a CDR from risk in the framework**.
+The same `NG` is riskier inside a CDR, where it directly affects binding, and
+relatively less risky in the framework. So each motif has a base risk level that is
+raised or lowered by one step depending on the region.
 
-이 모듈은 **서열 모티프만** 본다. 구조적 용매 접근성을 보지 않으므로, 묻혀 있는
-잔기도 그대로 플래그된다. 실제 위험도는 다를 수 있다 — 플래그는 근거이지 판정이 아니다.
+This module looks at **sequence motifs only**. It ignores structural solvent accessibility,
+so buried residues get flagged too. Real risk may differ — a flag is evidence, not a verdict.
 """
 
 from __future__ import annotations
@@ -17,40 +17,40 @@ from dataclasses import dataclass, field
 from .annotate import Annotation
 
 # --------------------------------------------------------------------------
-# 위험도 등급
+# Risk levels
 # --------------------------------------------------------------------------
 
-#: 낮은 쪽부터 높은 쪽으로. 등급 조정은 이 순서를 따라 한 칸씩 움직인다.
+#: Ordered low to high. Adjustments move one step along this order.
 RISK_LEVELS: tuple[str, ...] = ("낮음", "중간", "높음")
 
 
 def _shift(level: str, step: int) -> str:
-    """등급을 step 칸 움직인다. 양 끝에서는 멈춘다."""
+    """Move a level by step positions, clamping at either end."""
     idx = RISK_LEVELS.index(level)
     return RISK_LEVELS[max(0, min(len(RISK_LEVELS) - 1, idx + step))]
 
 
 # --------------------------------------------------------------------------
-# 모티프 정의
+# Motif definitions
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class MotifSpec:
-    """liability 모티프 하나의 정의."""
+    """Definition of a single liability motif."""
 
-    kind: str                 # 분류 (예: "deamidation")
-    pattern: str              # 정규식
-    base_risk: str            # 구간 조정 전 기본 등급
-    label: str                # 한글 이름
-    rationale: str            # 왜 문제인지 (한글 근거)
-    top_within_kind: bool = False   # 같은 분류 안에서 최고 위험인지
+    kind: str                 # category (e.g. "deamidation")
+    pattern: str              # regex
+    base_risk: str            # base level before region adjustment
+    label: str                # Korean name
+    rationale: str            # why it matters (Korean explanation)
+    top_within_kind: bool = False   # whether it is the highest-risk motif in its category
 
     @property
     def regex(self) -> re.Pattern[str]:
         return re.compile(self.pattern)
 
 
-#: 검출 대상 모티프. 같은 분류 안에서 더 위험한 것을 먼저 둔다 (겹치면 앞선 것이 이긴다).
+#: Motifs to detect. Within a category the riskier one comes first (on overlap, the earlier one wins).
 MOTIF_SPECS: tuple[MotifSpec, ...] = (
     MotifSpec(
         kind="glycosylation",
@@ -139,33 +139,33 @@ MOTIF_SPECS: tuple[MotifSpec, ...] = (
 
 
 # --------------------------------------------------------------------------
-# 결과 자료형
+# Result types
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Hit:
-    """liability 모티프 한 건."""
+    """A single liability motif hit."""
 
     kind: str
     label: str
     match: str
-    start: int                # 1-based, 양끝 포함
+    start: int                # 1-based, inclusive
     end: int
-    region: str               # "CDR-H2" 또는 "framework" 또는 "구간 미확정"
+    region: str               # "CDR-H2", "framework", or the undetermined-region marker (see _region_name)
     in_cdr: bool
-    risk: str                 # 구간 조정을 반영한 최종 등급
+    risk: str                 # final level after region adjustment
     base_risk: str
     rationale: str
-    note: str                 # 등급 조정 근거 (한글)
-    #: 같은 분류 안에서 최고 위험인 모티프인지 (NG, DG, 당화, DP).
-    #: 선별 규칙이 약한 등급까지 끌어올려 과도하게 걸리는 것을 막는 데 쓴다.
+    note: str                 # reason for the adjustment (Korean)
+    #: Whether this is the highest-risk motif in its category (NG, DG, glycosylation, DP).
+    #: Used to keep triage rules from promoting weaker motifs and over-flagging.
     top_within_kind: bool = False
 
 
 @dataclass
 class LiabilityReport:
     hits: list[Hit] = field(default_factory=list)
-    #: 도메인 단위 플래그 (비결합 Cys 처럼 위치 하나로 특정할 수 없는 것)
+    #: Domain-level flags (things not tied to a single position, like an unpaired Cys)
     domain_flags: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
@@ -185,14 +185,14 @@ class LiabilityReport:
 
 
 # --------------------------------------------------------------------------
-# 검출
+# Detection
 # --------------------------------------------------------------------------
 
 def _region_name(ann: Annotation, start: int, end: int) -> tuple[str, bool]:
-    """모티프 구간이 어디에 걸치는지. (구간 이름, CDR 여부)
+    """Which region a motif span falls in. Returns (region name, is_CDR).
 
-    모티프가 CDR 경계에 걸쳐 있으면 CDR 쪽으로 본다 — 위험도를 과소평가하지 않기 위한
-    보수적 선택이다.
+    A motif straddling a CDR boundary counts as CDR — a conservative choice so that
+    risk is not underestimated.
     """
     if not ann.cdrs:
         return "구간 미확정", False
@@ -203,7 +203,7 @@ def _region_name(ann: Annotation, start: int, end: int) -> tuple[str, bool]:
 
 
 def _adjust(base: str, in_cdr: bool, region: str) -> tuple[str, str]:
-    """구간에 따라 등급을 조정한다. (최종 등급, 한글 근거)"""
+    """Adjust the level by region. Returns (final level, Korean explanation)."""
     if region == "구간 미확정":
         return base, (
             "CDR 주석이 실패해 구간을 구분할 수 없다. 기본 등급을 그대로 쓴다 — "
@@ -221,10 +221,10 @@ def _adjust(base: str, in_cdr: bool, region: str) -> tuple[str, str]:
 
 
 def find_liabilities(ann: Annotation) -> LiabilityReport:
-    """주석 결과를 받아 liability 를 검출한다.
+    """Detect liabilities from an annotation result.
 
-    CDR 주석이 실패한 서열(`ann.cdrs` 가 빈 경우)에서도 동작한다. 그때는 구간을
-    "구간 미확정"으로 표시하고 등급 조정을 하지 않으며 경고를 남긴다.
+    Also works when CDR annotation failed (`ann.cdrs` is empty). In that case the region
+    is marked as undetermined (see _region_name), no adjustment is applied, and a warning is recorded.
     """
     seq = ann.sequence
     report = LiabilityReport()
@@ -235,8 +235,8 @@ def find_liabilities(ann: Annotation) -> LiabilityReport:
             "모든 모티프를 '구간 미확정'으로 보고하며 구간별 위험도 조정을 적용하지 않았다."
         )
 
-    #: 같은 분류 안에서 더 위험한 모티프가 이미 덮은 자리는 건너뛴다.
-    #: (예: "NG" 를 잡았으면 같은 자리를 "N[STNH]" 로 다시 잡지 않는다)
+    #: Skip positions already covered by a riskier motif in the same category.
+    #: (e.g. once "NG" is matched, the same spot is not matched again as "N[STNH]")
     claimed: dict[str, set[int]] = {}
 
     for spec in MOTIF_SPECS:
@@ -273,7 +273,7 @@ def find_liabilities(ann: Annotation) -> LiabilityReport:
 
 
 def _add_cysteine_flag(seq: str, ann: Annotation, report: LiabilityReport) -> None:
-    """도메인 내 Cys 개수가 홀수면 비결합 Cys 플래그를 단다."""
+    """Add an unpaired-Cys flag when the domain has an odd number of Cys."""
     positions = [i + 1 for i, ch in enumerate(seq) if ch == "C"]
     count = len(positions)
     if count % 2 == 0:

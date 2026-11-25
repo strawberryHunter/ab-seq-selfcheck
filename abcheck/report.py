@@ -1,8 +1,8 @@
-"""주석 + liability + 물성을 하나의 결과로 합친다.
+"""Combine annotation + liabilities + properties into a single result.
 
-여기서 만든 dict 가 터미널 표·HTML·JSON 세 출력의 공통 입력이다. 한계 고지와
-"종합 판정 없음" 문구를 결과 안에 넣어 두기 때문에, 어느 출력을 쓰든 고지가
-빠질 수 없다 — 이게 이 모듈에서 가장 중요한 설계다.
+The dict built here is the shared input for all three outputs: terminal table, HTML and
+JSON. Because the limitation notice and the "no overall verdict" text live inside the
+result itself, no output can drop them — that is the most important design choice in this module.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from .validate import SequenceError, validate
 
 @dataclass
 class SequenceReport:
-    """서열 한 건의 점검 결과."""
+    """Check result for a single sequence."""
 
     seq_id: str
     sequence: str
@@ -31,7 +31,7 @@ class SequenceReport:
     properties: dict[str, Properties] = field(default_factory=dict)
     triage: TriageResult | None = None
 
-    # ---- 편의 접근자 ----
+    # ---- convenience accessors ----
 
     @property
     def chain(self) -> str | None:
@@ -42,7 +42,7 @@ class SequenceReport:
         return bool(self.annotation and self.annotation.confident)
 
     def as_dict(self) -> dict:
-        """JSON 출력용 dict. 한계 고지를 반드시 포함한다."""
+        """Dict for JSON output. Always includes the limitation notice."""
         payload: dict = {
             "id": self.seq_id,
             "tool": {"name": "abcheck", "version": __version__},
@@ -110,7 +110,7 @@ class SequenceReport:
 
 
 def build(seq_id: str, sequence: str, ph: float = DEFAULT_PH) -> SequenceReport:
-    """서열 하나를 점검한다. 입력이 잘못돼도 예외를 올리지 않는다."""
+    """Check a single sequence. Does not raise even on invalid input."""
     validation = validate(sequence)
     if not validation.ok:
         failed = SequenceReport(
@@ -142,15 +142,15 @@ def build(seq_id: str, sequence: str, ph: float = DEFAULT_PH) -> SequenceReport:
 
 
 def build_many(items: list[tuple[str, str]], ph: float = DEFAULT_PH) -> list[SequenceReport]:
-    """(id, 서열) 목록을 한꺼번에 점검한다."""
+    """Check a list of (id, sequence) in one go."""
     return [build(seq_id, seq, ph) for seq_id, seq in items]
 
 
 # --------------------------------------------------------------------------
-# 집계
+# Summary
 # --------------------------------------------------------------------------
 
-#: 집계 표의 구간 칸. 중쇄(CDR-H1)와 경쇄(CDR-L1)를 같은 칸에 모으기 위해 번호만 쓴다.
+#: Region columns of the summary table. Numbers only, so heavy (CDR-H1) and light (CDR-L1) share a column.
 SUMMARY_REGIONS: tuple[str, ...] = ("CDR1", "CDR2", "CDR3", "framework")
 
 SUMMARY_NOTE: str = (
@@ -158,10 +158,10 @@ SUMMARY_NOTE: str = (
     "많다고 탈락시킬 근거도 되지 않는다. 각 서열의 상세 항목과 근거를 함께 볼 것."
 )
 
-#: 주석이 실패해 구간을 가를 수 없는 서열의 모티프가 들어가는 칸
+#: Column for motifs from sequences whose regions can't be split because annotation failed
 UNASSIGNED_REGION = "framework"
 
-#: 집계 표를 체인별로 나눌 때 쓰는 제목. None 은 체인을 판별하지 못했거나 입력이 잘못된 서열.
+#: Titles used when splitting the summary table by chain. None means chain detection failed or the input was invalid.
 CHAIN_GROUP_TITLES: dict[str | None, str] = {
     "H": "중쇄 (VH)",
     "L": "경쇄 (VL)",
@@ -170,17 +170,17 @@ CHAIN_GROUP_TITLES: dict[str | None, str] = {
 
 
 def cdr_labels(chain: str | None) -> list[str]:
-    """체인별 CDR 열 이름. 표를 나누면 CDR-H1 / CDR-L1 로 정확히 쓸 수 있다."""
+    """CDR column names per chain. With split tables they can be named exactly, CDR-H1 / CDR-L1."""
     if chain in ("H", "L"):
         return [f"CDR-{chain}{i}" for i in (1, 2, 3)]
     return ["CDR1", "CDR2", "CDR3"]
 
 
 def _slot_of(region: str) -> str:
-    """liability hit 의 구간 이름을 집계 칸으로 바꾼다.
+    """Map a liability hit's region name to a summary column.
 
     "CDR-H2" → "CDR2", "CDR-L1" → "CDR1", "framework" → "framework".
-    "구간 미확정"(주석 실패)은 framework 칸으로 모으고, 행에 별도 표시를 단다.
+    The undetermined-region marker (annotation failed) goes into the framework column and the row is marked separately.
     """
     if region.startswith("CDR-") and region[-1].isdigit():
         return f"CDR{region[-1]}"
@@ -194,10 +194,10 @@ def _empty_counts() -> dict[str, int]:
 
 
 def summarize(reports: list[SequenceReport]) -> dict:
-    """서열 × 구간 × 위험도 건수를 교차 집계한다.
+    """Cross-tabulate counts by sequence × region × risk level.
 
-    후보 여러 건을 나란히 비교할 때 쓴다. 점수를 매기거나 순위를 내지 않는다 —
-    건수만 센다.
+    Used to compare several candidates side by side. It does not score or rank —
+    it only counts.
     """
     rows: list[dict] = []
     totals: dict[str, dict[str, int]] = {r: _empty_counts() for r in SUMMARY_REGIONS}
@@ -251,10 +251,10 @@ def summarize(reports: list[SequenceReport]) -> dict:
 
 
 def _group_by_chain(rows: list[dict]) -> list[dict]:
-    """집계 행을 중쇄 / 경쇄 / 판별 실패로 나눈다.
+    """Split summary rows into heavy / light / detection failed.
 
-    표를 나누면 열 이름을 CDR-H1, CDR-L1 처럼 정확히 쓸 수 있고, 중쇄에만 있는
-    CDR-H3 길이 특성 같은 것을 경쇄와 섞어 보지 않게 된다. 빈 묶음은 돌려주지 않는다.
+    Split tables can name columns exactly (CDR-H1, CDR-L1), and heavy-only traits such as
+    CDR-H3 length aren't mixed in with light chains. Empty groups are not returned.
     """
     groups: list[dict] = []
 

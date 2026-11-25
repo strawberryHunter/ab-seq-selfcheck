@@ -1,7 +1,7 @@
-"""README 가 코드·데이터와 어긋나지 않는지 확인한다.
+"""Check that the README has not drifted from the code and data.
 
-연구원이 README 를 그대로 복사해 붙여넣는 것이 이 도구의 기본 사용법이므로,
-예시가 낡아서 안 돌아가는 상황을 테스트로 막는다.
+Researchers copy and paste straight from the README -- that is the tool's basic usage --
+so tests guard against examples going stale and no longer running.
 """
 
 from __future__ import annotations
@@ -11,16 +11,28 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from abcheck.annotate import TYPICAL_LENGTHS
 from abcheck.liabilities import MOTIF_SPECS
 from abcheck.validate import MAX_DOMAIN_LENGTH, MIN_DOMAIN_LENGTH
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-README = REPO_ROOT / "README.md"
+README_EN = REPO_ROOT / "README.md"
+README_KO = REPO_ROOT / "README.ko.md"
 
 
 def _readme() -> str:
-    return README.read_text(encoding="utf-8")
+    """The Korean README (README.ko.md) -- the full reference for researchers."""
+    return README_KO.read_text(encoding="utf-8")
+
+
+def _readme_en() -> str:
+    """The English README (README.md) -- the repository landing page."""
+    return README_EN.read_text(encoding="utf-8")
+
+
+BOTH_READMES = pytest.mark.parametrize("read", [_readme, _readme_en], ids=["ko", "en"])
 
 
 def _bash_blocks(text: str) -> list[str]:
@@ -28,11 +40,12 @@ def _bash_blocks(text: str) -> list[str]:
 
 
 # --------------------------------------------------------------------------
-# 완료 기준: 실행 예시 3개
+# Acceptance criterion: 3 run examples
 # --------------------------------------------------------------------------
 
-def test_readme_has_three_runnable_cli_examples():
-    blocks = _bash_blocks(_readme())
+@BOTH_READMES
+def test_readme_has_three_runnable_cli_examples(read):
+    blocks = _bash_blocks(read())
     cli_examples = [b for b in blocks if "abcheck.cli" in b]
     assert len(cli_examples) >= 3, f"CLI 실행 예시가 {len(cli_examples)}개뿐이다"
 
@@ -41,16 +54,17 @@ def test_readme_examples_section_covers_three_modes():
     text = _readme()
     assert "## 실행 예시 3개" in text
     section = text.split("## 실행 예시 3개")[1].split("\n---")[0]
-    # 터미널 / HTML / JSON 세 가지
+    # Terminal / HTML / JSON
     assert "--html" in section
     assert "--json" in section
     cli_blocks = [b for b in _bash_blocks(section) if "abcheck.cli" in b]
     assert len(cli_blocks) >= 3
 
 
-def test_pasted_sequence_example_actually_runs(records):
-    """예시 1의 붙여넣기 서열이 현재 코퍼스에 있고, 실제로 주석된다."""
-    text = _readme()
+@BOTH_READMES
+def test_pasted_sequence_example_actually_runs(records, read):
+    """The pasted sequence in example 1 is in the current corpus and actually gets annotated."""
+    text = read()
     matches = re.findall(r'abcheck\.cli "([ACDEFGHIKLMNPQRSTVWY]+)"', text)
     assert matches, "README 에 붙여넣기용 서열 예시가 없다"
 
@@ -70,7 +84,7 @@ def test_pasted_sequence_example_actually_runs(records):
 
 
 def test_corpus_html_example_runs(tmp_path):
-    """예시 2가 실제로 HTML 을 만든다."""
+    """Example 2 actually produces HTML."""
     result = subprocess.run(
         [sys.executable, "-m", "abcheck.cli", "data/synthetic/sequences.json",
          "--html", "--out-dir", str(tmp_path)],
@@ -81,17 +95,20 @@ def test_corpus_html_example_runs(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# 문서와 코드가 같은 값을 말하는지
+# Do the docs and code state the same values?
 # --------------------------------------------------------------------------
 
-def test_documented_cdr_lengths_match_code():
-    """통상 CDR 길이 표가 코드의 TYPICAL_LENGTHS 와 같은 값을 말하는지.
+@pytest.mark.parametrize("read, marker", [
+    (_readme, "| CDR | 통상 길이 |"),
+    (_readme_en, "| CDR | Typical length |"),
+], ids=["ko", "en"])
+def test_documented_cdr_lengths_match_code(read, marker):
+    """Does the typical CDR length table state the same values as TYPICAL_LENGTHS in the code?
 
-    집계 표에도 CDR-H1 같은 문자열이 열 제목으로 나오므로, 검색 범위를
-    '통상 길이' 표로 좁힌다.
+    Strings like CDR-H1 also appear as column headers in the summary table, so the
+    search is narrowed to the 'typical length' table.
     """
-    text = _readme()
-    marker = "| CDR | 통상 길이 |"
+    text = read()
     assert marker in text, "README 에 통상 CDR 길이 표가 없다"
     table = text.split(marker)[1].split("\n\n")[0]
 
@@ -105,23 +122,24 @@ def test_documented_cdr_lengths_match_code():
 
 
 def test_documented_length_limits_match_code():
-    text = _readme()
-    assert f"{MIN_DOMAIN_LENGTH}-{MAX_DOMAIN_LENGTH} 잔기" in text
+    assert f"{MIN_DOMAIN_LENGTH}-{MAX_DOMAIN_LENGTH} 잔기" in _readme()
+    assert f"{MIN_DOMAIN_LENGTH}-{MAX_DOMAIN_LENGTH} residues" in _readme_en()
 
 
-def test_documented_motifs_match_code():
-    """README 의 liability 표가 코드의 모티프를 모두 담고 있다."""
-    text = _readme()
+@BOTH_READMES
+def test_documented_motifs_match_code(read):
+    """The README's liability table includes every motif in the code."""
+    text = read()
     for spec in MOTIF_SPECS:
         if spec.kind == "oxidation":
-            continue                      # 표에 `M` `W` 로 묶어 적는다
+            continue                      # The table lists `M` `W` together
         assert f"`{spec.pattern}`" in text or all(
             f"`{alt}`" in text for alt in _expand(spec.pattern)
         ), f"README 에 {spec.pattern} 가 없다"
 
 
 def _expand(pattern: str) -> list[str]:
-    """`N[STNH]` 같은 패턴을 `NS` `NT` ... 로 펼친다 (README 표기와 맞추기 위함)."""
+    """Expand a pattern like `N[STNH]` into `NS` `NT` ... (to match the README notation)."""
     m = re.fullmatch(r"([A-Z])\[([A-Z]+)\]", pattern)
     if not m:
         return [pattern]
@@ -130,7 +148,7 @@ def _expand(pattern: str) -> list[str]:
 
 
 # --------------------------------------------------------------------------
-# 한계 고지가 README 에 있는지
+# Is the limitations notice in the README?
 # --------------------------------------------------------------------------
 
 def test_readme_states_it_is_not_a_numbering_engine():
@@ -171,13 +189,14 @@ def test_readme_states_out_of_scope():
 TUTORIAL = REPO_ROOT / "TUTORIAL.md"
 
 
-def test_tutorial_exists_and_is_linked_from_readme():
+@BOTH_READMES
+def test_tutorial_exists_and_is_linked_from_readme(read):
     assert TUTORIAL.exists()
-    assert "TUTORIAL.md" in _readme(), "README 에서 튜토리얼로 가는 링크가 없다"
+    assert "TUTORIAL.md" in read(), "README 에서 튜토리얼로 가는 링크가 없다"
 
 
 def test_tutorial_example_sequence_is_in_corpus(records):
-    """튜토리얼의 붙여넣기 예시가 현재 코퍼스와 어긋나지 않는지."""
+    """The tutorial's paste example has not drifted from the current corpus."""
     text = TUTORIAL.read_text(encoding="utf-8")
     matches = re.findall(r'abcheck\.cli "([ACDEFGHIKLMNPQRSTVWY]+)"', text)
     assert matches, "TUTORIAL 에 붙여넣기용 서열 예시가 없다"
@@ -191,9 +210,9 @@ def test_tutorial_example_sequence_is_in_corpus(records):
 
 
 def test_tutorial_quoted_output_matches_real_output(records):
-    """튜토리얼에 붙여 둔 CDR 표가 실제 출력과 같은지.
+    """Does the CDR table pasted into the tutorial match the actual output?
 
-    문서의 숫자가 낡는 것을 막는다. 출력 양식이나 주석 규칙을 바꾸면 여기서 걸린다.
+    Keeps the numbers in the docs from going stale. Changing the output format or annotation rules trips this.
     """
     from abcheck.annotate import annotate
 
@@ -231,13 +250,14 @@ def test_tutorial_states_no_network_and_no_scoring():
 VALIDATION = REPO_ROOT / "VALIDATION.md"
 
 
-def test_validation_doc_exists_and_is_linked():
+@BOTH_READMES
+def test_validation_doc_exists_and_is_linked(read):
     assert VALIDATION.exists()
-    assert "VALIDATION.md" in _readme(), "README 에서 검증 기록으로 가는 링크가 없다"
+    assert "VALIDATION.md" in read(), "README 에서 검증 기록으로 가는 링크가 없다"
 
 
 def test_validation_doc_states_how_to_reproduce():
-    """숫자만 적고 재현 방법이 없으면 검증이 아니다."""
+    """Numbers without a way to reproduce them are not validation."""
     text = VALIDATION.read_text(encoding="utf-8")
     assert "scripts/oas_to_fasta.py" in text
     assert "scripts/validate_on_oas.py" in text
@@ -245,16 +265,16 @@ def test_validation_doc_states_how_to_reproduce():
 
 
 def test_validation_doc_records_known_limitations():
-    """고치지 않기로 한 것과 그 근거가 남아 있어야 한다."""
+    """What we decided not to fix, and why, must stay documented."""
     text = VALIDATION.read_text(encoding="utf-8")
-    assert "알려진 한계" in text
-    assert "기각" in text
-    assert "번복" in text, "기각했다가 번복한 기록이 빠졌다 — 판단 과정이 남아야 한다"
-    assert "보존 Trp 자체가 다른 잔기로 치환" in text, "남은 한계가 빠졌다"
+    assert "## Known limitations" in text
+    assert "rejected" in text
+    assert "reversed" in text, "the record of a fix rejected and then reversed is missing"
+    assert "the conserved Trp itself is substituted" in text, "the remaining limitation is missing"
 
 
 def test_validation_script_runs_on_the_synthetic_fasta():
-    """검증 스크립트가 실제로 돌아가는지 — 합성 FASTA 로 연기 테스트."""
+    """Does the validation script actually run? Smoke test with a synthetic FASTA."""
     result = subprocess.run(
         [sys.executable, "scripts/validate_on_oas.py", "data/synthetic/sequences.fasta"],
         cwd=REPO_ROOT, capture_output=True, text=True,
@@ -265,7 +285,7 @@ def test_validation_script_runs_on_the_synthetic_fasta():
 
 
 # --------------------------------------------------------------------------
-# 포트폴리오로서 갖춰야 할 것
+# What it needs as a portfolio piece
 # --------------------------------------------------------------------------
 
 def test_license_exists():
@@ -274,30 +294,35 @@ def test_license_exists():
     assert "MIT License" in license_file.read_text(encoding="utf-8")
 
 
-def test_english_summary_exists_and_is_linked():
-    english = REPO_ROOT / "README.en.md"
-    assert english.exists()
-    assert "README.en.md" in _readme(), "README 에서 영문 요약으로 가는 링크가 없다"
+def test_readmes_link_to_each_other():
+    assert "README.ko.md" in _readme_en(), "no link from the English README to the Korean one"
+    assert "(README.md)" in _readme(), "no link from the Korean README to the English one"
 
 
-def test_english_summary_carries_the_same_headline_numbers():
-    """영문 요약의 수치가 한글 문서와 어긋나지 않는지."""
-    english = (REPO_ROOT / "README.en.md").read_text(encoding="utf-8")
+def test_english_readme_carries_the_same_headline_numbers():
+    """The headline figures must not drift between the two READMEs and VALIDATION.md."""
     validation = VALIDATION.read_text(encoding="utf-8")
     for token in ["7,000", "0.35%", "16,427", "98.3%"]:
-        assert token in english, f"영문 요약에 {token} 가 없다"
-        assert token in _readme() or token in validation, f"한글 문서에 {token} 가 없다"
+        assert token in _readme_en(), f"README.md is missing {token}"
+        assert token in _readme(), f"README.ko.md is missing {token}"
+        assert token in validation, f"VALIDATION.md is missing {token}"
 
 
-def test_english_summary_states_the_limits():
-    """영문 요약에서도 numbering 엔진이 아니라는 점과 판정을 안 한다는 점을 밝힌다."""
-    english = (REPO_ROOT / "README.en.md").read_text(encoding="utf-8")
+def test_english_readme_states_the_limits():
+    """The English README also states it is not a numbering engine and gives no verdict."""
+    english = _readme_en()
     assert "not a numbering engine" in english
     assert "No overall verdict" in english
-    assert "synthetic" in english
+    assert "confident=False" in english
+    assert "about to drop a candidate" in english
+    assert "**synthetic**" in english
+    for item in ["Structure prediction", "docking", "affinity prediction"]:
+        assert item in english
 
 
 def test_readme_leads_with_validation():
-    """리뷰어가 30초만 본다 — 검증 수치가 사용법보다 앞에 와야 한다."""
+    """Reviewers look for 30 seconds -- validation figures must come before usage."""
     text = _readme()
     assert text.index("## 검증") < text.index("## 실행 예시 3개")
+    english = _readme_en()
+    assert english.index("## Validation") < english.index("## Quick start")

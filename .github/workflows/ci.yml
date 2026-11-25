@@ -1,6 +1,6 @@
 name: CI
 
-# main 으로 가는 PR 과 main 에 직접 들어온 커밋을 검사한다.
+# Check pull requests into main and commits pushed directly to main.
 on:
   push:
     branches: [main]
@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  # 같은 브랜치에서 새 커밋이 오면 진행 중인 검사를 취소한다.
+  # Cancel an in-flight run when a newer commit arrives on the same branch.
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
@@ -22,84 +22,84 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # pyproject.toml 의 requires-python = ">=3.10" 전 구간을 돌린다.
+        # Cover the whole requires-python = ">=3.10" range from pyproject.toml.
         python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: 파이썬 설치
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: 개발 의존성 설치
-        # 런타임 의존성은 없다. 표준 라이브러리만 쓴다.
+      - name: Install dev dependencies
+        # There are no runtime dependencies — standard library only.
         run: python -m pip install --upgrade pip pytest
 
-      - name: 테스트
+      - name: Run tests
         run: python -m pytest -q
 
   deps:
-    name: 런타임 의존성 없음
+    name: No runtime dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 파이썬 설치
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          # tomllib 은 3.11 부터다. 매트릭스가 아니라 여기 한 번만 돌린다.
+          # tomllib needs 3.11+, so this runs once here rather than in the matrix.
           python-version: "3.13"
 
-      - name: 새 의존성이 조용히 들어왔는지 확인
+      - name: Fail if a runtime dependency slipped in
         run: |
           python - <<'PY'
           import tomllib, sys
           with open("pyproject.toml", "rb") as f:
               deps = tomllib.load(f)["project"].get("dependencies", [])
           if deps:
-              sys.exit(f"런타임 의존성이 추가됐다: {deps}. 표준 라이브러리만 쓰기로 했다.")
-          print("런타임 의존성 없음 — 확인")
+              sys.exit(f"Runtime dependencies were added: {deps}. This project is stdlib-only.")
+          print("No runtime dependencies — OK")
           PY
 
   corpus:
-    name: 합성 코퍼스 재현성
+    name: Synthetic corpus is reproducible
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 파이썬 설치
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: 저장된 코퍼스가 생성기 출력과 같은지 확인
-        # 생성기를 고치고 데이터를 다시 만들지 않은 채 커밋하는 것을 막는다.
+      - name: Committed corpus matches generator output
+        # Catches a generator change committed without regenerating the data.
         run: python scripts/make_synthetic_sequences.py --check
 
   cli:
-    name: CLI 동작
+    name: CLI smoke test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: 파이썬 설치
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
-      - name: README 예시 1 — 서열 하나 붙여넣기
+      - name: README example 1 — single sequence
         run: |
           SEQ=$(python -c "import json; print(json.load(open('data/synthetic/sequences.json'))['sequences'][0]['sequence'])")
           python -m abcheck.cli "$SEQ" > /dev/null
 
-      - name: README 예시 2 — 코퍼스를 HTML 로
+      - name: README example 2 — corpus to HTML report
         run: |
           python -m abcheck.cli data/synthetic/sequences.json --html --out-dir ci_output
           test -s ci_output/report.html
 
-      - name: README 예시 3 — JSON 출력
+      - name: README example 3 — JSON output
         run: |
           mkdir -p ci_output
           python -m abcheck.cli data/synthetic/sequences.json --json > ci_output/report.json
@@ -107,14 +107,14 @@ jobs:
           import json
           payload = json.load(open('ci_output/report.json'))
           assert payload['count'] == 24, payload['count']
-          assert payload['limitations'], '한계 고지가 빠졌다'
-          assert payload['summary']['groups'], '집계가 빠졌다'
-          print('JSON 출력 확인')
+          assert payload['limitations'], 'limitations notice is missing'
+          assert payload['summary']['groups'], 'summary is missing'
+          print('JSON output OK')
           "
 
-      - name: 잘못된 입력은 종료코드 1
+      - name: Invalid input exits with code 1
         run: |
           if python -m abcheck.cli ACDEF > /dev/null 2>&1; then
-            echo "잘못된 입력인데 성공으로 끝났다"
+            echo "Invalid input exited with success"
             exit 1
           fi

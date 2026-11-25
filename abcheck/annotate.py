@@ -1,33 +1,34 @@
-"""CDR 주석 — 보존 잔기 앵커 기반, Kabat 경계 근사.
+"""CDR annotation — based on conserved-residue anchors, approximating Kabat boundaries.
 
-이 모듈은 numbering 엔진이 아니다. 번호를 매기지 않고, 보존 잔기(Cys·Trp)와 모티프를
-정규식으로 찾아 CDR 구간만 끊는다. 앵커를 못 찾으면 **위치를 추측하지 않고**
-`confident=False` 와 한글 사유를 남긴다.
+This module is not a numbering engine. It assigns no numbers; it only cuts out CDR
+spans by regex-matching conserved residues (Cys, Trp) and motifs. When an anchor
+can't be found it **does not guess positions**; it records `confident=False` and a
+reason in Korean.
 
-탐색 규칙
----------
-체인 판별: 말단 모티프로 한다. `WGxG` 가 있으면 중쇄(H), `FGxG` 가 있으면 경쇄(L).
-둘 다 있으면 C-말단에 더 가까운 쪽을 택한다. 둘 다 없으면 판별 실패다.
+Search rules
+------------
+Chain type: decided by the terminal motif. `WGxG` means heavy (H), `FGxG` means light (L).
+If both are present, the one closer to the C-terminus wins. If neither is, detection fails.
 
 VH
-    Cys22      15..30 창에서 22번에 가장 가까운 Cys
-    CDR-H1     Cys22 + 9 에서 시작, Trp36 직전까지
-    Trp36      CDR-H1 시작 + 5 이후 첫 `W[VIA][RKQ]Q` 의 Trp (없으면 첫 Trp 로 물러서고 경고)
-    CDR-H2     Trp36 + 14 에서 시작, FR3 모티프 직전까지
-    FR3 모티프  CDR-H2 시작 + 9 이후 첫 `[RKQ].[TSAV][IMLFV][STAN]` 매치
-    Cys92      FR3 모티프 이후 첫 `[YF]C` 의 Cys (없으면 첫 Cys 로 물러서고 경고)
-    CDR-H3     Cys92 + 3 에서 시작, 말단 `WGxG` 직전까지
+    Cys22      the Cys closest to position 22 within the 15..30 window
+    CDR-H1     starts at Cys22 + 9, ends just before Trp36
+    Trp36      Trp of the first `W[VIA][RKQ]Q` from CDR-H1 start + 5 (else falls back to the first Trp, with a warning)
+    CDR-H2     starts at Trp36 + 14, ends just before the FR3 motif
+    FR3 motif  first `[RKQ].[TSAV][IMLFV][STAN]` match from CDR-H2 start + 9
+    Cys92      Cys of the first `[YF]C` after the FR3 motif (else falls back to the first Cys, with a warning)
+    CDR-H3     starts at Cys92 + 3, ends just before the terminal `WGxG`
 
 VL
-    Cys23      16..30 창에서 23번에 가장 가까운 Cys
-    CDR-L1     Cys23 + 1 에서 시작, Trp35 직전까지
-    Trp35      CDR-L1 시작 + 7 이후 첫 `W[YF][QL]Q` 의 Trp (없으면 첫 Trp 로 물러서고 경고)
-    CDR-L2     Trp35 + 15 에서 시작, 7 잔기 고정
-    Cys88      CDR-L2 이후 첫 `[YF]C` 의 Cys (없으면 첫 Cys 로 물러서고 경고)
-    CDR-L3     Cys88 + 1 에서 시작, 말단 `FGxG` 직전까지
+    Cys23      the Cys closest to position 23 within the 16..30 window
+    CDR-L1     starts at Cys23 + 1, ends just before Trp35
+    Trp35      Trp of the first `W[YF][QL]Q` from CDR-L1 start + 7 (else falls back to the first Trp, with a warning)
+    CDR-L2     starts at Trp35 + 15, fixed at 7 residues
+    Cys88      Cys of the first `[YF]C` after CDR-L2 (else falls back to the first Cys, with a warning)
+    CDR-L3     starts at Cys88 + 1, ends just before the terminal `FGxG`
 
-"FR3 모티프 이후 첫 Cys"처럼 '첫'을 쓰는 것은 의도적이다. CDR-H3 안에 비결합 Cys 가
-들어 있는 서열에서 '마지막 Cys'를 쓰면 그 Cys 를 앵커로 잘못 집기 때문이다.
+Using "first" (as in "first Cys after the FR3 motif") is deliberate. For sequences with
+an unpaired Cys inside CDR-H3, "last Cys" would wrongly pick that Cys as the anchor.
 """
 
 from __future__ import annotations
@@ -38,87 +39,88 @@ from dataclasses import dataclass, field
 from .validate import ensure_valid
 
 # --------------------------------------------------------------------------
-# 앵커 모티프와 상수
+# Anchor motifs and constants
 # --------------------------------------------------------------------------
 
 WGXG_RE = re.compile(r"WG.G")
 FGXG_RE = re.compile(r"FG.G")
-#: FR3 시작 모티프.
+#: FR3 start motif.
 #:
-#: 원래 설계는 [RK].[TSAV][IMLFV][STA] 였다. OAS 실제 레퍼토리 VH 1,000건으로
-#: 재어 보니 26건(2.6%)에서 이 모티프를 못 찾아 CDR-H2/H3 주석이 실패했다.
-#: 빠진 두 가지는 이랬다.
-#:   - IGHV2 계열의 QVTIS…  → 첫 자리가 R/K 가 아니라 Q
-#:   - RITIN…              → 끝 자리가 N 이라 [STA] 밖
-#: 첫 자리에 Q, 끝 자리에 N 을 더하니 실패가 26건 → 8건으로 줄었고,
-#: **기존에 성공하던 1,000건의 주석은 하나도 바뀌지 않았다**(실측).
-#: 되돌리려면 아래 STRICT 패턴을 쓰면 된다.
+#: The original design was [RK].[TSAV][IMLFV][STA]. Measured on 1,000 real-repertoire VH
+#: from OAS, it missed the motif in 26 (2.6%), so CDR-H2/H3 annotation failed.
+#: The two missing cases were:
+#:   - IGHV2-family QVTIS…  → first position is Q, not R/K
+#:   - RITIN…               → last position is N, outside [STA]
+#: Adding Q to the first position and N to the last cut failures from 26 → 8, and
+#: **not one of the 1,000 previously successful annotations changed** (measured).
+#: To revert, use the STRICT pattern below.
 FR3_MOTIF_PATTERN_STRICT = r"[RK].[TSAV][IMLFV][STA]"
 FR3_MOTIF_PATTERN = r"[RKQ].[TSAV][IMLFV][STAN]"
 FR3_MOTIF_RE = re.compile(FR3_MOTIF_PATTERN)
 
-#: 보존 Cys 를 찾을 창 (1-based, 양끝 포함) 과 기대 위치
+#: Window to search for the conserved Cys (1-based, inclusive) and its expected position
 CYS1_WINDOW_H = (15, 30)
 CYS1_EXPECTED_H = 22
 CYS1_WINDOW_L = (16, 30)
 CYS1_EXPECTED_L = 23
 
-#: Cys1 에서 CDR1 시작까지의 거리
+#: Distance from Cys1 to the start of CDR1
 CDR1_OFFSET_H = 9      # Cys22 + 9 → 31
 CDR1_OFFSET_L = 1      # Cys23 + 1 → 24
 
-#: Trp 앵커에서 CDR2 시작까지의 거리
+#: Distance from the Trp anchor to the start of CDR2
 CDR2_OFFSET_H = 14     # Trp36 + 14 → 50
 CDR2_OFFSET_L = 15     # Trp35 + 15 → 50
 
-#: Cys2 에서 CDR3 시작까지의 거리
+#: Distance from Cys2 to the start of CDR3
 CDR3_OFFSET_H = 3      # Cys92 + 3 → 95
 CDR3_OFFSET_L = 1      # Cys88 + 1 → 89
 
-#: CDR-L2 는 Kabat 에서 길이가 고정이다.
+#: CDR-L2 has a fixed length in Kabat.
 CDR_L2_LENGTH = 7
 
-#: 보존 Trp 앵커 바로 뒤에 오는 FR2 문맥.
+#: FR2 context immediately following the conserved Trp anchor.
 #:
-#: Trp 하나만 보고 찾으면 CDR1 안의 Trp 을 집는다. 특히 IGKV1 계열은
-#: `...RASQGISS**W**LA**W**YQQ...` 처럼 CDR-L1 끝과 FR2 에 Trp 이 둘 있어서,
-#: 앞의 것을 집으면 이후 경계가 3잔기씩 밀린다.
+#: Searching for a lone Trp picks up Trps inside CDR1. IGKV1-family chains in particular
+#: have two Trps, at the end of CDR-L1 and in FR2 (`...RASQGISS**W**LA**W**YQQ...`);
+#: picking the first one shifts every later boundary by 3 residues.
 #:
-#: OAS 안의 ANARCI 주석을 정답으로 두고 5개 데이터셋 약 12,000건을 비교해 정했다.
-#: 이 문맥을 우선하자 CDR 경계 불일치가 3.83% → 0.31% 가 됐다.
+#: Chosen by comparing ~12,000 sequences across 5 datasets against the ANARCI annotations
+#: in OAS as ground truth. Preferring this context cut CDR boundary mismatches from 3.83% → 0.31%.
 FR2_CONTEXT_H = re.compile(r"W[VIA][RKQ]Q")
 FR2_CONTEXT_L = re.compile(r"W[YF][QL]Q")
 
-#: 보존 Trp 앵커를 찾기 시작할 위치 = CDR1 시작 + 이 값.
-#: 실제 항체의 CDR-H1 에는 Trp 이 흔히 들어간다(예: ...GYTFT**SYWMQ**W VKQ...).
-#: 그냥 "CDR1 시작 이후 첫 Trp"를 쓰면 CDR 안의 Trp 을 앵커로 잘못 집어 CDR-H1 이
-#: 2-4 잔기로 잘린다. Kabat CDR-H1 은 최소 5 잔기(31-35)이므로 그 뒤부터 찾는다.
-#: CDR-L1 도 같은 이유로 최소 길이 뒤부터 찾는다.
+#: The conserved-Trp search starts at CDR1 start + this value.
+#: Real antibodies often have a Trp in CDR-H1 (e.g. ...GYTFT**SYWMQ**W VKQ...).
+#: Plain "first Trp after CDR1 start" wrongly anchors on the in-CDR Trp and truncates
+#: CDR-H1 to 2-4 residues. Kabat CDR-H1 is at least 5 residues (31-35), so search after that.
+#: CDR-L1 likewise starts searching after its minimum length.
 MIN_CDR1_LENGTH_H = 5
 MIN_CDR1_LENGTH_L = 7
 
-#: FR3 모티프 탐색을 시작하기 전에 CDR-H2 에 최소한 보장할 길이.
-#: 이보다 짧은 CDR-H2 는 모티프가 CDR 안에서 먼저 걸린 것으로 본다.
+#: Minimum CDR-H2 length guaranteed before the FR3 motif search begins.
+#: A shorter CDR-H2 means the motif matched prematurely inside the CDR.
 MIN_CDR_H2_BEFORE_MOTIF = 9
 
-#: FR3 시작 모티프에서 보존 Cys92 까지의 거리.
-#: OAS 실제 VH 992건이 **전부** 정확히 29였다. 모티프가 체세포 과변이로 깨졌을 때
-#: 이 거리로 역산한다. 정규식을 계속 넓히는 것보다 안전하다 — 넓힐수록 CDR-H2 안에서
-#: 우연히 걸릴 위험이 커지고, 그러면 CDR-H2 가 조용히 짧아진다.
+#: Distance from the FR3 start motif to the conserved Cys92.
+#: In 992 real VH from OAS it was exactly 29 in **every** case. When somatic hypermutation
+#: breaks the motif, we back-calculate from this distance. That is safer than widening the
+#: regex further — the wider it gets, the likelier a chance match inside CDR-H2, which
+#: silently shortens CDR-H2.
 FR3_TO_CYS_GAP = 29
 
-#: 통상 CDR 길이 범위 (스크리닝 기준; 엄격한 numbering 기준이 아니다)
+#: Typical CDR length ranges (a screening criterion, not a strict numbering one)
 #:
-#: 이 범위는 "이 항체가 이상한가"가 아니라 **"주석을 믿을 수 있는가"** 의 기준이다.
-#: 정상 서열을 자꾸 '신뢰 불가' 로 떨어뜨리면 경고가 무뎌지므로, OAS 실제 서열
-#: 2,000건의 실측 분포에 맞춰 상한을 잡았다 (아래 괄호는 실측 min-max).
-#:   CDR-H1 5-7   (실측 5-7,  범위 밖 0건)
-#:   CDR-H2 16-20 (실측 16-20, 20 은 삽입이 있는 germline 계열)
-#:   CDR-H3 3-30  (실측 3-27,  사람은 26-27 잔기가 드물지 않다)
-#:   CDR-L1 7-17  (실측 8-17,  범위 밖 0건)
-#:   CDR-L2 7     (실측 전부 7)
-#:   CDR-L3 5-15  (실측 4-14 가 정상. 20 으로 나오던 건은 Cys 앵커 버그였고 고쳤다)
-#: 하한은 넓히지 않았다 — 앵커를 잘못 집으면 CDR 이 짧아지므로, 하한이 그 신호다.
+#: These ranges answer **"can the annotation be trusted?"**, not "is this antibody odd?".
+#: Repeatedly marking normal sequences as untrustworthy dulls the warning, so the upper
+#: bounds follow the measured distribution of 2,000 real OAS sequences (measured min-max in parentheses).
+#:   CDR-H1 5-7   (measured 5-7,  0 out of range)
+#:   CDR-H2 16-20 (measured 16-20, 20 is from germline families with an insertion)
+#:   CDR-H3 3-30  (measured 3-27,  26-27 residues is not rare in humans)
+#:   CDR-L1 7-17  (measured 8-17,  0 out of range)
+#:   CDR-L2 7     (measured 7 in all cases)
+#:   CDR-L3 5-15  (4-14 measured is normal; the 20s came from a Cys anchor bug, now fixed)
+#: Lower bounds were not widened — a misplaced anchor shortens the CDR, so the lower bound is that signal.
 TYPICAL_LENGTHS: dict[str, tuple[int, int]] = {
     "CDR-H1": (5, 7),
     "CDR-H2": (16, 20),
@@ -130,12 +132,12 @@ TYPICAL_LENGTHS: dict[str, tuple[int, int]] = {
 
 
 # --------------------------------------------------------------------------
-# 결과 자료형
+# Result types
 # --------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class CDR:
-    """CDR 한 구간. start/end 는 1-based, 양끝 포함."""
+    """A single CDR span. start/end are 1-based, inclusive."""
 
     name: str
     start: int
@@ -149,10 +151,10 @@ class CDR:
 
 @dataclass
 class Annotation:
-    """주석 결과.
+    """Annotation result.
 
-    confident=False 면 `reasons` 에 한글 사유가 들어 있다. 앵커를 못 찾은 경우
-    `cdrs` 는 빈 사전이다 — 위치를 추측해서 채우지 않는다.
+    When confident=False, `reasons` holds the reasons in Korean. If an anchor wasn't
+    found, `cdrs` is an empty dict — it is never filled in with guessed positions.
     """
 
     sequence: str
@@ -165,11 +167,11 @@ class Annotation:
 
     @property
     def annotated(self) -> bool:
-        """CDR 구간을 하나라도 끊어냈는지."""
+        """Whether at least one CDR span was cut out."""
         return bool(self.cdrs)
 
     def framework_spans(self) -> list[tuple[int, int]]:
-        """CDR 을 뺀 나머지(framework) 구간 목록. 1-based, 양끝 포함."""
+        """List of the remaining (framework) spans outside the CDRs. 1-based, inclusive."""
         if not self.cdrs:
             return [(1, len(self.sequence))]
         spans: list[tuple[int, int]] = []
@@ -183,7 +185,7 @@ class Annotation:
         return spans
 
     def region_of(self, position: int) -> str:
-        """1-based 위치가 어느 구간에 속하는지. CDR 이름 또는 "framework"."""
+        """Which region a 1-based position falls in: a CDR name or "framework"."""
         for cdr in self.cdrs.values():
             if cdr.start <= position <= cdr.end:
                 return cdr.name
@@ -191,11 +193,11 @@ class Annotation:
 
 
 # --------------------------------------------------------------------------
-# 보조 함수
+# Helpers
 # --------------------------------------------------------------------------
 
 def _last_match(pattern: re.Pattern[str], seq: str) -> int | None:
-    """마지막 매치의 1-based 시작 위치."""
+    """1-based start position of the last match."""
     last = None
     for m in pattern.finditer(seq):
         last = m.start() + 1
@@ -203,7 +205,7 @@ def _last_match(pattern: re.Pattern[str], seq: str) -> int | None:
 
 
 def _first_match_from(pattern: re.Pattern[str], seq: str, min_pos: int) -> int | None:
-    """min_pos(1-based) 이상에서 시작하는 첫 매치의 1-based 시작 위치."""
+    """1-based start position of the first match starting at or after min_pos (1-based)."""
     if min_pos < 1:
         min_pos = 1
     m = pattern.search(seq, min_pos - 1)
@@ -211,23 +213,23 @@ def _first_match_from(pattern: re.Pattern[str], seq: str, min_pos: int) -> int |
 
 
 def _first_residue_from(seq: str, residue: str, min_pos: int) -> int | None:
-    """min_pos(1-based) 이상에서 residue 가 처음 나오는 1-based 위치."""
+    """1-based position of the first occurrence of residue at or after min_pos (1-based)."""
     idx = seq.find(residue, max(min_pos - 1, 0))
     return idx + 1 if idx >= 0 else None
 
 
-#: 보존 Cys 바로 앞에 오는 잔기. OAS 실제 서열 1,991건에서 Y 83.2% + F 16.1% = 99.3%.
-#: 이 문맥을 쓰지 않고 "첫 Cys"만 보면, FR3 안에 여분 Cys 가 있는 서열(예: ...LTIS**C**...)에서
-#: 그 Cys 를 앵커로 잘못 집어 CDR3 가 10잔기 넘게 앞에서 시작한다. 실측 2,000건 중 7건이 그랬고,
-#: 그중 하나는 길이가 통상 범위 안이라 길이 검사로도 걸러지지 않았다.
+#: Residue immediately preceding the conserved Cys. In 1,991 real OAS sequences: Y 83.2% + F 16.1% = 99.3%.
+#: Looking only for the "first Cys" without this context, sequences with an extra Cys in FR3 (e.g. ...LTIS**C**...)
+#: get that Cys as the anchor and CDR3 starts more than 10 residues early. 7 of 2,000 measured sequences did this,
+#: and one of them had a length within the typical range, so the length check didn't catch it either.
 CONSERVED_CYS_RE = re.compile(r"[YF]C")
 
 
 def _find_conserved_cys(seq: str, min_pos: int, limit: int) -> tuple[int | None, bool]:
-    """min_pos 이상 limit 미만에서 보존 Cys 를 찾는다. (위치, 문맥으로 찾았는지)
+    """Find the conserved Cys in [min_pos, limit). Returns (position, found_by_context).
 
-    먼저 `[YF]C` 문맥으로 찾고, 없으면 그냥 첫 Cys 로 물러선다. 물러선 경우를
-    호출부가 알 수 있게 두 번째 값으로 알린다 — 경고를 남기기 위함이다.
+    Searches with the `[YF]C` context first, falling back to the plain first Cys. The
+    second value tells the caller whether it fell back, so it can record a warning.
     """
     start = max(min_pos - 2, 0)
     for m in CONSERVED_CYS_RE.finditer(seq, start):
@@ -246,10 +248,10 @@ def _find_conserved_cys(seq: str, min_pos: int, limit: int) -> tuple[int | None,
 
 def _find_conserved_trp(seq: str, min_pos: int,
                         context: re.Pattern[str]) -> tuple[int | None, bool]:
-    """보존 Trp 을 찾는다. (위치, FR2 문맥으로 찾았는지)
+    """Find the conserved Trp. Returns (position, found_by_FR2_context).
 
-    FR2 문맥(`W[VIA][RKQ]Q` 또는 `W[YF][QL]Q`)을 먼저 보고, 없으면 그냥 첫 Trp 로
-    물러선다. 물러선 경우를 호출부가 알 수 있게 두 번째 값으로 알린다.
+    Tries the FR2 context (`W[VIA][RKQ]Q` or `W[YF][QL]Q`) first, falling back to the
+    plain first Trp. The second value tells the caller whether it fell back.
     """
     m = context.search(seq, max(min_pos - 1, 0))
     if m is not None and m.start() + 1 >= min_pos:
@@ -258,7 +260,7 @@ def _find_conserved_trp(seq: str, min_pos: int,
 
 
 def _cys_in_window(seq: str, window: tuple[int, int], expected: int) -> tuple[int | None, int]:
-    """창 안의 Cys 중 expected 에 가장 가까운 위치와, 창 안의 Cys 총 개수."""
+    """Position of the Cys in the window closest to expected, and the total Cys count in the window."""
     lo, hi = window
     found = [i + 1 for i, ch in enumerate(seq[: min(hi, len(seq))]) if ch == "C" and i + 1 >= lo]
     if not found:
@@ -268,7 +270,7 @@ def _cys_in_window(seq: str, window: tuple[int, int], expected: int) -> tuple[in
 
 
 def detect_chain(seq: str) -> tuple[str | None, int | None]:
-    """말단 모티프로 체인을 판별한다. (chain, 모티프 1-based 시작 위치)."""
+    """Detect the chain from the terminal motif. Returns (chain, 1-based motif start position)."""
     wgxg = _last_match(WGXG_RE, seq)
     fgxg = _last_match(FGXG_RE, seq)
 
@@ -278,18 +280,18 @@ def detect_chain(seq: str) -> tuple[str | None, int | None]:
         return "H", wgxg
     if wgxg is None:
         return "L", fgxg
-    # 둘 다 있으면 C-말단에 더 가까운 쪽
+    # If both are present, take the one closer to the C-terminus
     return ("H", wgxg) if wgxg > fgxg else ("L", fgxg)
 
 
 # --------------------------------------------------------------------------
-# 본체
+# Main logic
 # --------------------------------------------------------------------------
 
 def annotate(sequence: str, *, validate_input: bool = True) -> Annotation:
-    """서열 하나를 주석한다.
+    """Annotate a single sequence.
 
-    validate_input=True 면 abcheck.validate 로 먼저 검증한다 (실패 시 SequenceError).
+    With validate_input=True, validates first via abcheck.validate (SequenceError on failure).
     """
     seq = ensure_valid(sequence) if validate_input else str(sequence).strip().upper()
     ann = Annotation(sequence=seq)
@@ -326,7 +328,7 @@ def annotate(sequence: str, *, validate_input: bool = True) -> Annotation:
 def _annotate_heavy(seq: str, ann: Annotation) -> None:
     motif_pos = ann.anchors["terminal_motif"]
 
-    # --- 앵커 1: Cys22 ---
+    # --- Anchor 1: Cys22 ---
     cys1, n_cys = _cys_in_window(seq, CYS1_WINDOW_H, CYS1_EXPECTED_H)
     if cys1 is None:
         ann.confident = False
@@ -343,7 +345,7 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
         )
     ann.anchors["cys1"] = cys1
 
-    # --- 앵커 2: Trp36, CDR-H1 ---
+    # --- Anchor 2: Trp36, CDR-H1 ---
     h1_start = cys1 + CDR1_OFFSET_H
     if h1_start > len(seq):
         ann.confident = False
@@ -379,7 +381,7 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
     ann.anchors["trp"] = trp
     ann.cdrs["CDR-H1"] = CDR("CDR-H1", h1_start, trp - 1, seq[h1_start - 1:trp - 1])
 
-    # --- 앵커 3: FR3 모티프, CDR-H2 ---
+    # --- Anchor 3: FR3 motif, CDR-H2 ---
     h2_start = trp + CDR2_OFFSET_H
     if h2_start > len(seq):
         ann.confident = False
@@ -396,9 +398,9 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
 
     if fr3 is not None:
         cys2, by_context = _find_conserved_cys(seq, fr3, motif_pos)
-        # 교차검증: FR3 모티프와 보존 Cys 의 거리는 실측 3,429건이 전부 29 였고,
-        # 어긋난 14건은 전부 모티프가 엉뚱한 자리에 걸린 경우였다(CDR-H2 가 15 또는 29 로 나옴).
-        # 거리가 다르면 모티프 쪽을 버리고 Cys 기준으로 다시 잡는다.
+        # Cross-check: the FR3-motif-to-conserved-Cys distance was 29 in all 3,429 measured cases,
+        # and the 14 mismatches were all the motif matching in the wrong place (CDR-H2 came out as 15 or 29).
+        # If the distance differs, discard the motif and re-derive the position from the Cys.
         if cys2 is not None and cys2 - fr3 != FR3_TO_CYS_GAP:
             corrected = cys2 - FR3_TO_CYS_GAP
             if corrected > h2_start:
@@ -411,14 +413,14 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
                 )
                 fr3 = corrected
     else:
-        # 체세포 과변이로 모티프가 깨진 경우. 보존 Cys 에서 거리로 역산한다
-        # (실측 992건 전부 29잔기). 정규식을 더 넓히는 것보다 안전하다 —
-        # 넓힐수록 CDR-H2 안에서 우연히 걸릴 위험이 커진다.
+        # The motif was broken by somatic hypermutation. Back-calculate from the conserved Cys
+        # (29 residues in all 992 measured cases). Safer than widening the regex further —
+        # the wider it gets, the likelier a chance match inside CDR-H2.
         cys2, by_context = _find_conserved_cys(seq, search_from + FR3_TO_CYS_GAP, motif_pos)
         if cys2 is not None:
             fr3 = cys2 - FR3_TO_CYS_GAP
-            # 위치는 그대로 보고하되 신뢰도는 내린다. 거리는 실측 992건 전부 일정했지만,
-            # 모티프를 직접 확인한 것보다는 약한 근거다 — 결과를 쓰기 전에 사람이 보게 한다.
+            # Report the position but lower confidence. The distance was constant across all 992
+            # measured cases, but it is weaker evidence than seeing the motif — have a human check first.
             ann.confident = False
             ann.reasons.append(
                 f"FR3 시작 모티프({FR3_MOTIF_PATTERN})를 찾지 못해, 보존 Cys({cys2}번)에서 "
@@ -461,7 +463,7 @@ def _annotate_heavy(seq: str, ann: Annotation) -> None:
 def _annotate_light(seq: str, ann: Annotation) -> None:
     motif_pos = ann.anchors["terminal_motif"]
 
-    # --- 앵커 1: Cys23 ---
+    # --- Anchor 1: Cys23 ---
     cys1, n_cys = _cys_in_window(seq, CYS1_WINDOW_L, CYS1_EXPECTED_L)
     if cys1 is None:
         ann.confident = False
@@ -478,7 +480,7 @@ def _annotate_light(seq: str, ann: Annotation) -> None:
         )
     ann.anchors["cys1"] = cys1
 
-    # --- 앵커 2: Trp35, CDR-L1 ---
+    # --- Anchor 2: Trp35, CDR-L1 ---
     l1_start = cys1 + CDR1_OFFSET_L
     trp, by_context = _find_conserved_trp(
         seq, l1_start + MIN_CDR1_LENGTH_L, FR2_CONTEXT_L
@@ -506,7 +508,7 @@ def _annotate_light(seq: str, ann: Annotation) -> None:
     ann.anchors["trp"] = trp
     ann.cdrs["CDR-L1"] = CDR("CDR-L1", l1_start, trp - 1, seq[l1_start - 1:trp - 1])
 
-    # --- CDR-L2 (7 잔기 고정) ---
+    # --- CDR-L2 (fixed at 7 residues) ---
     l2_start = trp + CDR2_OFFSET_L
     l2_end = l2_start + CDR_L2_LENGTH - 1
     if l2_end > len(seq) or l2_end >= motif_pos:
@@ -519,7 +521,7 @@ def _annotate_light(seq: str, ann: Annotation) -> None:
         return
     ann.cdrs["CDR-L2"] = CDR("CDR-L2", l2_start, l2_end, seq[l2_start - 1:l2_end])
 
-    # --- 앵커 3: Cys88, CDR-L3 ---
+    # --- Anchor 3: Cys88, CDR-L3 ---
     cys2, by_context = _find_conserved_cys(seq, l2_end + 1, motif_pos)
     if not by_context and cys2 is not None:
         ann.warnings.append(
@@ -548,7 +550,7 @@ def _annotate_light(seq: str, ann: Annotation) -> None:
 
 
 def _check_lengths(ann: Annotation) -> None:
-    """CDR 길이가 통상 범위를 벗어나면 confident=False 와 사유를 남긴다."""
+    """If a CDR length is outside the typical range, set confident=False and record a reason."""
     for name, cdr in sorted(ann.cdrs.items()):
         lo, hi = TYPICAL_LENGTHS[name]
         if not (lo <= cdr.length <= hi):

@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""사용자 매뉴얼(HTML)을 현재 코드의 실제 출력으로 생성한다.
+"""Generate the user manual (HTML) from the current code's actual output.
 
-매뉴얼에 붙이는 터미널 출력·오류 메시지·JSON 은 손으로 옮겨 적지 않고 전부 여기서
-abcheck 를 직접 호출해 만든다. 그래야 코드를 바꿨을 때 매뉴얼이 조용히 낡지 않는다
-(tests/test_manual.py 가 커밋된 manual.html 이 지금 코드의 출력과 같은지 확인한다).
+Terminal output, error messages and JSON in the manual are never copied by hand; they are all
+produced here by calling abcheck directly. That way the manual does not silently go stale when
+the code changes (tests/test_manual.py checks that the committed manual.html matches the current code's output).
 
-PDF 로 만드는 전체 절차는 docs/manual/build.sh 참고.
+See docs/manual/build.sh for the full procedure to build the PDF.
 
-    python3 docs/manual/build_manual.py           # manual.html 생성
-    python3 docs/manual/build_manual.py --stamp   # PDF 를 만든 뒤 원본 해시 기록
+    python3 docs/manual/build_manual.py           # generate manual.html
+    python3 docs/manual/build_manual.py --stamp   # record the source hash after building the PDF
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ OUT_HTML = HERE / "manual.html"
 OUT_PDF = HERE / "abcheck_manual.pdf"
 STAMP = HERE / "abcheck_manual.pdf.source-sha256"
 
-#: 터미널 출력 폭. PDF 한 줄에 들어가도록 CLI 기본값(100)보다 조금 좁힌다.
+#: Terminal output width. Slightly narrower than the CLI default (100) so lines fit on a PDF page.
 TEXT_WIDTH = 92
 
 CORPUS = json.loads((ROOT / "data/synthetic/sequences.json").read_text(encoding="utf-8"))
@@ -44,7 +44,7 @@ BY_ID = {r["id"]: r for r in CORPUS["sequences"]}
 
 
 # --------------------------------------------------------------------------
-# 실제 출력 만들기
+# Producing the actual output
 # --------------------------------------------------------------------------
 
 def seq_of(seq_id: str) -> str:
@@ -52,7 +52,7 @@ def seq_of(seq_id: str) -> str:
 
 
 def section_of(text: str, seq_label: str) -> str:
-    """as_text 전체 출력에서 한 서열의 섹션만 잘라낸다."""
+    """Cut out one sequence's section from the full as_text output."""
     lines = text.splitlines()
     start = next(i for i, ln in enumerate(lines) if ln.strip() == f"[{seq_label}]")
     end = len(lines)
@@ -72,7 +72,7 @@ def terminal_for(seq_id: str, label: str = "입력 서열") -> str:
 
 
 def terminal_header() -> str:
-    """터미널 출력 맨 앞(한계 고지)."""
+    """The very top of the terminal output (limitations notice)."""
     text = as_text([build("입력 서열", seq_of("SYN-VH-001"))], width=TEXT_WIDTH)
     lines = text.splitlines()
     end = next(i for i, ln in enumerate(lines) if ln.startswith("[CDR별 liability 집계]"))
@@ -80,7 +80,7 @@ def terminal_header() -> str:
 
 
 def terminal_summary() -> str:
-    """코퍼스 전체를 돌렸을 때의 집계 표 부분."""
+    """The summary table part from running the whole corpus."""
     reports = build_many([(r["id"], r["sequence"]) for r in CORPUS["sequences"]])
     lines = as_text(reports, width=TEXT_WIDTH).splitlines()
     start = next(i for i, ln in enumerate(lines) if ln.startswith("[CDR별 liability 집계]"))
@@ -89,7 +89,7 @@ def terminal_summary() -> str:
 
 
 def json_excerpt(seq_id: str) -> str:
-    """JSON 출력에서 핵심 필드만 발췌한다."""
+    """Excerpt only the key fields from the JSON output."""
     full = build(seq_id, seq_of(seq_id)).as_dict()
     hits = full["liabilities"]["hits"]
     excerpt = {
@@ -115,7 +115,7 @@ def json_excerpt(seq_id: str) -> str:
 
 
 def error_examples() -> list[tuple[str, str, str]]:
-    """(상황, 넣은 것, 실제 오류 메시지) 목록."""
+    """List of (situation, input, actual error message)."""
     vh = seq_of("SYN-VH-001")
     vl = seq_of("SYN-VL-001")
     cases = [
@@ -136,7 +136,7 @@ def error_examples() -> list[tuple[str, str, str]]:
 
 
 def failure_examples() -> list[tuple[str, str, str]]:
-    """(서열 ID, 상황, 실제 신뢰 불가 사유)."""
+    """(sequence ID, situation, actual not-confident reason)."""
     picks = [
         ("SYN-VH-901", "말단 모티프(WGxG)가 깨진 서열"),
         ("SYN-VH-902", "보존 Cys22 가 치환된 서열 (N-말단이 잘린 경우와 같은 증상)"),
@@ -151,7 +151,7 @@ def failure_examples() -> list[tuple[str, str, str]]:
 
 
 # --------------------------------------------------------------------------
-# HTML 조립
+# HTML assembly
 # --------------------------------------------------------------------------
 
 def esc(text: str) -> str:
@@ -262,7 +262,7 @@ def build_html() -> str:
     parts: list[str] = []
     add = parts.append
 
-    # ---------------- 표지 ----------------
+    # ---------------- Cover ----------------
     add(f"""
 <section class="cover">
   <p class="title">abcheck 사용 설명서</p>
@@ -280,7 +280,7 @@ def build_html() -> str:
 </section>
 """)
 
-    # ---------------- 목차 ----------------
+    # ---------------- Table of contents ----------------
     add("""
 <h1 class="first" style="page-break-before: always; break-before: page;">목차</h1>
 <div class="toc"><ol>
@@ -300,7 +300,7 @@ def build_html() -> str:
 </ol></div>
 """)
 
-    # ---------------- 1. 소개 ----------------
+    # ---------------- 1. Introduction ----------------
     add("""
 <h1>1. 이 도구는 무엇이고, 무엇을 하지 않는가</h1>
 <p>항체의 중쇄 가변도메인(VH) 또는 경쇄 가변도메인(VL) 아미노산 서열 하나를 받아 다음 세 가지를 보여준다.</p>
@@ -319,7 +319,7 @@ def build_html() -> str:
 <b>사내 후보 서열을 넣어도 밖으로 나가지 않는다.</b></p>
 """)
 
-    # ---------------- 2. 준비 ----------------
+    # ---------------- 2. Setup ----------------
     add("""
 <h1>2. 준비 — 설치와 확인</h1>
 <p>터미널을 연다. VS Code 를 쓴다면 <code>Ctrl</code> + <code>`</code> (맥은 <code>Cmd</code> + <code>`</code>).</p>
@@ -335,7 +335,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
 <code>No module named abcheck</code> 가 나오면 <code>cd ab-seq-selfcheck</code> 를 먼저 했는지 확인한다.</div>
 """)
 
-    # ---------------- 3. 입력 ----------------
+    # ---------------- 3. Input ----------------
     add("""
 <h1>3. 입력 — 무엇을 어떤 형식으로 넣는가</h1>
 <h2>넣는 것은 하나: 가변도메인 하나의 아미노산 서열</h2>
@@ -374,7 +374,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
     ))
     add(note("<b>신호서열(signal peptide)을 꼭 떼어낸다</b>앞에 <code>MGWSWIFLFLLSG…</code> 같은 19잔기 안팎의 신호서열이 붙어 있으면 보존 Cys 가 탐색 범위를 벗어나 주석이 실패한다. 발현 태그(<code>MA…</code>) 정도의 짧은 꼬리는 괜찮다.", "warn"))
 
-    # ---------------- 4. 실행 ----------------
+    # ---------------- 4. Running ----------------
     add("""
 <h1>4. 실행 — 명령 네 가지</h1>
 <h2>① 서열 하나를 터미널에서 보기</h2>
@@ -412,7 +412,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
         ],
     ))
 
-    # ---------------- 5. 터미널 출력 ----------------
+    # ---------------- 5. Terminal output ----------------
     add("""
 <h1>5. 결과 ① 터미널 출력 읽는 법</h1>
 <p>4장의 ① 명령을 실행했을 때 실제로 나오는 출력이다. 덩어리별로 읽는 법을 적었다.</p>
@@ -450,7 +450,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
     start = next(i for i, ln in enumerate(block) if "[도메인 플래그]" in ln)
     add(pre("\n".join(block[start:start + 6]).rstrip()))
 
-    # ---------------- 6. HTML 리포트 ----------------
+    # ---------------- 6. HTML report ----------------
     add("""
 <h1>6. 결과 ② HTML 리포트</h1>
 <p><code>--html</code> 로 만든 리포트다. 아래 화면은 저장소의 합성 예시 24개를 넣어 만든 <code>sample_output/report.html</code> 이다.</p>
@@ -486,7 +486,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
         ],
     ))
 
-    # ---------------- 8. 기준 ----------------
+    # ---------------- 8. Criteria ----------------
     add('<h1>8. 판정 기준 — 위험도 등급과 선별 규칙</h1><h2>liability 위험도</h2><p>모티프마다 기본 등급이 있고, <b>CDR 안이면 한 단계 올리고 framework 면 한 단계 내린다</b> (높음·낮음에서는 멈춘다).</p>')
     rows = []
     for spec in MOTIF_SPECS:
@@ -507,7 +507,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
     ))
     add(note("<b>규칙은 바꿀 수 있다</b><code>abcheck/triage.py</code> 의 <code>DEFAULT_RULES</code> 에 글로 적혀 있다. 기준이 코드에 남으므로 나중에 \"왜 이 후보를 먼저 봤지\"를 추적할 수 있다. 약한 등급(NS/NT/DS 등)이 CDR 상향으로 '높음'이 되어도 선별에는 걸리지 않게 한 것은, 실제 레퍼토리에서 그런 모티프가 너무 흔해 모든 후보가 걸리기 때문이다."))
 
-    # ---------------- 9. 신뢰 불가 ----------------
+    # ---------------- 9. Not confident ----------------
     add("<h1>9. '신뢰 불가'가 나왔을 때</h1><p>도구는 앵커를 못 찾으면 <b>위치를 지어내지 않고</b> 이유를 적는다. 아래는 실제 출력되는 사유들이다.</p>")
     for seq_id, title, reason in failure_examples():
         add(f"<h3>{esc(title)}</h3>")
@@ -524,7 +524,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
     ))
     add(note("<b>결과를 근거로 후보를 탈락시키기 전에는 반드시 ANARCI/IMGT 로 재확인한다</b>이 도구는 빠른 1차 스크리닝용이다. 신뢰 가능으로 나왔더라도, 의사결정에 쓰기 전에는 정식 numbering 도구로 한 번 더 본다.", "warn"))
 
-    # ---------------- 10. 오류 ----------------
+    # ---------------- 10. Errors ----------------
     add("<h1>10. 오류 메시지와 대처</h1><p>입력이 잘못되면 처리하지 않고 한글로 이유를 알려준다. 아래는 실제 메시지다.</p>")
     for title, shown, message in error_examples():
         add(f"<h3>{esc(title)}</h3><p>넣은 것: <code>{esc(shown)}</code></p>")
@@ -538,7 +538,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
         ],
     ))
 
-    # ---------------- 11. 실전 ----------------
+    # ---------------- 11. In practice ----------------
     add("<h1>11. 실전 — 후보 여러 개를 선별하는 흐름</h1><p>파지 디스플레이나 B 세포 클로닝에서 후보가 수십 개 나왔을 때의 순서다.</p>")
     add("""
 <div class="step"><div class="n">1</div><div class="b"><b>가변도메인만 FASTA 로 모은다</b> — 3장의 자르는 기준대로. 신호서열을 뗐는지 확인.</div></div>
@@ -552,7 +552,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
 """)
     add(pre(terminal_summary(), "term allowbreak small"))
 
-    # ---------------- 12. 검증 ----------------
+    # ---------------- 12. Validation ----------------
     add("""
 <h1>12. 검증 결과와 한계</h1>
 <p>공개 항체 레퍼토리 데이터베이스(OAS)의 실제 서열 <b>7,000개</b>로 측정했다. 측정 절차는 저장소의
@@ -580,7 +580,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
 <p>자세한 측정 방법, 실제 데이터로 찾아 고친 버그, 고치지 않기로 한 것은 저장소의 <code>VALIDATION.md</code> 에 있다.</p>
 """)
 
-    # ---------------- 13. 부록 ----------------
+    # ---------------- 13. Appendix ----------------
     add("<h1>13. 부록 — 탐색 규칙과 기준표</h1><h2>CDR 을 찾는 순서</h2>")
     add(table(
         ["체인", "순서"],
@@ -610,7 +610,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
     add(table(
         ["파일", "내용"],
         [
-            ["README.md / README.en.md", "개요와 검증 요약 (한글 / 영문)"],
+            ["README.md / README.ko.md", "개요와 검증 요약 (영문 / 한글)"],
             ["TUTORIAL.md", "이 설명서의 짧은 판"],
             ["VALIDATION.md", "측정 방법, 결과, 알려진 한계"],
             ["DECISIONS.md", "설계 판단과 그 이유"],
@@ -630,7 +630,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
 
 
 def write_stamp() -> None:
-    """PDF 를 만든 원본 HTML 의 해시를 남긴다 — PDF 가 낡았는지 테스트가 확인한다."""
+    """Record the hash of the source HTML the PDF was built from -- tests use it to check the PDF is not stale."""
     digest = hashlib.sha256(OUT_HTML.read_bytes()).hexdigest()
     STAMP.write_text(digest + "\n", encoding="utf-8")
     print(f"원본 해시 기록: {STAMP.relative_to(ROOT)}")

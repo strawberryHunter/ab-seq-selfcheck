@@ -1,8 +1,8 @@
-"""CDR 주석 테스트.
+"""CDR annotation tests.
 
-핵심은 `test_ground_truth_cdr_positions` 다 — 합성 서열의 정답 CDR 위치를 전부
-복원해야 한다. 그 다음이 `test_broken_anchors_are_not_confident` — 앵커가 깨진
-서열에서 confident=False 가 나와야 하고, 위치를 추측해서는 안 된다.
+The core is `test_ground_truth_cdr_positions`: every ground-truth CDR position in
+the synthetic sequences must be recovered. Next is `test_broken_anchors_are_not_confident`:
+sequences with broken anchors must yield confident=False, and positions must not be guessed.
 """
 
 from __future__ import annotations
@@ -15,17 +15,17 @@ from .conftest import by_id
 
 
 # --------------------------------------------------------------------------
-# 핵심: 정답 CDR 위치 복원
+# Core: recover ground-truth CDR positions
 # --------------------------------------------------------------------------
 
 def test_ground_truth_cdr_positions(records):
-    """정답 CDR 좌표가 정의된 모든 합성 서열에서 위치·서열을 정확히 복원한다."""
+    """Recover positions and sequences exactly for every synthetic sequence with ground-truth CDR coordinates."""
     checked = 0
     failures: list[str] = []
 
     for rec in records:
         expected = rec["expected"]["cdrs"]
-        if expected is None:          # 앵커가 일부러 깨진 케이스는 여기서 제외
+        if expected is None:          # Cases with deliberately broken anchors are excluded here
             continue
 
         ann = annotate(rec["sequence"])
@@ -50,7 +50,7 @@ def test_ground_truth_cdr_positions(records):
 
 
 def test_ground_truth_anchor_positions(records):
-    """의도한 앵커 위치(Cys·Trp·FR3 모티프·말단 모티프)를 그대로 집어낸다."""
+    """Pick out the intended anchor positions (Cys, Trp, FR3 motif, terminal motif) exactly."""
     for rec in records:
         intended = rec["anchors_intended"]
         if intended is None:
@@ -72,7 +72,7 @@ def test_expected_chain_is_detected(records):
 
 
 def test_expected_confidence_matches(records):
-    """코퍼스가 기록한 expected.confident 와 주석기 판단이 일치한다."""
+    """The annotator's verdict matches expected.confident recorded in the corpus."""
     for rec in records:
         want = rec["expected"]["confident"]
         ann = annotate(rec["sequence"])
@@ -82,11 +82,11 @@ def test_expected_confidence_matches(records):
 
 
 # --------------------------------------------------------------------------
-# 앵커가 깨진 경우 — 추측 금지
+# Broken anchors: no guessing
 # --------------------------------------------------------------------------
 
 def test_broken_anchors_are_not_confident(records):
-    """앵커가 깨진 서열은 confident=False 이고, 한글 사유가 남아야 한다."""
+    """Sequences with broken anchors are confident=False and must leave a reason in Korean."""
     broken = [r for r in records if r["expected"]["anchors_broken"]]
     assert broken, "앵커가 깨진 케이스가 코퍼스에 없다"
 
@@ -94,21 +94,21 @@ def test_broken_anchors_are_not_confident(records):
         ann = annotate(rec["sequence"])
         assert ann.confident is False, f"{rec['id']}: confident=False 여야 한다"
         assert ann.reasons, f"{rec['id']}: 사유가 비어 있다"
-        # 사유는 한글로 남긴다
+        # Reasons are written in Korean
         assert any(any("가" <= ch <= "힣" for ch in r) for r in ann.reasons), (
             f"{rec['id']}: 사유에 한글이 없다 — {ann.reasons}"
         )
 
 
 def test_broken_anchors_do_not_guess_positions(records):
-    """앵커를 못 찾은 지점 이후의 CDR 을 추측해서 채우지 않는다."""
-    # 말단 WGxG 가 깨짐 → 체인 판별부터 실패, CDR 하나도 없어야 한다
+    """Do not guess and fill in CDRs past the point where an anchor was not found."""
+    # Terminal WGxG broken -> chain detection itself fails; there must be no CDRs at all
     ann = annotate(by_id(records, "SYN-VH-901")["sequence"])
     assert ann.chain is None
     assert ann.cdrs == {}
     assert ann.annotated is False
 
-    # Cys22 가 깨짐 → 체인은 판별되지만 CDR 은 하나도 끊지 못해야 한다
+    # Cys22 broken -> chain is detected, but no CDR can be cut
     ann = annotate(by_id(records, "SYN-VH-902")["sequence"])
     assert ann.chain == "H"
     assert ann.cdrs == {}
@@ -122,17 +122,17 @@ def test_broken_terminal_motif_reason_mentions_both_motifs(records):
 
 
 # --------------------------------------------------------------------------
-# 길이 이탈 — 앵커는 찾았지만 confident=False
+# Length outliers: anchors found, but confident=False
 # --------------------------------------------------------------------------
 
 def test_length_outlier_keeps_positions_but_drops_confidence(records):
-    """CDR-H1 이 9 잔기인 케이스: 위치는 정확히 복원하면서 confident=False."""
+    """Case where CDR-H1 is 9 residues: positions are recovered exactly, yet confident=False."""
     rec = by_id(records, "SYN-VH-903")
     ann = annotate(rec["sequence"])
 
     assert ann.confident is False
     assert ann.chain == "H"
-    # 앵커가 멀쩡하므로 위치는 정답과 같아야 한다
+    # Anchors are intact, so positions must match the ground truth
     for name, want in rec["expected"]["cdrs"].items():
         got = ann.cdrs[name]
         assert (got.start, got.end) == (want["start"], want["end"])
@@ -144,7 +144,7 @@ def test_length_outlier_keeps_positions_but_drops_confidence(records):
 
 
 def test_normal_cases_have_typical_lengths(records):
-    """confident=True 인 케이스는 모든 CDR 길이가 통상 범위 안이다."""
+    """In confident=True cases every CDR length is within the typical range."""
     for rec in records:
         if not rec["expected"]["confident"]:
             continue
@@ -157,15 +157,15 @@ def test_normal_cases_have_typical_lengths(records):
 
 
 # --------------------------------------------------------------------------
-# 앵커 상대 거리로 찾는지 (고정 번호로 찍지 않는지)
+# Check that CDRs are found by distance from anchors (not by fixed numbering)
 # --------------------------------------------------------------------------
 
 def test_shifted_anchors_are_followed(records):
-    """CDR-L1 이 짧아 뒤 앵커가 전부 밀린 서열도 올바르게 주석한다."""
+    """Annotate correctly even when a short CDR-L1 shifts all downstream anchors."""
     rec = by_id(records, "SYN-VL-002")
     ann = annotate(rec["sequence"])
 
-    # 통상 kappa 와 달리 Cys2 가 88번이 아니다 — 고정 번호 구현이면 여기서 깨진다
+    # Unlike typical kappa, Cys2 is not at 88 -- a fixed-numbering implementation breaks here
     assert ann.anchors["cys2"] != 88
     assert ann.anchors["cys2"] == rec["anchors_intended"]["cys2"]
     assert ann.confident is True
@@ -175,10 +175,10 @@ def test_shifted_anchors_are_followed(records):
 
 
 def test_unpaired_cys_in_cdr_h3_does_not_break_anchor(records):
-    """CDR-H3 안의 여분 Cys 를 Cys92 앵커로 잘못 집지 않는다.
+    """Do not mistake an extra Cys inside CDR-H3 for the Cys92 anchor.
 
-    'FR3 모티프 이후 첫 Cys' 규칙의 근거가 되는 테스트다. '마지막 Cys' 를 쓰면
-    CDR-H3 안의 비결합 Cys 를 앵커로 집어 주석이 망가진다.
+    This test backs the 'first Cys after the FR3 motif' rule. Using the 'last Cys'
+    would pick an unpaired Cys inside CDR-H3 as the anchor and break the annotation.
     """
     rec = by_id(records, "SYN-VH-005")
     ann = annotate(rec["sequence"])
@@ -190,7 +190,7 @@ def test_unpaired_cys_in_cdr_h3_does_not_break_anchor(records):
 
 
 # --------------------------------------------------------------------------
-# 구간 분할 보조 기능
+# Region-splitting helpers
 # --------------------------------------------------------------------------
 
 def test_framework_spans_cover_sequence_without_overlap(records):
@@ -199,7 +199,7 @@ def test_framework_spans_cover_sequence_without_overlap(records):
         covered = sorted(
             [(c.start, c.end) for c in ann.cdrs.values()] + ann.framework_spans()
         )
-        # 1 부터 끝까지 빈틈 없이, 겹침 없이 덮어야 한다
+        # Must cover 1 through the end with no gaps and no overlaps
         cursor = 1
         for start, end in covered:
             assert start == cursor, f"{rec['id']}: 구간이 {cursor} 에서 끊겼다 ({start}-{end})"
@@ -225,17 +225,17 @@ def test_framework_spans_cover_everything_when_annotation_failed(records):
 
 
 # --------------------------------------------------------------------------
-# 체인 판별
+# Chain detection
 # --------------------------------------------------------------------------
 
 def test_detect_chain_prefers_motif_closer_to_c_terminus():
-    # FGxG 가 앞, WGxG 가 뒤 → 중쇄
+    # FGxG first, WGxG later -> heavy chain
     seq = "A" * 40 + "FGQG" + "A" * 40 + "WGQG" + "A" * 10
     chain, pos = detect_chain(seq)
     assert chain == "H"
     assert pos == seq.rfind("WGQG") + 1
 
-    # 반대 순서 → 경쇄
+    # Reverse order -> light chain
     seq = "A" * 40 + "WGQG" + "A" * 40 + "FGQG" + "A" * 10
     chain, pos = detect_chain(seq)
     assert chain == "L"
@@ -248,35 +248,35 @@ def test_detect_chain_returns_none_without_motifs():
 
 
 def test_early_terminal_motif_raises_warning():
-    """말단 모티프가 전반부에 있으면 경고를 남긴다."""
+    """Leave a warning when the terminal motif is in the first half."""
     rec_seq = "WGQG" + "A" * 100
     ann = annotate(rec_seq, validate_input=False)
     assert any("전반부" in w for w in ann.warnings)
 
 
 # --------------------------------------------------------------------------
-# 입력 검증 연동
+# Integration with input validation
 # --------------------------------------------------------------------------
 
 def test_annotate_rejects_invalid_input():
     from abcheck.validate import SequenceError
 
     with pytest.raises(SequenceError):
-        annotate("ACDEFG")                       # 너무 짧다
+        annotate("ACDEFG")                       # Too short
 
     with pytest.raises(SequenceError):
-        annotate(">seq1\n" + "A" * 120)          # FASTA 헤더
+        annotate(">seq1\n" + "A" * 120)          # FASTA header
 
 
 # --------------------------------------------------------------------------
-# FR3 시작 모티프의 germline 변형
+# Germline variants of the FR3 start motif
 # --------------------------------------------------------------------------
 
 def test_fr3_motif_variants_are_found(records):
-    """실제 레퍼토리에서 흔한 FR3 변형(QVTIS, RITIN)도 찾아야 한다.
+    """Must also find FR3 variants common in real repertoires (QVTIS, RITIN).
 
-    좁은 패턴 [RK].[TSAV][IMLFV][STA] 로는 둘 다 놓친다. OAS VH 1,000건에서
-    26건(2.6%)이 이 때문에 CDR-H2/H3 주석에 실패했다.
+    The narrow pattern [RK].[TSAV][IMLFV][STA] misses both. In 1,000 OAS VH,
+    26 (2.6%) failed CDR-H2/H3 annotation because of this.
     """
     for seq_id, motif in [("SYN-VH-011", "QVTIS"), ("SYN-VH-012", "RITIN")]:
         rec = by_id(records, seq_id)
@@ -292,9 +292,9 @@ def test_fr3_motif_variants_are_found(records):
 
 
 def test_strict_fr3_pattern_would_miss_those_variants(records):
-    """넓힌 패턴이 실제로 필요한지 — 좁은 패턴으로는 못 찾는 것을 확인한다.
+    """Is the widened pattern actually needed? Confirm the narrow pattern cannot find these.
 
-    이 테스트가 없으면 누가 패턴을 좁혀도 아무도 모른다.
+    Without this test, nobody would notice if someone narrowed the pattern again.
     """
     import re
 
@@ -306,30 +306,30 @@ def test_strict_fr3_pattern_would_miss_those_variants(records):
 
 
 def test_broken_fr3_motif_falls_back_to_cys_distance(records):
-    """FR3 모티프가 과변이로 깨져도 보존 Cys 에서 역산해 복원한다.
+    """Even if hypermutation breaks the FR3 motif, recover it by back-calculating from the conserved Cys.
 
-    OAS 마우스 plasmablast(과변이가 심한 세포)에서 8건이 이 경우였다. 모티프가
-    EATLT / RLNIS / KAILT 처럼 바뀌어 정규식에 안 걸렸다. 실제 VH 992건 전부에서
-    FR3 모티프→보존 Cys 거리가 29 로 일정했으므로 그 거리를 쓴다.
+    This happened in 8 OAS mouse plasmablasts (cells with heavy hypermutation). The motif
+    had changed to EATLT / RLNIS / KAILT and no longer matched the regex. Across all 992 real VH,
+    the FR3 motif -> conserved Cys distance was a constant 29, so that distance is used.
     """
     rec = by_id(records, "SYN-VH-013")
     ann = annotate(rec["sequence"])
 
-    # 위치는 그대로 보고한다 — 결과를 버리지 않는다
+    # Positions are still reported -- the result is not discarded
     for name, want in rec["expected"]["cdrs"].items():
         got = ann.cdrs[name]
         assert (got.start, got.end, got.seq) == (want["start"], want["end"], want["seq"]), name
 
-    # 다만 모티프를 직접 확인한 것보다 근거가 약하므로 신뢰도는 내린다
+    # But the evidence is weaker than seeing the motif directly, so confidence is lowered
     assert ann.confident is False
     assert any("역산" in r for r in ann.reasons), ann.reasons
     assert any("ANARCI" in r for r in ann.reasons)
 
 
 def test_fr3_to_cys_gap_holds_across_corpus(records):
-    """FR3 모티프와 보존 Cys 의 거리가 코퍼스 전체에서 일정한지.
+    """Is the FR3 motif to conserved Cys distance constant across the whole corpus?
 
-    이 거리가 흔들리면 역산 경로가 조용히 틀어진다.
+    If this distance drifts, the back-calculation path silently goes wrong.
     """
     from abcheck.annotate import FR3_TO_CYS_GAP
 
@@ -343,7 +343,7 @@ def test_fr3_to_cys_gap_holds_across_corpus(records):
 
 
 def test_fallback_is_not_used_when_motif_is_present(records):
-    """모티프가 멀쩡하면 역산 경고가 붙지 않아야 한다 — 대체 경로가 남발되면 곤란하다."""
+    """No back-calculation warning when the motif is intact -- the fallback path must not fire freely."""
     for seq_id in ["SYN-VH-001", "SYN-VH-002", "SYN-VH-011", "SYN-VH-012"]:
         ann = annotate(by_id(records, seq_id)["sequence"])
         assert not any("역산" in r for r in ann.reasons + ann.warnings), (seq_id, ann.reasons)
@@ -351,33 +351,33 @@ def test_fallback_is_not_used_when_motif_is_present(records):
 
 
 def test_decoy_fr3_motif_is_corrected_by_cys_distance(records):
-    """CDR-H2 안의 가짜 FR3 모티프를 보존 Cys 거리로 교차검증해 바로잡는다.
+    """Correct a fake FR3 motif inside CDR-H2 by cross-checking against the conserved Cys distance.
 
-    실제 데이터 7,000건에서 FR3 모티프↔보존 Cys 거리는 3,429건이 전부 29 였고,
-    어긋난 14건은 전부 모티프가 엉뚱한 자리에 걸린 경우였다(CDR-H2 가 15 또는 29 로 나옴).
+    In 7,000 real sequences, the FR3 motif <-> conserved Cys distance was exactly 29 in all 3,429,
+    and the 14 outliers were all cases where the motif matched in the wrong place (CDR-H2 came out as 15 or 29).
     """
     rec = by_id(records, "SYN-VH-014")
     ann = annotate(rec["sequence"])
 
-    # 가짜 모티프에 걸렸더라도 최종 CDR-H2 는 정답이어야 한다
+    # Even if a fake motif matched, the final CDR-H2 must be correct
     for name, want in rec["expected"]["cdrs"].items():
         got = ann.cdrs[name]
         assert (got.start, got.end, got.seq) == (want["start"], want["end"], want["seq"]), name
 
-    # 고쳐 잡았다는 사실을 숨기지 않는다
+    # Do not hide the fact that a correction was made
     assert ann.confident is False
     assert any("통상값" in r and "고쳐 잡았다" in r for r in ann.reasons), ann.reasons
 
 
 # --------------------------------------------------------------------------
-# FR2 문맥 기반 Trp 앵커
+# Trp anchor based on FR2 context
 # --------------------------------------------------------------------------
 
 def test_trp_anchor_uses_fr2_context_for_light_chain():
-    """CDR-L1 끝과 FR2 에 Trp 이 둘 있는 IGKV1 형태에서 뒤쪽(진짜 FR2)을 집어야 한다.
+    """In the IGKV1 form with two Trp at the end of CDR-L1 and in FR2, pick the later one (the real FR2).
 
-    `...RASQGISS W LA W YQQ...` — 앞의 Trp 을 집으면 이후 경계가 3잔기씩 밀린다.
-    OAS 의 ANARCI 주석을 정답으로 비교했을 때 이 수정으로 CDR-L1/L2 불일치가 0 이 됐다.
+    `...RASQGISS W LA W YQQ...` -- picking the earlier Trp shifts every later boundary by 3 residues.
+    Compared against OAS's ANARCI annotations as ground truth, this fix brought CDR-L1/L2 mismatches to 0.
     """
     seq = ("DIQMTQSPSSLSASVGDRVTITCRASQGISSWLAWYQQKPGKAPKLLIYAASSLQSGVPSRFSGSGSG"
            "TDFTLTISSLQPEDFATYYCQQYNSYPPTFGQGTKVEIK")
@@ -391,7 +391,7 @@ def test_trp_anchor_uses_fr2_context_for_light_chain():
 
 
 def test_trp_anchor_uses_fr2_context_for_heavy_chain():
-    """CDR-H1 안에 Trp 이 있어도 FR2 문맥으로 진짜 Trp36 을 집는다."""
+    """Even with a Trp inside CDR-H1, FR2 context picks the real Trp36."""
     seq = ("QVQLVQSGAEVKKPGASVKVSCKASGYTFTSYWMQWVRQAPGQGLEWMGAIYPGDGDTRYTQKFKG"
            "RVTMTRDTSTSTVYMELSSLRSEDTAVYYCARGGLRRFDYWGQGTLVTVSS")
     ann = annotate(seq)
@@ -402,7 +402,7 @@ def test_trp_anchor_uses_fr2_context_for_heavy_chain():
 
 
 def test_fallback_warns_when_fr2_context_is_absent(records):
-    """문맥을 못 찾아 첫 Trp 로 물러섰으면 그 사실을 알려야 한다."""
+    """If the context was not found and it fell back to the first Trp, say so."""
     from abcheck.annotate import FR2_CONTEXT_H, _find_conserved_trp
 
     seq = "A" * 30 + "W" + "A" * 30

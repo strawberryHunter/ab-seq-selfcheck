@@ -1,4 +1,4 @@
-"""테스트 공용 fixture — 합성 코퍼스를 읽어 온다."""
+"""Shared test fixtures: load the synthetic corpus."""
 
 from __future__ import annotations
 

@@ -1,15 +1,16 @@
-"""abcheck — 항체 가변도메인 서열 셀프 점검 도구.
+"""abcheck — a self-check tool for antibody variable-domain sequences.
 
-이 도구는 **스크리닝 휴리스틱**이다. ANARCI 같은 numbering 엔진이 아니다.
-보존 잔기 앵커를 정규식으로 찾아 Kabat 경계를 근사하며, 앵커가 깨진 서열에서는
-위치를 추측하지 않고 실패를 보고한다. 자세한 한계는 README 와 LIMITATION_NOTICE 참고.
+This tool is a **screening heuristic**, not a numbering engine like ANARCI.
+It approximates Kabat boundaries by regex-matching conserved anchor residues, and
+when an anchor is broken it reports failure instead of guessing positions.
+See the README and LIMITATION_NOTICE for the full list of limitations.
 """
 
 from __future__ import annotations
 
 __version__ = "0.1.0"
 
-#: 모든 출력(터미널/HTML/JSON)에 그대로 실어야 하는 한계 고지.
+#: Limitation notice that must appear verbatim in every output (terminal/HTML/JSON).
 LIMITATION_NOTICE: tuple[str, ...] = (
     "이 도구는 보존 잔기 앵커 기반 스크리닝 휴리스틱이다. ANARCI/IMGT 같은 numbering 엔진이 아니다.",
     "CDR 경계는 Kabat 을 근사한 것이며, 번호를 매기지 않는다. 삽입/결실이 있는 서열에서는 경계가 밀릴 수 있다.",
@@ -21,7 +22,7 @@ LIMITATION_NOTICE: tuple[str, ...] = (
     "그리고 이 결과를 근거로 후보를 탈락시키려는 모든 경우.",
 )
 
-#: 종합 판정을 내리지 않는 이유 — 출력에도 싣는다.
+#: Why no overall verdict is given — also included in the output.
 NO_VERDICT_NOTICE: str = (
     "이 도구는 '개발 가능성 높음/낮음' 같은 종합 판정을 내리지 않는다. "
     "플래그와 그 근거만 제시한다. 판단은 사람이 한다."

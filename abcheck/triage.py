@@ -1,19 +1,21 @@
-"""사용자가 정한 선별 규칙을 적용해 '검토 필요'를 표시한다.
+"""Apply user-defined triage rules and mark sequences as "needs review".
 
-이 모듈은 도구가 항체의 좋고 나쁨을 판정하는 곳이 **아니다**. 연구자가 미리 정해 둔
-규칙을 기계적으로 적용해, 수십 개 후보 중 사람이 먼저 들여다볼 것을 골라낼 뿐이다.
-그래서 결과도 '합격/불합격'이 아니라 '검토 필요 / 기준 해당 없음'으로 적는다.
+This module is **not** where the tool judges whether an antibody is good or bad. It just
+applies rules the researcher set in advance, mechanically, to pick out which of dozens of
+candidates a person should look at first. So results read "needs review / no rule matched"
+(STATUS_REVIEW / STATUS_CLEAR), not "pass/fail".
 
-왜 이렇게 나누는가
-------------------
-점수를 매기려면 "CDR 의 NG 하나"와 "framework 의 DG 둘" 중 무엇이 더 나쁜지 정해야
-하는데, 여기에는 합의된 답이 없다. 투여 경로·보관 조건·타깃에 따라 달라진다. 도구가
-임의의 가중치로 숫자를 만들면 그 숫자는 근거가 아니라 추측이고, 사람은 근거 대신
-숫자만 보게 된다. 그래서 가중치를 만들지 않고, 규칙을 눈에 보이게 적어 두고 어떤
-규칙이 걸렸는지 그대로 보여준다.
+Why split it this way
+---------------------
+Scoring would require deciding which is worse, "one NG in a CDR" or "two DGs in the
+framework", and there is no agreed answer: it depends on route of administration, storage
+conditions and target. If the tool produced a number from arbitrary weights, that number
+would be a guess, not evidence, and people would look at the number instead of the evidence.
+So no weights are made up; the rules are written out in plain sight and the output shows
+exactly which rule fired.
 
-규칙을 바꾸려면 DEFAULT_RULES 를 고치면 된다. 기준이 코드에 명시적으로 남으므로
-나중에 "왜 이 후보를 먼저 봤는지" 추적할 수 있다.
+To change the rules, edit DEFAULT_RULES. The criteria stay explicit in code, so you can
+later trace "why was this candidate looked at first".
 """
 
 from __future__ import annotations
@@ -24,12 +26,12 @@ from typing import TYPE_CHECKING, Callable
 if TYPE_CHECKING:
     from .report import SequenceReport
 
-#: 선별 결과
+#: Triage outcomes
 STATUS_REVIEW = "검토 필요"
 STATUS_CLEAR = "기준 해당 없음"
 STATUS_UNKNOWN = "판정 불가"
 
-#: 이 모듈이 하는 일과 하지 않는 일. 출력에 그대로 싣는다.
+#: What this module does and doesn't do. Included verbatim in the output.
 TRIAGE_NOTICE: str = (
     "'검토 필요'는 아래 선별 규칙에 걸렸다는 뜻이지, 이 항체가 나쁘다는 뜻이 아니다. "
     "'기준 해당 없음'도 안전하다는 뜻이 아니라 이 규칙에 걸리지 않았다는 뜻일 뿐이다. "
@@ -39,11 +41,11 @@ TRIAGE_NOTICE: str = (
 
 @dataclass(frozen=True)
 class Rule:
-    """선별 규칙 하나."""
+    """A single triage rule."""
 
     key: str
     description: str
-    #: report 를 받아 걸린 사유 목록을 돌려준다. 비어 있으면 걸리지 않은 것이다.
+    #: Takes a report and returns the list of reasons it matched. Empty means no match.
     check: Callable[["SequenceReport"], list[str]]
 
 
@@ -51,7 +53,7 @@ class Rule:
 class TriageResult:
     status: str
     reasons: list[str] = field(default_factory=list)
-    #: 규칙을 적용할 수 있었는지 (CDR 주석이 실패하면 적용 불가)
+    #: Whether the rules could be applied (not possible if CDR annotation failed)
     evaluable: bool = True
     note: str = ""
 
@@ -70,21 +72,22 @@ class TriageResult:
 
 
 # --------------------------------------------------------------------------
-# 규칙
+# Rules
 # --------------------------------------------------------------------------
 
 def _cdr_high_risk(report: "SequenceReport") -> list[str]:
-    """CDR 안에 위험도 '높음'이면서 **같은 분류의 최고 위험** 모티프가 있으면 걸린다.
+    """Matches when a CDR contains a "high"-risk motif that is **the top-risk motif of its category**.
 
-    최고 위험 모티프로 한정하는 이유
-    ------------------------------
-    CDR 안이면 위험도를 한 단계 올리므로, 기본 '중간'인 약한 모티프(NS/NT/NN/NH,
-    DS/DT/DD)까지 '높음'이 된다. 실제 레퍼토리 서열로 돌려 보니 CDR 안 '높음' 25건 중
-    13건이 NS/NT/NN/NH 였고, 16건 중 12건이 검토 대상으로 걸렸다. 그 정도로 많이 걸리면
-    "먼저 볼 것을 고른다"는 목적을 못 한다.
+    Why restrict to top-risk motifs
+    -------------------------------
+    Being inside a CDR raises the risk by one step, so even weak motifs with a "medium"
+    base (NS/NT/NN/NH, DS/DT/DD) become "high". On real repertoire sequences, 13 of 25
+    "high" hits inside CDRs were NS/NT/NN/NH, and 12 of 16 sequences got flagged for review.
+    Flagging that many defeats the purpose of "picking what to look at first".
 
-    그래서 선별은 각 분류에서 가장 빠른 것 — N-결합 당화, NG, DG, DP — 만 본다.
-    약한 모티프도 표와 상세에는 '높음'으로 그대로 나오므로 정보가 사라지지는 않는다.
+    So triage only considers the fastest-reacting motif in each category — N-linked
+    glycosylation, NG, DG, DP. Weak motifs still show as "high" in the table and details,
+    so no information is lost.
     """
     if report.liabilities is None:
         return []
@@ -98,11 +101,11 @@ def _cdr_high_risk(report: "SequenceReport") -> list[str]:
 
 
 def _domain_flag_high_risk(report: "SequenceReport") -> list[str]:
-    """도메인 단위 플래그(비결합 Cys)가 '높음'이면 걸린다.
+    """Matches when a domain-level flag (unpaired Cys) is "high" risk.
 
-    위치 하나로 특정할 수 없어 CDR hit 목록에는 안 들어가지만, 비결합 Cys 가 CDR 안에
-    있으면 위험도가 '높음'으로 매겨진다. CDR 의 높음을 보려는 규칙이 이것을 놓치면
-    곤란하므로 같이 본다.
+    It can't be pinned to one position, so it isn't in the CDR hit list, but an unpaired
+    Cys inside a CDR is rated "high". A rule meant to catch high risk in CDRs shouldn't
+    miss it, so it is checked here too.
     """
     if report.liabilities is None:
         return []
@@ -113,7 +116,7 @@ def _domain_flag_high_risk(report: "SequenceReport") -> list[str]:
     ]
 
 
-#: 기본 선별 규칙. 바꾸려면 여기를 고친다.
+#: Default triage rules. Edit here to change them.
 DEFAULT_RULES: tuple[Rule, ...] = (
     Rule(
         key="cdr-high",
@@ -132,15 +135,15 @@ DEFAULT_RULES: tuple[Rule, ...] = (
 
 
 # --------------------------------------------------------------------------
-# 적용
+# Evaluation
 # --------------------------------------------------------------------------
 
 def evaluate(report: "SequenceReport", rules: tuple[Rule, ...] = DEFAULT_RULES) -> TriageResult:
-    """선별 규칙을 적용한다.
+    """Apply the triage rules.
 
-    CDR 주석이 실패한 서열은 CDR 과 framework 를 가를 수 없으므로 규칙을 적용할 수 없다.
-    그때는 '기준 해당 없음'으로 넘기지 않고 '판정 불가'로 표시한다 — 못 본 것을 괜찮다고
-    적으면 그게 가장 위험하다.
+    If CDR annotation failed, CDRs can't be separated from the framework, so the rules
+    can't be applied. Such sequences are marked "cannot evaluate" (STATUS_UNKNOWN) rather
+    than passed as "no rule matched" — reporting something unseen as fine is the riskiest outcome.
     """
     if not report.ok:
         return TriageResult(
@@ -176,5 +179,5 @@ def evaluate(report: "SequenceReport", rules: tuple[Rule, ...] = DEFAULT_RULES) 
 
 
 def rule_descriptions(rules: tuple[Rule, ...] = DEFAULT_RULES) -> list[str]:
-    """적용 중인 규칙 설명 목록. 출력에 실어 기준을 눈에 보이게 한다."""
+    """Descriptions of the active rules. Included in the output so the criteria are visible."""
     return [rule.description for rule in rules]

@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""OAS 데이터 안의 ANARCI 주석과 이 도구의 CDR 경계를 비교한다.
+"""Compare this tool's CDR boundaries with the ANARCI annotations in OAS data.
 
-왜 '일치율'이 아니라 '오프셋'인가
---------------------------------
-OAS 의 cdr*_aa_* 컬럼은 ANARCI 가 **IMGT 번호**로 매긴 것이고, 이 도구는 **Kabat** 경계를
-근사한다. 두 체계는 경계 정의가 다르므로 문자열이 그대로 같을 수가 없고, 같아서도 안 된다.
-억지로 '일치율'을 재면 낮게 나오는데 그건 틀렸다는 뜻이 아니다.
+Why 'offsets' rather than an 'agreement rate'
+---------------------------------------------
+OAS's cdr*_aa_* columns were numbered by ANARCI in **IMGT**, while this tool approximates
+**Kabat** boundaries. The two schemes define boundaries differently, so the strings cannot be
+identical, nor should they be. Forcing an 'agreement rate' gives a low number, but that does not mean it is wrong.
 
-그래서 이렇게 본다.
-  1. ANARCI 의 CDR 문자열이 서열 어디에 있는지 찾아 정답 좌표를 얻는다.
-  2. (내 시작 - 정답 시작, 내 끝 - 정답 끝) 오프셋을 구한다.
-  3. **오프셋이 서열마다 일정하면** 두 체계의 정의 차이일 뿐이고 내 경계는 체계적으로 맞다.
-     **들쭉날쭉한 건**이 진짜 오류다.
+So we look at it this way:
+  1. Find where ANARCI's CDR string sits in the sequence to get the reference coordinates.
+  2. Compute the offset (my start - reference start, my end - reference end).
+  3. **If the offset is constant across sequences**, it is just a definitional difference and my
+     boundaries are systematically right. **The inconsistent ones** are the real errors.
 
-즉 "최빈 오프셋에서 벗어난 비율"이 이 도구의 CDR 경계 오류율이다.
+In other words, "the fraction deviating from the modal offset" is this tool's CDR boundary error rate.
 
-쓰는 법
-------
-    python3 scripts/compare_with_anarci.py 받은파일.csv.gz [--count 500]
+Usage
+-----
+    python3 scripts/compare_with_anarci.py downloaded.csv.gz [--count 500]
 
-받은 서열 파일은 저장소에 커밋하지 말 것.
+Do not commit downloaded sequence files to the repository.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from abcheck.annotate import annotate  # noqa: E402
 from abcheck.validate import validate  # noqa: E402
 
-#: 이 도구의 CDR 이름 ↔ OAS 컬럼 접미사
+#: This tool's CDR names <-> OAS column suffixes
 PAIRS_HEAVY = [("CDR-H1", "cdr1_aa_heavy"), ("CDR-H2", "cdr2_aa_heavy"),
                ("CDR-H3", "cdr3_aa_heavy")]
 PAIRS_LIGHT = [("CDR-L1", "cdr1_aa_light"), ("CDR-L2", "cdr2_aa_light"),
@@ -44,7 +44,7 @@ PAIRS_LIGHT = [("CDR-L1", "cdr1_aa_light"), ("CDR-L2", "cdr2_aa_light"),
 
 
 def _family(v_call: str | None) -> str:
-    """IGHV4-39*01 → IGHV4. germline 계열마다 Kabat↔IMGT 관계가 다르다."""
+    """IGHV4-39*01 -> IGHV4. The Kabat<->IMGT relationship differs per germline family."""
     if not v_call:
         return "?"
     return v_call.split(",")[0].split("-")[0].split("*")[0]
@@ -55,10 +55,10 @@ def _clean(seq: str) -> str:
 
 
 def read_rows(path: Path, count: int):
-    """(서열, {CDR 이름: ANARCI 문자열}) 쌍을 중쇄/경쇄 각각 내놓는다."""
+    """Yield (sequence, {CDR name: ANARCI string}) pairs for each of the heavy and light chains."""
     out = []
     with gzip.open(path, "rt", encoding="utf-8", errors="replace") as fh:
-        fh.readline()                       # 메타데이터 줄
+        fh.readline()                       # Metadata line
         for row in csv.DictReader(fh):
             if row.get("productive_heavy") != "T" or row.get("productive_light") != "T":
                 continue
@@ -77,12 +77,12 @@ def read_rows(path: Path, count: int):
 
 
 def locate(seq: str, fragment: str) -> tuple[int, int] | None:
-    """ANARCI 문자열의 1-based 좌표. 서열에 한 번만 나올 때만 쓴다."""
+    """1-based coordinates of the ANARCI string. Used only when it occurs exactly once in the sequence."""
     if not fragment:
         return None
     first = seq.find(fragment)
     if first < 0 or seq.find(fragment, first + 1) >= 0:
-        return None                          # 없거나 여러 번 나오면 좌표를 못 믿는다
+        return None                          # If absent or occurring multiple times, the coordinates can't be trusted
     return first + 1, first + len(fragment)
 
 
@@ -118,9 +118,9 @@ def compare(rows) -> dict:
                 mine = ann.cdrs[name]
                 pair = (mine.start - spot[0], mine.end - spot[1])
                 offsets[name][pair] += 1
-                # IMGT CDR 길이는 가변인데 Kabat CDR-H1/L2 는 고정 길이다.
-                # 그래서 오프셋은 **정답 길이에 따라** 달라지는 게 정상이다.
-                # 길이를 고정하고도 흔들리는 것만이 진짜 경계 오류다.
+                # IMGT CDR lengths vary, but Kabat CDR-H1/L2 have fixed lengths.
+                # So it is normal for the offset to vary **with the reference length**.
+                # Only what still varies with length held fixed is a real boundary error.
                 by_len[name][len(fragment)][pair] += 1
                 by_group[name][(family, len(fragment))][pair] += 1
                 compared[name] += 1
@@ -161,7 +161,7 @@ def report(result: dict, show_examples: int = 3) -> None:
         more = f"  …외 {len(counts) - len(top)}종" if len(counts) > len(top) else ""
         print(f"  {name}  {shown}{more}")
 
-    # 정답 길이를 고정하고 다시 센다 — 이게 진짜 경계 오류율이다
+    # Recount with the reference length held fixed -- this is the real boundary error rate
     print("\n[정답 CDR 길이를 고정했을 때]  IMGT 길이는 가변, Kabat 은 고정이라 "
           "길이가 다르면 오프셋도 달라지는 것이 정상이다")
     g_tot = g_bad = 0
@@ -182,7 +182,7 @@ def report(result: dict, show_examples: int = 3) -> None:
         print(f"\n→ 길이를 고정했을 때 경계 오류율: {g_bad * 100 / g_tot:.2f}% "
               f"({g_bad}/{g_tot})")
 
-    # germline 계열까지 고정한다 — 계열마다 삽입 위치가 달라 Kabat↔IMGT 관계가 다르다
+    # Also hold the germline family fixed -- insertion positions differ per family, so the Kabat<->IMGT relationship differs
     print("\n[germline 계열 + 정답 길이를 모두 고정했을 때]")
     t_tot = t_bad = 0
     for name in ["CDR-H1", "CDR-H2", "CDR-H3", "CDR-L1", "CDR-L2", "CDR-L3"]:

@@ -1,4 +1,4 @@
-"""물성 계산 테스트 — 손으로 검증할 수 있는 작은 케이스로 확인한다."""
+"""Property calculation tests -- checked with small cases that can be verified by hand."""
 
 from __future__ import annotations
 
@@ -22,11 +22,11 @@ from .conftest import by_id
 
 
 # --------------------------------------------------------------------------
-# net charge — Henderson-Hasselbalch 를 직접 검산한다
+# net charge -- verify Henderson-Hasselbalch by hand
 # --------------------------------------------------------------------------
 
 def test_net_charge_of_single_alanine_is_termini_only():
-    """Ala 는 이온화 측쇄가 없다 — 말단 두 그룹만 남는다."""
+    """Ala has no ionizable side chain -- only the two terminal groups remain."""
     expected = (
         1.0 / (1.0 + 10 ** (DEFAULT_PH - PKA_N_TERMINUS))
         - 1.0 / (1.0 + 10 ** (PKA_C_TERMINUS - DEFAULT_PH))
@@ -63,7 +63,7 @@ def test_termini_can_be_excluded():
 
 
 # --------------------------------------------------------------------------
-# pI — net charge 가 0 이 되는 지점인지 되짚어 확인한다
+# pI -- double-check that it is where net charge reaches 0
 # --------------------------------------------------------------------------
 
 def test_pi_is_the_ph_where_net_charge_is_zero():
@@ -79,7 +79,7 @@ def test_poly_lysine_has_basic_pi_and_poly_aspartate_acidic():
 
 
 def test_neutral_peptide_pi_sits_between_terminal_pkas():
-    """이온화 측쇄가 없으면 pI 는 두 말단 pKa 사이에 있다."""
+    """With no ionizable side chains, pI lies between the two terminal pKa values."""
     pi = isoelectric_point("A" * 10)
     assert PKA_C_TERMINUS < pi < PKA_N_TERMINUS
 
@@ -120,7 +120,7 @@ def test_gravy_of_empty_is_none():
 
 
 # --------------------------------------------------------------------------
-# 구간별 계산
+# Per-region calculation
 # --------------------------------------------------------------------------
 
 def test_compute_all_covers_domain_and_every_cdr(records):
@@ -152,7 +152,7 @@ def test_compute_all_without_cdrs_returns_domain_only(records):
 
 
 def test_basic_cdr_has_higher_pi_than_other_cdrs(records):
-    """K/R 을 몰아넣은 CDR 은 같은 서열의 다른 CDR 보다 pI 가 높다."""
+    """A CDR packed with K/R has a higher pI than the other CDRs of the same sequence."""
     rec = by_id(records, "SYN-VL-005")
     ann = annotate(rec["sequence"])
     props = compute_all(ann.sequence, ann.cdrs)
@@ -165,7 +165,7 @@ def test_basic_cdr_has_higher_pi_than_other_cdrs(records):
 
 
 def test_basic_sequence_has_higher_pi_than_neutral_one(records):
-    """K/R 집중 서열은 도메인 전체 pI 도 정상 VL 보다 높다."""
+    """A K/R-enriched sequence also has a higher whole-domain pI than a normal VL."""
     loaded = annotate(by_id(records, "SYN-VL-005")["sequence"])
     normal = annotate(by_id(records, "SYN-VL-001")["sequence"])
 
@@ -175,7 +175,7 @@ def test_basic_sequence_has_higher_pi_than_neutral_one(records):
 
 
 # --------------------------------------------------------------------------
-# 전체 코퍼스에 대한 건전성 검사
+# Sanity checks over the whole corpus
 # --------------------------------------------------------------------------
 
 def test_every_corpus_sequence_gets_finite_properties(records):
@@ -187,11 +187,11 @@ def test_every_corpus_sequence_gets_finite_properties(records):
 
 
 def test_net_charge_sign_is_consistent_with_pi(records):
-    """pH 7.4 가 pI 보다 낮으면 양전하, 높으면 음전하여야 한다."""
+    """If pH 7.4 is below pI the charge must be positive; if above, negative."""
     for rec in records:
         p = compute(rec["id"], rec["sequence"])
         if abs(p.pi - DEFAULT_PH) < 0.2:
-            continue                      # pI 근처는 부호가 흔들린다
+            continue                      # The sign is unstable near pI
         if p.pi > DEFAULT_PH:
             assert p.net_charge_at_ph > 0, f"{rec['id']}: pI={p.pi}"
         else:

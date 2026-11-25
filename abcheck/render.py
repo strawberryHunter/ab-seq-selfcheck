@@ -1,13 +1,13 @@
-"""출력 — 터미널 표 / 단일 HTML 리포트 / JSON.
+"""Output — terminal table / single-file HTML report / JSON.
 
-세 출력 모두 `LIMITATION_NOTICE` 와 `NO_VERDICT_NOTICE` 를 싣는다. 이 도구가
-numbering 엔진이 아니라는 사실과, 종합 판정을 내리지 않는다는 사실이 결과만
-보는 사람에게도 전달돼야 하기 때문이다.
+All three outputs carry `LIMITATION_NOTICE` and `NO_VERDICT_NOTICE`, because even
+someone who only sees the results must be told that this tool is not a numbering
+engine and that it gives no overall verdict.
 
-HTML 은 의도적으로 수수하다 — Arial, 검정 헤더, 회색 지브라, 컬러 강조 없음.
-CDR 구간은 굵게만 표시한다. 위험도는 색이 아니라 '높음/중간/낮음' 글자로 읽는다.
-색으로 위험도를 칠하면 "빨간 게 몇 개인지"로 종합 판정을 하게 되는데, 그건
-이 도구가 하지 않기로 한 일이다.
+The HTML is deliberately plain — Arial, black headers, gray zebra stripes, no color
+highlighting. CDR spans are shown in bold only. Risk is read from the high/medium/low
+text labels, not from color. Color-coding risk invites an overall verdict by "counting
+the red ones", which is exactly what this tool chose not to do.
 """
 
 from __future__ import annotations
@@ -21,14 +21,14 @@ from . import LIMITATION_NOTICE, NO_VERDICT_NOTICE, __version__
 from .report import SUMMARY_REGIONS, SequenceReport, summarize
 from .triage import STATUS_REVIEW, TRIAGE_NOTICE
 
-#: 서열을 보여줄 때 한 줄에 넣을 잔기 수
+#: Residues per line when displaying a sequence
 SEQUENCE_LINE_WIDTH = 60
 
-#: 집계 표에서 건수가 0 인 칸에 쓸 표시
+#: Placeholder for zero-count cells in the summary table
 EMPTY_CELL = "-"
 
 def _counts_cell(counts: dict[str, int]) -> str:
-    """{'높음': 1, '중간': 0, '낮음': 2} → '높음 1, 낮음 2'."""
+    """Format nonzero counts per risk level, e.g. {high: 1, medium: 0, low: 2} → "high 1, low 2" (Korean RISK_LEVELS labels)."""
     parts = [f"{level} {n}" for level, n in counts.items() if n]
     return ", ".join(parts) if parts else EMPTY_CELL
 
@@ -41,7 +41,7 @@ def _flag_cell(row: dict) -> str:
 
 
 def _chain_group_headers(group: dict) -> list[str]:
-    """체인이 확정된 묶음의 열 제목. 표를 나눴으므로 CDR-H1 처럼 정확히 쓴다."""
+    """Column headers for a group with a known chain. Tables are split, so names are exact, e.g. CDR-H1."""
     return ["서열", "분류", "주석"] + group["cdr_labels"] + ["framework", "도메인 플래그"]
 
 
@@ -61,7 +61,7 @@ def _chain_group_row(row: dict) -> list[str]:
     return [row["id"], _triage_cell(row), confidence] + cells + [_flag_cell(row)]
 
 
-#: 체인을 판별하지 못한 묶음의 열 제목. CDR 칸이 의미가 없으므로 열 자체를 두지 않는다.
+#: Column headers for the chain-unknown group. CDR columns are meaningless there, so they are omitted.
 UNKNOWN_GROUP_HEADERS: list[str] = ["서열", "분류", "상태", "검출 모티프", "도메인 플래그"]
 
 
@@ -78,7 +78,7 @@ def _unknown_group_row(row: dict) -> list[str]:
 
 
 # --------------------------------------------------------------------------
-# 터미널 폭 계산 — 한글은 두 칸을 차지한다
+# Terminal width calculation — Korean characters take two columns
 # --------------------------------------------------------------------------
 
 def _display_width(text: str) -> int:
@@ -93,7 +93,7 @@ def _pad(text: str, width: int, align: str = "left") -> str:
 
 
 def _table(headers: list[str], rows: list[list[str]], aligns: list[str] | None = None) -> list[str]:
-    """고정폭 표를 줄 목록으로 만든다. 컬러는 쓰지 않는다."""
+    """Build a fixed-width table as a list of lines. No color."""
     if aligns is None:
         aligns = ["left"] * len(headers)
     widths = [
@@ -111,10 +111,10 @@ def _table(headers: list[str], rows: list[list[str]], aligns: list[str] | None =
 
 
 def _wrap(text: str, width: int, first: str = "", rest: str | None = None) -> list[str]:
-    """한글 폭을 고려해 줄바꿈한다.
+    """Wrap text, accounting for the double width of Korean characters.
 
-    first 는 첫 줄 앞에 붙는 문자열(글머리표 등), rest 는 이어지는 줄의 들여쓰기다.
-    rest 를 생략하면 first 와 같은 폭의 공백을 쓴다 — 글머리표가 매 줄 반복되지 않는다.
+    first is prepended to the first line (a bullet, etc.); rest is the indent for following lines.
+    If rest is omitted, spaces as wide as first are used — so the bullet isn't repeated on every line.
     """
     if rest is None:
         rest = " " * _display_width(first)
@@ -136,11 +136,11 @@ def _wrap(text: str, width: int, first: str = "", rest: str | None = None) -> li
 
 
 # --------------------------------------------------------------------------
-# 서열 표시
+# Sequence display
 # --------------------------------------------------------------------------
 
 def _cdr_position_map(report: SequenceReport) -> dict[int, str]:
-    """1-based 위치 → CDR 이름."""
+    """1-based position → CDR name."""
     mapping: dict[int, str] = {}
     if report.annotation:
         for name, cdr in report.annotation.cdrs.items():
@@ -150,7 +150,7 @@ def _cdr_position_map(report: SequenceReport) -> dict[int, str]:
 
 
 def _sequence_block_text(report: SequenceReport) -> list[str]:
-    """터미널용 서열 블록. CDR 구간을 아래 줄에 표시한다 (컬러를 쓰지 않으므로)."""
+    """Sequence block for the terminal. CDR spans are marked on the line below (since no color is used)."""
     seq = report.sequence
     cdr_at = _cdr_position_map(report)
     lines: list[str] = []
@@ -171,7 +171,7 @@ def _sequence_block_text(report: SequenceReport) -> list[str]:
 
 
 def _sequence_block_html(report: SequenceReport) -> str:
-    """HTML 용 서열 블록. CDR 구간만 <b> 로 굵게 한다."""
+    """Sequence block for HTML. Only CDR spans are bolded with <b>."""
     seq = report.sequence
     cdr_at = _cdr_position_map(report)
     rows: list[str] = []
@@ -213,11 +213,11 @@ def _sequence_block_html(report: SequenceReport) -> str:
 
 
 # --------------------------------------------------------------------------
-# 터미널 출력
+# Terminal output
 # --------------------------------------------------------------------------
 
 def as_text(reports: list[SequenceReport], *, width: int = 100) -> str:
-    """터미널 표 출력."""
+    """Terminal table output."""
     out: list[str] = []
     out.append("=" * width)
     out.append(f"abcheck {__version__} — 항체 가변도메인 서열 셀프 점검")
@@ -243,7 +243,7 @@ def as_text(reports: list[SequenceReport], *, width: int = 100) -> str:
 
 
 def _summary_text(reports: list[SequenceReport], width: int) -> list[str]:
-    """CDR별 liability 집계 표 (터미널용). 중쇄·경쇄를 따로 낸다."""
+    """Per-CDR liability summary table (terminal). Heavy and light chains are shown separately."""
     summary = summarize(reports)
     out: list[str] = ["-" * width, "[CDR별 liability 집계]", "-" * width]
     out.extend(_wrap(summary["note"], width - 4, first="  "))
@@ -343,7 +343,7 @@ def _render_one_text(report: SequenceReport, width: int) -> list[str]:
         out.extend(_wrap(f"앵커: {found}", width - 4, first="  ", rest="        "))
         out.append("")
 
-    # --- 서열 ---
+    # --- Sequence ---
     out.append("  [서열]  ^ 표시가 CDR 구간")
     out.extend(_sequence_block_text(report))
     out.append("")
@@ -385,7 +385,7 @@ def _render_one_text(report: SequenceReport, width: int) -> list[str]:
             out.extend(_wrap(hit.rationale, width - 10, first="        "))
         out.append("")
 
-    # --- 물성 ---
+    # --- Properties ---
     out.append(f"  [물성]  pI 는 EMBOSS pKa 기준, GRAVY 는 Kyte-Doolittle, net charge 는 pH 7.4")
     rows = []
     for name, props in report.properties.items():
@@ -406,7 +406,7 @@ def _render_one_text(report: SequenceReport, width: int) -> list[str]:
 
 
 # --------------------------------------------------------------------------
-# JSON 출력
+# JSON output
 # --------------------------------------------------------------------------
 
 def as_json(reports: list[SequenceReport], *, indent: int = 2) -> str:
@@ -424,7 +424,7 @@ def as_json(reports: list[SequenceReport], *, indent: int = 2) -> str:
 
 
 # --------------------------------------------------------------------------
-# HTML 출력
+# HTML output
 # --------------------------------------------------------------------------
 
 _CSS = """
@@ -509,7 +509,7 @@ def _html_table(headers: list[str], rows: list[list[str]],
 
 
 def as_html(reports: list[SequenceReport], *, title: str = "항체 서열 셀프 점검 리포트") -> str:
-    """단일 HTML 리포트. 컬러 강조 없음, CDR 은 굵게만."""
+    """Single-file HTML report. No color highlighting; CDRs in bold only."""
     parts: list[str] = [
         "<!doctype html>",
         '<html lang="ko"><head><meta charset="utf-8">',
@@ -539,7 +539,7 @@ def as_html(reports: list[SequenceReport], *, title: str = "항체 서열 셀프
 
 
 def _summary_html(reports: list[SequenceReport]) -> str:
-    """CDR별 liability 집계 표 (HTML용). 중쇄·경쇄를 따로 내고 리포트 맨 앞에 놓는다."""
+    """Per-CDR liability summary table (HTML). Heavy and light chains are shown separately, at the top of the report."""
     summary = summarize(reports)
 
     out = [
@@ -593,7 +593,7 @@ def _summary_html(reports: list[SequenceReport]) -> str:
 
 
 def _anchor(seq_id: str) -> str:
-    """서열 ID 를 HTML 앵커로 쓸 수 있게 다듬는다."""
+    """Sanitize a sequence ID for use as an HTML anchor."""
     return "seq-" + "".join(ch if ch.isalnum() else "-" for ch in seq_id)
 
 
@@ -657,7 +657,7 @@ def _render_one_html(report: SequenceReport) -> str:
             '<p class="failed">앵커를 찾지 못해 CDR 을 끊지 못했다. 위치를 추측하지 않는다.</p>'
         )
 
-    # --- 서열 ---
+    # --- Sequence ---
     out.append("<h3>서열 (CDR 구간은 굵게)</h3>")
     out.append(_sequence_block_html(report))
 
@@ -699,7 +699,7 @@ def _render_one_html(report: SequenceReport) -> str:
                 f'<p class="rationale">{html.escape(hit.rationale)}</p>'
             )
 
-    # --- 물성 ---
+    # --- Properties ---
     out.append("<h3>물성</h3>")
     out.append(
         '<p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, '

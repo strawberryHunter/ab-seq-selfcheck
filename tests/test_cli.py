@@ -1,4 +1,4 @@
-"""CLI 테스트 — 실제로 subprocess 로 돌려 종료코드와 산출물을 확인한다."""
+"""CLI tests: actually run via subprocess and check exit codes and outputs."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 # --------------------------------------------------------------------------
-# 완료 기준: 코퍼스 → HTML
+# Acceptance criterion: corpus -> HTML
 # --------------------------------------------------------------------------
 
 def test_corpus_to_html_creates_report(tmp_path):
@@ -37,7 +37,7 @@ def test_corpus_to_html_creates_report(tmp_path):
     out = report.read_text(encoding="utf-8")
     assert out.startswith("<!doctype html>")
     assert "Arial" in out
-    # 코퍼스의 모든 서열이 리포트에 들어 있다
+    # Every sequence in the corpus appears in the report
     corpus = json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
     for rec in corpus["sequences"]:
         assert rec["id"] in out
@@ -58,7 +58,7 @@ def test_not_confident_sequences_are_listed_on_stderr(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# 서열 하나 붙여넣기
+# Pasting a single sequence
 # --------------------------------------------------------------------------
 
 def test_single_sequence_prints_table(records):
@@ -128,7 +128,7 @@ def test_pasted_fasta_is_detected(records):
 
 
 # --------------------------------------------------------------------------
-# 오류 처리
+# Error handling
 # --------------------------------------------------------------------------
 
 def test_invalid_sequence_exits_with_one():
@@ -159,7 +159,7 @@ def test_malformed_json_exits_with_two(tmp_path):
 
 
 def test_valid_input_with_unconfident_sequence_still_exits_zero(records):
-    """주석 신뢰도가 낮아도 입력 자체가 유효하면 성공 종료다."""
+    """Low annotation confidence still exits successfully if the input itself is valid."""
     seq = by_id(records, "SYN-VH-901")["sequence"]
     result = _run(seq, "--json")
     assert result.returncode == 0
@@ -168,7 +168,7 @@ def test_valid_input_with_unconfident_sequence_still_exits_zero(records):
 
 
 # --------------------------------------------------------------------------
-# 입력 종류 판별
+# Input type detection
 # --------------------------------------------------------------------------
 
 def test_load_input_detects_corpus_json():
@@ -199,7 +199,7 @@ def test_load_input_accepts_string_list_json(tmp_path):
 
 
 # --------------------------------------------------------------------------
-# 옵션
+# Options
 # --------------------------------------------------------------------------
 
 def test_custom_ph_changes_net_charge(records):
@@ -232,7 +232,7 @@ def test_out_dir_is_created_when_missing(tmp_path, records):
 def test_help_lists_three_examples():
     result = _run("--help")
     assert result.returncode == 0
-    assert result.stdout.count("python -m abcheck.cli") >= 4   # prog 줄 + 예시 3개
+    assert result.stdout.count("python -m abcheck.cli") >= 4   # prog line + 3 examples
 
 
 def test_main_is_callable_in_process(tmp_path):

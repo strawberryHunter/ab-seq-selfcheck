@@ -1,53 +1,54 @@
 #!/usr/bin/env python3
-"""합성 항체 서열 생성기 (표준 라이브러리만 사용).
+"""Synthetic antibody sequence generator (standard library only).
 
-목적
-----
-abcheck 의 CDR 주석/liability 검출 로직을 검증할 수 있는 테스트 코퍼스를 만든다.
-"germline 유사 framework 스캐폴드 + CDR 삽입" 방식으로 서열을 조립하므로,
-삽입 시점에 CDR 의 정답 위치(1-based, 양끝 포함)를 정확히 알 수 있고 그것을 함께 저장한다.
+Purpose
+-------
+Build a test corpus for validating abcheck's CDR annotation / liability detection logic.
+Sequences are assembled as "germline-like framework scaffold + inserted CDRs", so the
+ground-truth CDR positions (1-based, inclusive) are known exactly at insertion time and are stored alongside.
 
-중요 — 데이터 출처에 관한 명시
-------------------------------
-이 파일이 만드는 서열은 전부 합성이다. 실제 치료용/승인 항체 서열이나 특정 germline
-데이터베이스 레코드를 복사해 오지 않는다. framework 부분은 V 도메인에서 흔히 보이는
-잔기 조성(소수성/소형 잔기 우세)을 흉내낸 가중 난수에 보존 잔기(Cys, Trp, WGxG/FGxG 등)만
-정해진 자리에 고정해 만든 "germline 유사" 스캐폴드일 뿐이며, 어떤 실제 서열과도 대응되지 않는다.
-따라서 이 데이터는 주석 로직의 회귀 테스트용이고, 생물학적 의미를 해석할 대상이 아니다.
+Important -- statement on data provenance
+-----------------------------------------
+Every sequence this file produces is synthetic. Nothing is copied from real therapeutic/approved
+antibody sequences or from specific germline database records. The framework parts are merely
+"germline-like" scaffolds: weighted random residues mimicking the composition common in V domains
+(hydrophobic/small residues dominate), with only conserved residues (Cys, Trp, WGxG/FGxG, etc.)
+fixed at set positions. They do not correspond to any real sequence.
+This data is therefore for regression-testing the annotation logic, not for biological interpretation.
 
-스캐폴드 좌표 설계 (VH, 1-based 선형 위치; Kabat 경계를 모사)
-------------------------------------------------------------
+Scaffold coordinate design (VH, 1-based linear positions; mimicking Kabat boundaries)
+-------------------------------------------------------------------------------------
     1..21      FR1 filler
-    22         Cys  (앵커 1)
+    22         Cys  (anchor 1)
     23..30     filler (8)
-    31..       CDR-H1  (= Cys22 + 9 에서 시작)
-    H1 직후    Trp     (앵커 2, 통상 Trp36)
+    31..       CDR-H1  (= starts at Cys22 + 9)
+    after H1   Trp     (anchor 2, typically Trp36)
     Trp+1..+13 filler (13)
     Trp+14..   CDR-H2
-    H2 직후    FR3 모티프 5 잔기  [RK].[TSAV][IMLFV][STA]  (앵커 3)
-    모티프+5..  filler (21) → 그 다음 Cys (앵커 4, 통상 Cys92)
+    after H2   FR3 motif, 5 residues  [RK].[TSAV][IMLFV][STA]  (anchor 3)
+    motif+5..  filler (21) -> then Cys (anchor 4, typically Cys92)
     Cys+1..+2  filler (2)
     Cys+3..    CDR-H3
-    H3 직후    WGxG (앵커 5)
-    그 뒤      FR4 filler (7)
+    after H3   WGxG (anchor 5)
+    then       FR4 filler (7)
 
 VL
 --
     1..22      FR1 filler
-    23         Cys  (앵커 1)
+    23         Cys  (anchor 1)
     24..       CDR-L1 (= Cys23 + 1)
-    L1 직후    Trp    (앵커 2, 통상 Trp35)
+    after L1   Trp    (anchor 2, typically Trp35)
     Trp+1..+14 filler (14)
-    Trp+15..   CDR-L2 (7 잔기 고정)
-    L2 직후    filler (31) → 그 다음 Cys (앵커 3, 통상 Cys88)
+    Trp+15..   CDR-L2 (fixed at 7 residues)
+    after L2   filler (31) -> then Cys (anchor 3, typically Cys88)
     Cys+1..    CDR-L3
-    L3 직후    FGxG (앵커 4)
-    그 뒤      FR4 filler (7)
+    after L3   FGxG (anchor 4)
+    then       FR4 filler (7)
 
-생성기는 조립 후 "주석기가 쓸 탐색 규칙"이 의도한 앵커를 정확히 집어내는지 스스로 검증한다
-(ASSERTIONS 참고). 통과하지 못하면 시드를 바꿔 다시 만든다. 즉 이 코퍼스는 탐색 규칙이
-우연한 중복 모티프에 걸리지 않는, 통제된 입력만 담는다. 앵커가 일부러 깨진 케이스는
-expected.confident = False 로 표시해 따로 구분한다.
+After assembly, the generator checks itself that "the search rules the annotator will use" pick
+exactly the intended anchors (see ASSERTIONS). If not, it rebuilds with a different seed. So this
+corpus contains only controlled input where the search rules are not tripped by accidental duplicate
+motifs. Cases with deliberately broken anchors are marked separately with expected.confident = False.
 """
 
 from __future__ import annotations
@@ -60,28 +61,28 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # --------------------------------------------------------------------------
-# 알파벳 / 모티프
+# Alphabets / motifs
 # --------------------------------------------------------------------------
 
-#: framework filler 에 쓰는 잔기와 가중치.
-#: Cys/Trp/Met/Asn/Asp 는 일부러 제외한다 — 보존 Cys·Trp 앵커를 유일하게 유지하고,
-#: framework 에 우연한 liability 모티프(NG, DG, DP, N[^P][ST], 산화 M/W)가 생기지 않게 한다.
-#: framework liability 가 필요한 케이스는 아래에서 명시적으로 주입한다.
+#: Residues and weights used for framework filler.
+#: Cys/Trp/Met/Asn/Asp are deliberately excluded -- this keeps the conserved Cys/Trp anchors unique
+#: and keeps accidental liability motifs (NG, DG, DP, N[^P][ST], oxidizable M/W) out of the framework.
+#: Cases that need a framework liability inject it explicitly below.
 FRAMEWORK_WEIGHTS: dict[str, int] = {
     "A": 7, "G": 7, "V": 7, "L": 8, "I": 5, "P": 5, "F": 4,
     "S": 9, "T": 8, "Y": 4, "Q": 6, "E": 6, "K": 6, "R": 5, "H": 2,
 }
 
-#: CDR filler 알파벳. Cys/Trp 는 제외(의도적으로 주입할 때만 넣는다).
+#: CDR filler alphabet. Cys/Trp excluded (added only when injected on purpose).
 CDR_WEIGHTS: dict[str, int] = {
     "A": 5, "G": 7, "V": 4, "L": 4, "I": 4, "P": 3, "F": 3,
     "S": 7, "T": 6, "Y": 7, "Q": 3, "E": 3, "K": 3, "R": 4,
     "H": 2, "N": 4, "D": 5,
 }
 
-#: CDR 청결성 검사에 쓰는 liability 모티프.
-#: 생성기가 "의도한 것 말고는 CDR 안에 liability 가 없다"를 보장하기 위한 용도이며,
-#: 실제 위험도 판정 로직(abcheck.liabilities)과는 별개로 유지한다.
+#: Liability motifs used for the CDR cleanliness check.
+#: They let the generator guarantee "no liabilities inside CDRs other than the intended ones",
+#: and are kept separate from the real risk-assessment logic (abcheck.liabilities).
 CDR_LIABILITY_PATTERNS: list[tuple[str, str]] = [
     ("glycosylation", r"N[^P][ST]"),
     ("deamidation", r"N[GSTNH]"),
@@ -91,19 +92,19 @@ CDR_LIABILITY_PATTERNS: list[tuple[str, str]] = [
     ("cysteine", r"C"),
 ]
 
-#: abcheck.annotate.FR3_MOTIF_PATTERN 과 같아야 한다.
+#: Must match abcheck.annotate.FR3_MOTIF_PATTERN.
 FR3_MOTIF_RE = re.compile(r"[RKQ].[TSAV][IMLFV][STAN]")
 
-#: FR3 시작 모티프에서 보존 Cys 까지의 거리. abcheck.annotate.FR3_TO_CYS_GAP 과 같아야 한다.
+#: Distance from the FR3 start motif to the conserved Cys. Must match abcheck.annotate.FR3_TO_CYS_GAP.
 FR3_TO_CYS_GAP = 29
 
-#: 보존 Trp 앵커를 찾기 시작할 오프셋. abcheck.annotate 와 같은 값을 쓴다.
+#: Offset at which to start searching for the conserved Trp anchor. Same value as abcheck.annotate.
 MIN_CDR1_LENGTH_H = 5
 MIN_CDR1_LENGTH_L = 7
 WGXG_RE = re.compile(r"WG.G")
 FGXG_RE = re.compile(r"FG.G")
 
-# 주석기가 "통상 범위"로 볼 CDR 길이 (스크리닝 휴리스틱 기준; 엄격한 numbering 기준이 아니다)
+# CDR lengths the annotator treats as "typical range" (a screening heuristic, not a strict numbering standard)
 TYPICAL_LENGTHS = {
     "H1": (5, 7),
     "H2": (16, 20),
@@ -115,12 +116,12 @@ TYPICAL_LENGTHS = {
 
 
 # --------------------------------------------------------------------------
-# 스캐폴드
+# Scaffolds
 # --------------------------------------------------------------------------
 
 @dataclass
 class HeavyScaffold:
-    """VH framework 조각들. 모든 VH 케이스가 같은 스캐폴드를 공유한다."""
+    """VH framework pieces. All VH cases share the same scaffold."""
 
     fr1: str          # 21
     post_cys1: str    # 8
@@ -133,7 +134,7 @@ class HeavyScaffold:
 
 @dataclass
 class LightScaffold:
-    """VL framework 조각들."""
+    """VL framework pieces."""
 
     fr1: str          # 22
     fr2: str          # 14
@@ -157,13 +158,13 @@ def build_heavy_scaffold(rng: random.Random) -> HeavyScaffold:
     return HeavyScaffold(
         fr1=_draw(rng, FRAMEWORK_WEIGHTS, 21),
         post_cys1=_draw(rng, FRAMEWORK_WEIGHTS, 8),
-        # 보존 Trp 뒤는 실제 서열에서 VRQ/IRQ 가 압도적이다. 주석기가 이 문맥을
-        # 앵커 탐색에 쓰므로 맞춰 둔다. 길이(13)는 그대로.
+        # In real sequences VRQ/IRQ overwhelmingly follow the conserved Trp. The annotator uses this
+        # context for the anchor search, so match it. Length (13) is unchanged.
         fr2="VRQ" + _draw(rng, FRAMEWORK_WEIGHTS, 10),
         fr3_motif=motif,
-        # 보존 Cys 앞은 실제 서열의 83% 가 YY 다. 주석기가 [YF]C 문맥을 쓰므로 맞춰 둔다.
-        # 길이 22 + "YY" = 24. 모티프 5 를 더하면 FR3→보존Cys 거리가 29 가 된다.
-        # 실제 VH 992건이 전부 29 였으므로 거기에 맞춘다 (주석기가 이 거리로 역산한다).
+        # In 83% of real sequences the conserved Cys is preceded by YY. The annotator uses [YF]C context, so match it.
+        # Length 22 + "YY" = 24. Adding the 5-residue motif makes the FR3->conserved Cys distance 29.
+        # All 992 real VH were exactly 29, so match that (the annotator back-calculates with this distance).
         fr3_rest=_draw(rng, FRAMEWORK_WEIGHTS, 22) + "YY",
         post_cys2=_draw(rng, FRAMEWORK_WEIGHTS, 2),
         fr4_rest=_draw(rng, FRAMEWORK_WEIGHTS, 7),
@@ -180,40 +181,40 @@ def build_light_scaffold(rng: random.Random) -> LightScaffold:
 
 
 # --------------------------------------------------------------------------
-# 케이스 정의
+# Case definitions
 # --------------------------------------------------------------------------
 
 @dataclass
 class Case:
-    """합성 서열 한 건의 설계도."""
+    """Blueprint for one synthetic sequence."""
 
     seq_id: str
     chain: str                       # "H" | "L"
-    description: str                 # 한글 설명
+    description: str                 # Korean description
     cdr_lengths: tuple[int, int, int]
-    #: CDR 안에 강제로 박아 넣을 조각. {"H1": [(offset, "NLS")], ...} (offset 은 0-based)
+    #: Fragments to force into CDRs. {"H1": [(offset, "NLS")], ...} (offset is 0-based)
     cdr_inserts: dict[str, list[tuple[int, str]]] = field(default_factory=dict)
-    #: framework 조각에 강제로 박아 넣을 조각. {"fr3_rest": [(offset, "DG")], ...}
+    #: Fragments to force into framework pieces. {"fr3_rest": [(offset, "DG")], ...}
     fr_inserts: dict[str, list[tuple[int, str]]] = field(default_factory=dict)
-    #: 조립이 끝난 서열에 가하는 치환 (1-based 위치, 새 잔기). 앵커를 깨는 데 쓴다.
+    #: Substitutions applied to the assembled sequence (1-based position, new residue). Used to break anchors.
     breakages: list[tuple[int, str]] = field(default_factory=list)
-    #: 앵커가 깨져 주석이 실패해야 하는 케이스
+    #: Case whose anchors are broken so annotation must fail
     anchors_broken: bool = False
-    #: 앵커는 멀쩡하지만 CDR 길이가 통상 범위를 벗어나 confident=False 가 되어야 하는 케이스
+    #: Case with intact anchors but a CDR length outside the typical range, so it must be confident=False
     length_outlier: bool = False
-    #: FR3 시작 모티프를 이 값으로 고정한다 (실제 germline 계열의 변형을 재현할 때).
+    #: Pin the FR3 start motif to this value (to reproduce variants of real germline families).
     fr3_motif: str | None = None
-    #: CDR-H2 안에 FR3 모티프처럼 보이는 조각을 일부러 넣은 케이스.
-    #: 주석기가 Cys 거리로 교차검증해 바로잡는지 본다.
+    #: Case with a deliberately inserted FR3-motif lookalike inside CDR-H2.
+    #: Checks that the annotator corrects it by cross-checking the Cys distance.
     decoy_fr3_motif: bool = False
-    #: 모티프가 정규식에 안 걸려 주석기가 Cys 역산 경로를 타야 하는 케이스.
-    #: 역산은 모티프 직접 확인보다 근거가 약하므로 confident=False 가 되어야 한다.
+    #: Case where the motif does not match the regex, so the annotator must take the Cys back-calculation path.
+    #: Back-calculation is weaker evidence than seeing the motif directly, so it must be confident=False.
     fr3_motif_broken: bool = False
     notes: list[str] = field(default_factory=list)
 
 
 def _apply_inserts(seq: str, inserts: list[tuple[int, str]]) -> str:
-    """offset 위치에서 길이를 유지한 채로 조각을 덮어쓴다 (길이 보존이 좌표 보존의 핵심)."""
+    """Overwrite a fragment at offset while keeping the length (preserving length is what preserves coordinates)."""
     buf = list(seq)
     for offset, frag in inserts:
         if offset < 0 or offset + len(frag) > len(buf):
@@ -229,7 +230,7 @@ def _make_cdr(rng: random.Random, name: str, length: int,
 
 
 def _cdr_liability_hits(cdr: str) -> list[tuple[int, int, str]]:
-    """CDR 안의 liability 모티프 위치를 (0-based 시작, 끝+1, 라벨) 로 돌려준다."""
+    """Return positions of liability motifs inside a CDR as (0-based start, end+1, label)."""
     hits: list[tuple[int, int, str]] = []
     for label, pattern in CDR_LIABILITY_PATTERNS:
         for m in re.finditer(pattern, cdr):
@@ -237,37 +238,37 @@ def _cdr_liability_hits(cdr: str) -> list[tuple[int, int, str]]:
     return hits
 
 
-#: liability 모티프 최대 길이(N[^P][ST] = 3)에서 1을 뺀 값.
-#: CDR 경계를 걸치는 모티프를 보려면 양옆으로 이만큼 넓게 봐야 한다.
+#: Maximum liability motif length (N[^P][ST] = 3) minus 1.
+#: To see motifs straddling a CDR boundary, scan this much wider on each side.
 _MOTIF_PAD = 2
 
 
 def unintended_cdr_liabilities_in_context(
     seq: str, cdr_start: int, cdr_end: int, inserts: list[tuple[int, str]]
 ) -> list[tuple[int, int, str]]:
-    """CDR 에 **걸치는** liability 중 주입 조각 안에 들어가지 않는 것들.
+    """Liabilities that **overlap** a CDR but are not contained in an injected fragment.
 
-    CDR 문자열만 보면 경계를 걸친 모티프를 놓친다. 예를 들어 CDR 이 ...SNA 로 끝나고
-    바로 뒤 framework 가 S 로 시작하면 NAS 가 당화 수용 서열이 되는데, CDR 안쪽만
-    훑으면 이걸 못 본다. 그래서 양옆 2 잔기까지 넓혀 훑고, CDR 과 겹치는 hit 만 본다.
+    Looking only at the CDR string misses motifs that straddle a boundary. For example, if a CDR
+    ends in ...SNA and the following framework starts with S, NAS becomes a glycosylation sequon,
+    but scanning only inside the CDR misses it. So scan 2 residues wider on each side and keep only hits that overlap the CDR.
 
-    좌표는 모두 1-based 이고 양끝을 포함한다.
+    All coordinates are 1-based and inclusive.
     """
     lo = max(1, cdr_start - _MOTIF_PAD)
     hi = min(len(seq), cdr_end + _MOTIF_PAD)
     window = seq[lo - 1:hi]
 
-    #: 주입 조각의 전역 좌표 구간
+    #: Global coordinate ranges of injected fragments
     spans = [(cdr_start + off, cdr_start + off + len(frag) - 1) for off, frag in inserts]
 
     out: list[tuple[int, int, str]] = []
     for w_start, w_end, label in _cdr_liability_hits(window):
-        start = lo + w_start           # 1-based 시작
-        end = lo + w_end - 1           # 1-based 끝(포함)
+        start = lo + w_start           # 1-based start
+        end = lo + w_end - 1           # 1-based end (inclusive)
         if end < cdr_start or start > cdr_end:
-            continue                   # CDR 과 겹치지 않으면 framework 쪽 일이다
+            continue                   # If it doesn't overlap the CDR, it's the framework's business
         if any(s_lo <= start and end <= s_hi for s_lo, s_hi in spans):
-            continue                   # 의도적으로 주입한 것
+            continue                   # Injected on purpose
         out.append((start, end, label))
     return out
 
@@ -289,7 +290,7 @@ def _assemble_heavy(case: Case, scaf: HeavyScaffold, rng: random.Random):
              motif, fr3_rest, "C", scaf.post_cys2, h3, "WGQG", fr4_rest]
     seq = "".join(parts)
 
-    # 1-based 좌표 계산
+    # Compute 1-based coordinates
     cys1 = len(fr1) + 1                                   # 22
     h1_start = cys1 + 9                                   # 31
     h1_end = h1_start + n1 - 1
@@ -346,24 +347,24 @@ def _assemble_light(case: Case, scaf: LightScaffold, rng: random.Random):
 
 
 # --------------------------------------------------------------------------
-# 자기 검증 — 주석기가 쓸 탐색 규칙이 의도한 앵커를 집는지 확인
+# Self-check -- confirm the annotator's search rules pick the intended anchors
 # --------------------------------------------------------------------------
 
 def _first_index(pattern: re.Pattern[str], seq: str, min_pos1: int) -> int | None:
-    """min_pos1(1-based) 이상에서 시작하는 첫 매치의 1-based 시작 위치."""
+    """1-based start of the first match starting at or after min_pos1 (1-based)."""
     m = pattern.search(seq, min_pos1 - 1)
     return m.start() + 1 if m else None
 
 
 CONSERVED_CYS_RE = re.compile(r"[YF]C")
 
-#: abcheck.annotate 의 FR2 문맥과 같아야 한다.
+#: Must match the FR2 context in abcheck.annotate.
 FR2_CONTEXT_H = re.compile(r"W[VIA][RKQ]Q")
 FR2_CONTEXT_L = re.compile(r"W[YF][QL]Q")
 
 
 def _first_fr2_trp(seq: str, min_pos: int, context: re.Pattern[str]) -> int | None:
-    """min_pos(1-based) 이상에서 첫 FR2 문맥의 Trp 위치. 없으면 첫 Trp."""
+    """Position of the Trp in the first FR2 context at or after min_pos (1-based). Falls back to the first Trp."""
     m = context.search(seq, max(min_pos - 1, 0))
     if m is not None and m.start() + 1 >= min_pos:
         return m.start() + 1
@@ -372,7 +373,7 @@ def _first_fr2_trp(seq: str, min_pos: int, context: re.Pattern[str]) -> int | No
 
 
 def _first_conserved_cys(seq: str, min_pos: int) -> int | None:
-    """min_pos(1-based) 이상에서 첫 [YF]C 의 Cys 위치. abcheck.annotate 와 같은 규칙."""
+    """Position of the Cys in the first [YF]C at or after min_pos (1-based). Same rule as abcheck.annotate."""
     for m in CONSERVED_CYS_RE.finditer(seq, max(min_pos - 2, 0)):
         pos = m.start() + 2
         if pos >= min_pos:
@@ -389,30 +390,30 @@ def _last_index(pattern: re.Pattern[str], seq: str) -> int | None:
 
 def verify_heavy(seq: str, cdrs: dict, anchors: dict,
                  allow_motif_mismatch: bool = False) -> list[str]:
-    """의도한 앵커가 탐색 규칙으로 유일하게 복원되는지 검사. 문제를 문자열 목록으로 돌려준다."""
+    """Check that the search rules uniquely recover the intended anchors. Returns problems as a list of strings."""
     problems: list[str] = []
 
-    # 말단 WGxG 는 서열의 마지막 WGxG 매치여야 하고, 그 뒤에 FGxG 가 있으면 체인 판별이 흔들린다
+    # The terminal WGxG must be the last WGxG match in the sequence; an FGxG after it would confuse chain detection
     if _last_index(WGXG_RE, seq) != anchors["terminal_motif"]:
         problems.append("말단 WGxG 가 마지막 매치가 아니다")
     last_fgxg = _last_index(FGXG_RE, seq)
     if last_fgxg is not None and last_fgxg > anchors["terminal_motif"]:
         problems.append("말단 WGxG 뒤에 FGxG 가 있어 체인 판별이 모호하다")
 
-    # Cys22: 15..30 창에서 유일해야 한다
+    # Cys22: must be unique in the 15..30 window
     window = [i + 1 for i, r in enumerate(seq[:30]) if r == "C" and i + 1 >= 15]
     if window != [anchors["cys1"]]:
         problems.append(f"15..30 창의 Cys 가 유일하지 않다: {window}")
 
-    # Trp36: CDR-H1 시작 + 최소 길이 이후 첫 FR2 문맥(W[VIA][RKQ]Q)
+    # Trp36: first FR2 context (W[VIA][RKQ]Q) after CDR-H1 start + minimum length
     h1_start = cdrs["CDR-H1"][0]
     first_w = _first_fr2_trp(seq, h1_start + MIN_CDR1_LENGTH_H, FR2_CONTEXT_H)
     if first_w != anchors["trp"]:
         problems.append(f"CDR-H1 이후 첫 FR2 문맥 Trp 위치가 다르다: {first_w} != {anchors['trp']}")
 
-    # FR3 모티프: CDR-H2 시작 + 9 이후 첫 매치.
-    # 모티프가 일부러 깨진 케이스(과변이 재현)는 주석기의 대체 경로를 타야 하므로,
-    # 그때는 "보존 Cys 에서 29잔기 역산"이 의도한 위치와 맞는지로 검증한다.
+    # FR3 motif: first match after CDR-H2 start + 9.
+    # Cases with a deliberately broken motif (reproducing hypermutation) must take the annotator's fallback path,
+    # so there we check that "back-calculating 29 residues from the conserved Cys" lands on the intended position.
     h2_start = cdrs["CDR-H2"][0]
     search_from = h2_start + 9
     found = _first_index(FR3_MOTIF_RE, seq, search_from)
@@ -425,12 +426,12 @@ def verify_heavy(seq: str, cdrs: dict, anchors: dict,
                 f"!= {anchors['fr3_motif']}"
             )
     elif found != anchors["fr3_motif"] and not allow_motif_mismatch:
-        # 보통은 CDR-H2 안에서 우연히 걸린 것이므로 재추첨한다.
-        # 다만 "가짜 모티프" 케이스는 일부러 그렇게 만드는 것이라 허용한다 —
-        # 주석기가 Cys 거리로 교차검증해 바로잡는지를 보는 케이스다.
+        # Normally this is an accidental match inside CDR-H2, so redraw.
+        # But "fake motif" cases are built that way on purpose, so allow it --
+        # those cases check that the annotator corrects it via the Cys distance.
         problems.append(f"FR3 모티프 첫 매치가 CDR-H2 안에 걸렸다: {found} != {anchors['fr3_motif']}")
 
-    # Cys92: FR3 모티프 이후 첫 [YF]C, 그리고 그 거리가 실제와 같은지
+    # Cys92: first [YF]C after the FR3 motif, and its distance matches reality
     first_c = _first_conserved_cys(seq, anchors["fr3_motif"])
     if first_c != anchors["cys2"]:
         problems.append(f"FR3 모티프 이후 첫 [YF]C 위치가 다르다: {first_c} != {anchors['cys2']}")
@@ -468,7 +469,7 @@ def verify_light(seq: str, cdrs: dict, anchors: dict) -> list[str]:
 
 
 # --------------------------------------------------------------------------
-# 케이스 목록
+# Case list
 # --------------------------------------------------------------------------
 
 def make_cases() -> list[Case]:
@@ -610,7 +611,7 @@ def make_cases() -> list[Case]:
             notes=["CDR-L1 내 Trp"],
         ),
 
-        # --- 앵커가 깨져 주석이 실패해야 하는 케이스 ---
+        # --- Cases whose anchors are broken so annotation must fail ---
         Case(
             "SYN-VH-901", "H",
             "말단 WGxG 가 깨진 VH — 체인 판별부터 실패해야 한다 (confident=False)",
@@ -628,7 +629,7 @@ def make_cases() -> list[Case]:
             notes=["Cys22 → Ser"],
         ),
 
-        # --- 앵커는 멀쩡하지만 길이가 통상 범위를 벗어나는 케이스 ---
+        # --- Cases with intact anchors but lengths outside the typical range ---
         Case(
             "SYN-VH-903", "H",
             "CDR-H1 이 9 잔기 — 앵커는 찾히지만 통상 범위(5-7) 밖이라 confident=False",
@@ -648,11 +649,11 @@ def _apply_breakages(seq: str, case: Case, anchors: dict) -> str:
 
 
 # --------------------------------------------------------------------------
-# 빌드
+# Build
 # --------------------------------------------------------------------------
 
 def build_record(case: Case, heavy: HeavyScaffold, light: LightScaffold) -> dict:
-    """케이스 하나를 레코드로 만든다. 자기 검증을 통과할 때까지 CDR 내용을 재추첨한다."""
+    """Turn one case into a record. Redraw CDR contents until the self-check passes."""
     last_problems: list[str] = []
     for attempt in range(20000):
         rng = random.Random(f"{case.seq_id}/{attempt}")
@@ -665,8 +666,8 @@ def build_record(case: Case, heavy: HeavyScaffold, light: LightScaffold) -> dict
         else:
             seq, cdrs, anchors = _assemble_light(case, light, rng)
             problems = verify_light(seq, cdrs, anchors)
-        # 의도하지 않은 CDR liability 가 섞였으면 재추첨한다.
-        # 이렇게 하면 각 케이스의 CDR liability 는 case.cdr_inserts 로 주입한 것만 남는다.
+        # Redraw if unintended CDR liabilities slipped in.
+        # This way each case's CDR liabilities are only those injected via case.cdr_inserts.
         for name, (start, end) in cdrs.items():
             short = name.split("-")[1]          # "CDR-H1" → "H1"
             stray = unintended_cdr_liabilities_in_context(
@@ -697,8 +698,8 @@ def build_record(case: Case, heavy: HeavyScaffold, light: LightScaffold) -> dict
             "synthetic": True,
             "notes": case.notes,
             "expected": {
-                # 앵커가 깨진 케이스는 정답 CDR 위치를 정의하지 않는다.
-                # 주석기는 추측하지 말고 confident=False 로 떨어져야 한다.
+                # Cases with broken anchors define no ground-truth CDR positions.
+                # The annotator must not guess; it must drop to confident=False.
                 "cdrs": None if case.anchors_broken else {
                     name: {"start": s, "end": e, "seq": intact_seq[s - 1:e]}
                     for name, (s, e) in cdrs.items()

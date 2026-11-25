@@ -1,11 +1,11 @@
-"""명령줄 인터페이스.
+"""Command-line interface.
 
-    python -m abcheck.cli <입력> [--html] [--json] [--out-dir DIR]
+    python -m abcheck.cli <input> [--html] [--json] [--out-dir DIR]
 
-입력은 세 가지를 자동 판별한다.
-  - `.json`  — 합성 코퍼스 형식 ({"sequences": [{"id", "sequence"}, ...]})
-  - `.fasta` / `.fa` / `.faa` — FASTA 파일
-  - 그 외    — 아미노산 서열 문자열 그대로 (붙여넣기용)
+The input type is detected automatically, one of three:
+  - `.json`  — synthetic corpus format ({"sequences": [{"id", "sequence"}, ...]})
+  - `.fasta` / `.fa` / `.faa` — FASTA file
+  - anything else — a raw amino acid sequence string (for pasting)
 """
 
 from __future__ import annotations
@@ -25,11 +25,11 @@ FASTA_SUFFIXES = {".fasta", ".fa", ".faa", ".fas"}
 
 
 # --------------------------------------------------------------------------
-# 입력 읽기
+# Reading input
 # --------------------------------------------------------------------------
 
 def read_fasta(text: str) -> list[tuple[str, str]]:
-    """FASTA 텍스트를 (id, 서열) 목록으로 바꾼다."""
+    """Convert FASTA text into a list of (id, sequence)."""
     entries: list[tuple[str, str]] = []
     seq_id: str | None = None
     chunks: list[str] = []
@@ -51,10 +51,10 @@ def read_fasta(text: str) -> list[tuple[str, str]]:
 
 
 def read_corpus_json(text: str) -> list[tuple[str, str]]:
-    """코퍼스 JSON 을 (id, 서열) 목록으로 바꾼다.
+    """Convert corpus JSON into a list of (id, sequence).
 
-    {"sequences": [...]} 또는 최상위 리스트를 받는다. 각 항목은 "sequence" 키가
-    있어야 하고, "id" 가 없으면 순번으로 이름을 붙인다.
+    Accepts {"sequences": [...]} or a top-level list. Each item must have a
+    "sequence" key; items without an "id" are named by their position.
     """
     data = json.loads(text)
     items = data.get("sequences", data) if isinstance(data, dict) else data
@@ -76,7 +76,7 @@ def read_corpus_json(text: str) -> list[tuple[str, str]]:
 
 
 def load_input(raw: str) -> tuple[list[tuple[str, str]], str]:
-    """입력을 (id, 서열) 목록과 입력 종류 설명으로 바꾼다."""
+    """Convert the input into a list of (id, sequence) plus a description of the input type."""
     path = Path(raw)
     looks_like_path = len(raw) < 4096 and ("/" in raw or "." in raw or path.exists())
 
@@ -87,7 +87,7 @@ def load_input(raw: str) -> tuple[list[tuple[str, str]], str]:
             return read_corpus_json(text), f"코퍼스 JSON ({path})"
         if suffix in FASTA_SUFFIXES or text.lstrip().startswith(">"):
             return read_fasta(text), f"FASTA ({path})"
-        # 확장자를 모르면 서열 파일로 본다
+        # Unknown extension: treat it as a sequence file
         return [(path.stem, text)], f"서열 파일 ({path})"
 
     if looks_like_path and not path.exists() and path.suffix:
@@ -99,7 +99,7 @@ def load_input(raw: str) -> tuple[list[tuple[str, str]], str]:
 
 
 # --------------------------------------------------------------------------
-# 실행
+# Running
 # --------------------------------------------------------------------------
 
 def _build_parser() -> argparse.ArgumentParser:

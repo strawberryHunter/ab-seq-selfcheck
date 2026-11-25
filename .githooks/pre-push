@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# push 전에 테스트를 돌리고, 실패하면 push 를 막는다.
+# Run the tests before a push and block the push if they fail.
 #
-# 설치:
+# Install:
 #   git config core.hooksPath .githooks
 #
-# 한 번만 건너뛰려면:
+# To skip once:
 #   git push --no-verify
 #
-# 이건 로컬 안전장치일 뿐이다. 진짜 차단은 GitHub 쪽 브랜치 보호(필수 상태 검사)가 한다.
-# README 의 "CI 와 차단" 절 참고.
+# This is only a local safeguard. The real gate is branch protection (required status checks) on GitHub.
+# See the README section on CI and blocking.
 
 set -u
 

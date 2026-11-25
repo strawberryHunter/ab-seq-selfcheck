@@ -1,9 +1,9 @@
-"""선별 규칙 테스트.
+"""Triage rule tests.
 
-핵심은 세 가지다.
-  - CDR 안의 '높음'이 '검토 필요'로 잡히는지
-  - framework 의 '높음'이나 CDR 의 '중간'은 잡히지 **않는지** (규칙이 헐거워지지 않게)
-  - 주석이 실패한 서열을 '기준 해당 없음'으로 넘기지 않는지 (못 본 것을 괜찮다고 적으면 안 된다)
+Three things matter:
+  - a 'high' inside a CDR is flagged 'needs review'
+  - a 'high' in the framework or a 'medium' in a CDR is **not** flagged (so the rule does not get loose)
+  - a sequence whose annotation failed is not passed as 'criteria not met' (what wasn't seen must not be reported as fine)
 """
 
 from __future__ import annotations
@@ -32,13 +32,13 @@ def _report(records, seq_id):
 
 
 # --------------------------------------------------------------------------
-# 규칙이 잡아야 하는 것
+# What the rule must catch
 # --------------------------------------------------------------------------
 
 def test_high_risk_in_cdr_is_flagged_for_review(records):
-    """CDR 안의 '높음'은 CDR1/2/3 어디에 있든 검토 필요."""
+    """A 'high' inside a CDR needs review, wherever it is in CDR1/2/3."""
     for seq_id, region in [
-        ("SYN-VH-004", "CDR-H1"),     # 당화
+        ("SYN-VH-004", "CDR-H1"),     # Glycosylation
         ("SYN-VH-003", "CDR-H2"),     # NG
         ("SYN-VH-007", "CDR-H3"),     # DG
         ("SYN-VL-004", "CDR-L1"),     # DP
@@ -52,7 +52,7 @@ def test_high_risk_in_cdr_is_flagged_for_review(records):
 
 
 def test_reason_names_position_and_motif(records):
-    """사유만 보고도 어디를 봐야 할지 알 수 있어야 한다."""
+    """The reason alone must tell you where to look."""
     report = _report(records, "SYN-VH-004")
     reason = report.triage.reasons[0]
 
@@ -63,14 +63,14 @@ def test_reason_names_position_and_motif(records):
 
 
 def test_unpaired_cysteine_at_high_risk_is_flagged(records):
-    """비결합 Cys 는 위치 하나로 특정할 수 없지만 CDR 안이면 '높음'이라 같이 잡는다."""
+    """An unpaired Cys cannot be pinned to one position, but inside a CDR it is 'high', so it is caught too."""
     report = _report(records, "SYN-VH-005")
     assert report.triage.status == STATUS_REVIEW
     assert any("비결합 Cys" in r for r in report.triage.reasons)
 
 
 # --------------------------------------------------------------------------
-# 규칙이 잡으면 안 되는 것 — 규칙이 헐거워지는지 확인
+# What the rule must not catch -- check the rule does not get loose
 # --------------------------------------------------------------------------
 
 def test_clean_sequences_are_not_flagged(records):
@@ -81,21 +81,21 @@ def test_clean_sequences_are_not_flagged(records):
 
 
 def test_framework_high_risk_is_not_flagged(records):
-    """framework 의 DG 는 등급 조정으로 '중간'이 되므로 걸리지 않는다."""
+    """DG in the framework is adjusted down to 'medium', so it is not flagged."""
     report = _report(records, "SYN-VH-006")
     assert report.triage.status == STATUS_CLEAR
-    # framework 에 DG 가 분명히 있는데도 걸리지 않아야 한다
+    # DG is clearly present in the framework, yet it must not be flagged
     assert any(h.match == "DG" and not h.in_cdr for h in report.liabilities.hits)
 
 
 def test_weak_class_high_risk_in_cdr_is_not_flagged(records):
-    """CDR 안에서 '높음'으로 **표시**되더라도, 약한 등급 모티프면 선별에는 걸리지 않는다.
+    """Even if **displayed** as 'high' inside a CDR, a weak-tier motif is not flagged by triage.
 
-    CDR 상향 때문에 NS/NT/NN/NH 와 DS/DT/DD 까지 '높음'이 되는데, 실제 레퍼토리에서는
-    이것들이 대다수라 전부 걸면 변별력이 없다. 그래서 선별은 각 분류의 최고 위험
-    모티프(N-결합 당화, NG, DG, DP)만 본다. 표시는 그대로 두므로 정보는 사라지지 않는다.
+    The CDR upgrade makes NS/NT/NN/NH and DS/DT/DD 'high' too, but in real repertoires these
+    are the majority, so flagging them all would give no discrimination. Triage therefore only looks
+    at the top-risk motif of each category (N-linked glycosylation, NG, DG, DP). The display is unchanged, so no information is lost.
     """
-    report = _report(records, "SYN-VH-010")          # CDR-H2 에 NT
+    report = _report(records, "SYN-VH-010")          # NT in CDR-H2
 
     cdr_high = [h for h in report.liabilities.cdr_hits if h.risk == "높음"]
     assert cdr_high, "CDR 안에 '높음'으로 표시된 항목이 있어야 한다"
@@ -106,7 +106,7 @@ def test_weak_class_high_risk_in_cdr_is_not_flagged(records):
 
 
 def test_top_class_motifs_are_the_ones_that_trigger(records):
-    """선별을 유발한 항목은 전부 최고 위험 모티프여야 한다."""
+    """Every item that triggered triage must be a top-risk motif."""
     for seq_id in ["SYN-VH-003", "SYN-VH-004", "SYN-VH-007", "SYN-VL-003", "SYN-VL-004"]:
         report = _report(records, seq_id)
         assert report.triage.status == STATUS_REVIEW, seq_id
@@ -119,26 +119,26 @@ def test_top_class_motifs_are_the_ones_that_trigger(records):
 
 
 def test_medium_risk_in_cdr_is_not_flagged(records):
-    """CDR 안이어도 '중간'이면 이 규칙에는 걸리지 않는다."""
-    report = _report(records, "SYN-VH-008")      # CDR-H3 의 Met/Trp → 중간
+    """Even inside a CDR, a 'medium' does not trip this rule."""
+    report = _report(records, "SYN-VH-008")      # Met/Trp in CDR-H3 -> medium
     assert report.triage.status == STATUS_CLEAR
     assert any(h.in_cdr and h.risk == "중간" for h in report.liabilities.hits)
 
 
 def test_medium_domain_flag_is_not_flagged(records):
-    """도메인 플래그가 '중간'이면 걸리지 않는다."""
+    """A 'medium' domain flag is not flagged."""
     report = _report(records, "SYN-VH-902")
     assert report.liabilities.domain_flags[0]["risk"] == "중간"
-    # 다만 이 서열은 주석 실패라 애초에 판정 불가다
+    # Though this sequence failed annotation, so it cannot be assessed in the first place
     assert report.triage.status == STATUS_UNKNOWN
 
 
 # --------------------------------------------------------------------------
-# 판정할 수 없는 경우 — 가장 중요한 부분
+# Cases that cannot be assessed -- the most important part
 # --------------------------------------------------------------------------
 
 def test_failed_annotation_is_unknown_not_clear(records):
-    """CDR 을 못 가르면 '기준 해당 없음'이 아니라 '판정 불가'다."""
+    """If CDRs cannot be split, the result is 'cannot assess', not 'criteria not met'."""
     for seq_id in ["SYN-VH-901", "SYN-VH-902"]:
         report = _report(records, seq_id)
         assert report.triage.status == STATUS_UNKNOWN, seq_id
@@ -155,7 +155,7 @@ def test_invalid_input_is_unknown():
 
 
 def test_length_outlier_is_evaluated_but_carries_a_warning(records):
-    """앵커가 멀쩡하면 규칙은 적용하되, 신뢰도가 낮다는 경고를 남긴다."""
+    """With intact anchors the rule still applies, but a low-confidence warning is left."""
     report = _report(records, "SYN-VH-903")
     assert report.triage.status == STATUS_CLEAR
     assert report.triage.evaluable is True
@@ -163,7 +163,7 @@ def test_length_outlier_is_evaluated_but_carries_a_warning(records):
 
 
 # --------------------------------------------------------------------------
-# 규칙 자체
+# The rule itself
 # --------------------------------------------------------------------------
 
 def test_rules_are_described_in_korean():
@@ -175,7 +175,7 @@ def test_rules_are_described_in_korean():
 
 
 def test_evaluate_with_empty_rule_set_never_flags(records):
-    """규칙을 비우면 아무것도 걸리지 않는다 — 규칙이 결과를 만든다는 확인."""
+    """An empty rule flags nothing -- confirms the rule is what produces the result."""
     report = _report(records, "SYN-VH-004")
     assert report.triage.status == STATUS_REVIEW
 
@@ -185,7 +185,7 @@ def test_evaluate_with_empty_rule_set_never_flags(records):
 
 
 # --------------------------------------------------------------------------
-# 출력
+# Output
 # --------------------------------------------------------------------------
 
 def test_triage_appears_in_all_three_outputs(records):
@@ -225,7 +225,7 @@ def test_summary_counts_reviews(records):
 
 
 def test_every_output_carries_the_triage_notice(records):
-    """'검토 필요'가 판정이 아니라는 고지가 빠지지 않는지."""
+    """The notice that 'needs review' is not a verdict must not be dropped."""
     reports = build_many([(r["id"], r["sequence"]) for r in records])
 
     flat_text = re.sub(r"\s+", " ", as_text(reports))

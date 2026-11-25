@@ -1,130 +1,130 @@
-# 판단 기록
+# Decision log
 
-형식: `- [날짜] 무엇을 정했는가 — 왜 — 대안 — (확인 필요 여부)`
+Format: `- [date] what was decided — why — alternatives — (needs confirmation or not)`
 
-## 합성 데이터
+## Synthetic data
 
-- [2026-11-24] framework 를 가중 난수 + 고정 보존잔기로 만든 "germline 유사" 스캐폴드로 정했다 — 실제 germline DB 레코드를 저장소에 넣지 않으면서도 앵커 탐색을 검증할 수 있다 — 대안: 실제 germline 서열 사용(제약 위반), 완전 균일 난수(앵커 오탐 과다) — (확인 불필요)
-- [2026-11-24] framework filler 알파벳에서 C/W/M/N/D 를 제외했다 — 보존 Cys·Trp 앵커를 유일하게 유지하고 framework 에 우연한 liability 가 생기지 않게 한다 — 대안: 전체 20종 사용 후 사후 필터(재추첨 실패율 급증) — (확인 불필요)
-- [2026-11-24] 각 케이스의 CDR liability 는 "주입 조각 안에 완전히 포함된 것만" 남도록 재추첨한다 — "케이스 X 의 CDR liability 는 정확히 이것뿐"을 테스트에서 단정할 수 있다 — 대안: 겹치기만 하면 허용(DP 주입 옆에 DD 가 딸려 나와 테스트가 모호해짐) — (확인 불필요)
-- [2026-11-24] 보존 Trp 앵커(Trp36, WGxG 의 W)를 산화 liability 로 그대로 보고한다 — 사용자가 확인했고, 억제하면 실제 산화 부위를 놓칠 위험이 있다 — 대안: 앵커 Trp 를 검출에서 제외 — (확인 완료)
+- [2026-11-24] Framework regions are "germline-like" scaffolds built from weighted random residues plus fixed conserved residues — this lets anchor search be validated without committing real germline database records to the repository — alternatives: real germline sequences (violates the constraint), fully uniform random residues (too many false anchor hits) — (no confirmation needed)
+- [2026-11-24] C/W/M/N/D are excluded from the framework filler alphabet — keeps the conserved Cys and Trp anchors unique and prevents accidental liabilities in the framework — alternatives: use all 20 residues and filter afterwards (redraw failure rate spikes) — (no confirmation needed)
+- [2026-11-24] Each case's CDR content is redrawn until the only CDR liabilities left are "those fully contained in the injected fragment" — lets the tests assert "case X's CDR liabilities are exactly these" — alternatives: allow anything that merely overlaps (a DD ends up next to an injected DP, making the test ambiguous) — (no confirmation needed)
+- [2026-11-24] The conserved Trp anchors (Trp36, the W of WGxG) are reported as oxidation liabilities as is — the user confirmed this, and suppressing them risks missing real oxidation sites — alternatives: exclude anchor Trp from detection — (confirmed)
 
-## CDR 주석
+## CDR annotation
 
-- [2026-11-24] Cys92/Cys88 앵커를 "FR3 모티프(VL 은 CDR-L2) 이후 **첫** Cys"로 정했다 — "마지막 Cys"를 쓰면 CDR-H3 안의 비결합 Cys 를 앵커로 잘못 집는다 (SYN-VH-005 가 이 회귀를 잡는다) — 대안: 마지막 Cys, 또는 위치 창 기반 — (확인 불필요)
-- [2026-11-24] Cys22/Cys23 은 창(15..30 / 16..30) 안에서 기대 위치에 가장 가까운 Cys 를 쓰고, 창에 Cys 가 2개 이상이면 경고만 남긴다 — 앵커를 찾긴 했으므로 실패 처리할 근거가 약하다 — 대안: 다중 Cys 시 confident=False — (확인 필요: 연구원이 이 경고를 충분히 눈에 담는지)
-- [2026-11-24] CDR 길이가 통상 범위를 벗어나면 위치는 그대로 보고하되 confident=False 로 떨어뜨린다 — 앵커는 찾았으니 위치 정보는 쓸모가 있고, 신뢰도만 내리는 것이 정직하다 — 대안: 위치를 숨김 — (확인 불필요)
-- [2026-11-24] 통상 CDR 길이 범위를 H1 5-7 / H2 16-19 / H3 3-25 / L1 7-17 / L2 7 / L3 5-13 으로 고정했다 — Kabat 경계에서 흔히 쓰는 범위를 근사한 스크리닝 기준이다 — 대안: 더 넓게(이탈 탐지 둔감), 더 좁게(정상 서열 오탐) — (확인 필요: 연구소 레퍼토리에 맞는 범위인지)
-- [2026-11-24] 체인 판별에서 WGxG·FGxG 가 둘 다 있으면 C-말단에 더 가까운 쪽을 택한다 — 말단 모티프가 판별 근거이므로 말단에 가까운 것이 우선이다 — 대안: 먼저 나온 것, 또는 모호하면 실패 처리 — (확인 불필요)
+- [2026-11-24] The Cys92/Cys88 anchor is "the **first** Cys after the FR3 motif (CDR-L2 for VL)" — using "the last Cys" wrongly picks an unpaired Cys inside CDR-H3 as the anchor (SYN-VH-005 catches this regression) — alternatives: last Cys, or a positional window — (no confirmation needed)
+- [2026-11-24] For Cys22/Cys23, use the Cys closest to the expected position within the window (15..30 / 16..30), and only warn if the window contains 2 or more Cys — the anchor was found, so there is little ground for treating it as a failure — alternatives: confident=False on multiple Cys — (needs confirmation: whether researchers actually notice this warning)
+- [2026-11-24] If a CDR length falls outside the normal range, the positions are still reported but confidence drops to confident=False — the anchors were found, so the positional information is useful; lowering only the confidence is the honest option — alternatives: hide the positions — (no confirmation needed)
+- [2026-11-24] Normal CDR length ranges are fixed at H1 5-7 / H2 16-19 / H3 3-25 / L1 7-17 / L2 7 / L3 5-13 — a screening criterion approximating ranges commonly used with Kabat boundaries — alternatives: wider (less sensitive to outliers), narrower (false alarms on normal sequences) — (needs confirmation: whether these ranges fit the lab's repertoire)
+- [2026-11-24] In chain identification, if both WGxG and FGxG are present, take the one closer to the C-terminus — the terminal motif is the basis for identification, so the one nearer the terminus wins — alternatives: the first one found, or fail if ambiguous — (no confirmation needed)
 
-## 입력 검증
+## Input validation
 
-- [2026-11-24] 공백·줄바꿈은 조용히 제거하고 경고만 남긴다 — 줄바꿈된 서열을 붙여넣는 것이 기본 사용 패턴이라 거부하면 도구를 못 쓴다 — 대안: 전부 거부(규칙의 "길이 범위 이탈을 거부" 와 충돌하지 않음) — (확인 불필요)
-- [2026-11-24] A/C/G/T/U/N 으로만 이뤄지고 ACGT 중 3종 이상 나오는 30 잔기 이상 서열을 핵산 오입력으로 거부한다 — 이 글자들은 전부 유효한 아미노산 코드라서 문자 검증만으로는 DNA 를 못 잡는다 — 대안: 검사 없음(DNA 가 통과해 무의미한 결과가 나옴), 3종 조건 없음(poly-A 오탐) — (확인 불필요)
-- [2026-11-24] 도메인 길이 허용 범위를 70-200 잔기로 정했다 — VH 115-130 / VL 105-115 를 여유 있게 감싸고, scFv(~250)는 걸러낸다 — 대안: 더 좁은 범위(비정형 스캐폴드 오탐) — (확인 필요: 나노바디(VHH, ~125)는 통과하지만 CDR 경계 가정이 다를 수 있다)
-- [2026-11-24] 모호 코드(X/B/Z/J/U/O)는 추측 없이 거부한다 — 추측 금지 규칙과 일관되게 간다 — 대안: X 를 Ala 로 치환해 진행 — (확인 불필요)
+- [2026-11-24] Whitespace and line breaks are silently stripped with only a warning — pasting line-wrapped sequences is the default usage pattern, and rejecting them would make the tool unusable — alternatives: reject all (does not conflict with the "reject out-of-range length" rule) — (no confirmation needed)
+- [2026-11-24] Sequences of 30 or more residues made up only of A/C/G/T/U/N, with at least 3 of ACGT present, are rejected as mistaken nucleic acid input — all of these letters are valid amino acid codes, so character validation alone cannot catch DNA — alternatives: no check (DNA passes and produces meaningless results), no 3-letter condition (poly-A false alarms) — (no confirmation needed)
+- [2026-11-24] The allowed domain length is set to 70-200 residues — comfortably covers VH 115-130 / VL 105-115 while filtering out scFv (~250) — alternatives: a narrower range (false alarms on atypical scaffolds) — (needs confirmation: nanobodies (VHH, ~125) pass, but their CDR boundary assumptions may differ)
+- [2026-11-24] Ambiguous codes (X/B/Z/J/U/O) are rejected without guessing — consistent with the no-guessing rule — alternatives: substitute X with Ala and proceed — (no confirmation needed)
 
-## liability
+## Liability
 
-- [2026-11-24] 위험도를 높음/중간/낮음 3단계로 두고 CDR 은 +1, framework 는 -1 조정한다 — "CDR 안과 framework 의 위험도를 구분한다"는 요구를 모티프마다 표를 두 벌 만들지 않고 규칙 하나로 푼다 — 대안: 구간별 등급표 분리(유지보수 비용 2배), 5단계 척도(연구원이 구분하기 어려움) — (확인 필요: 3단계가 선별 회의에서 충분한 해상도인지)
-- [2026-11-24] CDR 경계에 걸친 모티프는 CDR 쪽으로 본다 — 위험도를 과소평가하지 않는 쪽이 스크리닝 도구로서 안전하다 — 대안: 시작 위치 기준, 또는 겹친 잔기 수가 많은 쪽 — (확인 불필요)
-- [2026-11-24] 같은 분류 안에서 더 위험한 모티프가 자리를 선점하면 약한 패턴으로 다시 잡지 않는다 (NG 를 잡은 자리를 N[STNH] 로 중복 보고하지 않음). 분류가 다르면 둘 다 보고한다 (NGS 는 당화 + deamidation) — 중복 보고는 건수를 부풀려 종합 판정처럼 읽히게 만든다 — 대안: 전부 보고 — (확인 불필요)
-- [2026-11-24] 비결합 Cys 는 위치가 아닌 도메인 단위 플래그로 낸다 — 어느 Cys 가 짝이 없는지는 서열만으로 특정할 수 없다. 개수가 홀수라는 사실만 말하고 모든 Cys 위치를 함께 보여준다 — 대안: 임의의 한 Cys 를 지목(근거 없음) — (확인 불필요)
-- [2026-11-24] 주석 실패 서열에서도 liability 를 검출하되 구간을 "구간 미확정"으로 두고 등급 조정을 적용하지 않는다 — 구간을 모르는 채 내리면 CDR 위험을 놓친다 — 대안: 주석 실패 시 liability 검출 자체를 생략 — (확인 불필요)
+- [2026-11-24] Risk has three levels, high/medium/low, adjusted +1 in CDRs and -1 in framework — solves the requirement to "distinguish risk inside CDRs from framework" with a single rule instead of two tables per motif — alternatives: separate grade tables per region (double the maintenance cost), a 5-level scale (hard for researchers to tell apart) — (needs confirmation: whether 3 levels give enough resolution for triage meetings)
+- [2026-11-24] A motif that straddles a CDR boundary is treated as CDR — for a screening tool, erring on the side of not underestimating risk is safer — alternatives: by start position, or by whichever side has more overlapping residues — (no confirmation needed)
+- [2026-11-24] Within the same category, once a riskier motif claims a site, it is not re-reported under a weaker pattern (a site caught as NG is not duplicated as N[STNH]). Across categories, both are reported (NGS is glycosylation + deamidation) — duplicate reports inflate counts and read like an overall verdict — alternatives: report everything — (no confirmation needed)
+- [2026-11-24] Unpaired Cys is flagged at the domain level, not at a position — which Cys is unpaired cannot be determined from sequence alone. The tool only states that the count is odd and shows all Cys positions together — alternatives: point at one Cys arbitrarily (no basis) — (no confirmation needed)
+- [2026-11-24] Liabilities are still detected on sequences whose annotation failed, but the region is set to "region undetermined" and no grade adjustment is applied — downgrading without knowing the region would miss CDR risk — alternatives: skip liability detection entirely on annotation failure — (no confirmation needed)
 
-## 물성
+## Physicochemical properties
 
-- [2026-11-24] CDR 조각의 pI 는 그 조각을 독립 펩타이드로 보고(양 말단 이온화 그룹 포함) 계산한다 — 표준 pI 계산기와 같은 동작이라 연구원이 다른 도구 값과 맞춰볼 수 있다 — 대안: 말단 그룹 제외(측쇄만), 도메인 문맥 반영(불가능) — (확인 필요: CDR pI 를 절대값으로 읽지 않고 상대 비교로만 쓰는지)
-- [2026-11-24] pI 탐색은 pH 0-14 bisection, 허용오차 1e-6 으로 고정했다 — EMBOSS iep 와 같은 접근이고 수렴이 보장된다 — 대안: Newton 법(초기값 민감) — (확인 불필요)
-- [2026-11-24] net charge 기본 pH 를 7.4 로 두고 --ph 로 바꿀 수 있게 했다 — 생리적 조건이 기본값으로 적절하고, 제형 pH 검토 시 바꿔볼 수 있어야 한다 — 대안: 7.0 고정 — (확인 불필요)
+- [2026-11-24] The pI of a CDR fragment is computed treating the fragment as an independent peptide (including ionizable groups at both termini) — this matches standard pI calculators, so researchers can cross-check values against other tools — alternatives: exclude terminal groups (side chains only), reflect the domain context (not possible) — (needs confirmation: whether CDR pI is used only for relative comparison, not read as an absolute value)
+- [2026-11-24] The pI search is fixed to bisection over pH 0-14 with tolerance 1e-6 — same approach as EMBOSS iep, and convergence is guaranteed — alternatives: Newton's method (sensitive to the initial value) — (no confirmation needed)
+- [2026-11-24] The default pH for net charge is 7.4, changeable with --ph — physiological conditions are a sensible default, and it must be adjustable when reviewing formulation pH — alternatives: fixed at 7.0 — (no confirmation needed)
 
-## 출력
+## Output
 
-- [2026-11-24] 위험도를 색이 아니라 '높음/중간/낮음' 글자로만 표시한다 — 색으로 칠하면 "빨간 게 몇 개인지"로 종합 판정을 하게 되는데, 이 도구는 종합 판정을 하지 않기로 했다. 요구사항의 "컬러 강조 없음"과도 맞는다 — 대안: 위험도별 색상 — (확인 불필요)
-- [2026-11-24] 한계 고지와 "종합 판정 없음" 문구를 report 레이어에 넣어 세 출력이 공유하게 했다 — 출력 포맷을 추가해도 고지가 빠질 수 없다 — 대안: 각 렌더러가 따로 붙임(누락 위험) — (확인 불필요)
-- [2026-11-24] 터미널 출력에서 CDR 을 서열 아래 ^ 표시로 보여준다 — 컬러를 안 쓰기로 했으므로 굵게 표시할 수단이 없다 — 대안: ANSI 굵게(터미널 호환성 문제, 파이프 시 깨짐) — (확인 불필요)
-- [2026-11-24] 터미널 표는 한글 폭(East Asian Width)을 계산해 정렬한다 — 한글 라벨이 섞인 표가 어긋나면 읽기 어렵다 — 대안: 영문 라벨만 사용 — (확인 불필요)
+- [2026-11-24] Risk is shown only as the words 'high/medium/low', not as color — coloring invites an overall verdict based on "how many red ones there are," and this tool decided not to give overall verdicts. It also matches the requirement of "no color highlighting" — alternatives: color per risk level — (no confirmation needed)
+- [2026-11-24] The limitations notice and the "no overall verdict" statement live in the report layer, shared by all three outputs — adding a new output format cannot drop the notice — alternatives: each renderer appends it separately (risk of omission) — (no confirmation needed)
+- [2026-11-24] In terminal output, CDRs are shown with ^ markers beneath the sequence — since color is not used, there is no way to show them in bold — alternatives: ANSI bold (terminal compatibility problems, breaks when piped) — (no confirmation needed)
+- [2026-11-24] Terminal tables are aligned by computing the width of Korean characters (East Asian Width) — tables with Korean labels are hard to read when misaligned — alternatives: English labels only — (no confirmation needed)
 
 ## CLI
 
-- [2026-11-24] 입력 종류(JSON 코퍼스 / FASTA / 서열 문자열)를 확장자와 내용으로 자동 판별한다 — 연구원이 --type 같은 옵션을 외우지 않아도 된다 — 대안: 명시적 옵션 요구 — (확인 불필요)
-- [2026-11-24] 입력 검증 실패는 종료코드 1, 입력을 읽지 못하면 2, 주석 신뢰도가 낮은 것은 0 으로 둔다 — confident=False 는 정상적인 결과이지 실행 실패가 아니다. 다만 stderr 에 해당 서열 ID 를 모아 알린다 — 대안: confident=False 도 1 로 처리(배치 파이프라인에서 오탐) — (확인 필요: 자동화 파이프라인에서 어느 쪽을 원하는지)
-- [2026-11-24] --html 일 때는 표준출력에 표를 찍지 않는다 — 리다이렉트 없이 돌렸을 때 터미널이 넘치지 않게 한다 — 대안: 둘 다 출력 — (확인 불필요)
+- [2026-11-24] The input type (JSON corpus / FASTA / sequence string) is detected automatically from the extension and content — researchers don't have to memorize options like --type — alternatives: require an explicit option — (no confirmation needed)
+- [2026-11-24] Input validation failure exits with code 1, unreadable input with 2, and low annotation confidence with 0 — confident=False is a normal result, not an execution failure; the affected sequence IDs are collected and reported on stderr — alternatives: treat confident=False as 1 too (false alarms in batch pipelines) — (needs confirmation: which behavior automated pipelines want)
+- [2026-11-24] With --html, no table is printed to standard output — keeps the terminal from flooding when run without redirection — alternatives: output both — (no confirmation needed)
 
-## 테스트
+## Tests
 
-- [2026-11-24] liability 라벨은 'deamidation (NG)' 처럼 영문 용어를 유지하고, 근거 문장만 한글을 강제한다 — 연구실에서 통용되는 표현이라 번역하면 오히려 알아보기 어렵다 — 대안: 전부 한글화 — (확인 불필요)
-- [2026-11-24] 생성기의 CDR 청결성 검사를 CDR 양옆 2 잔기까지 넓혔다 — CDR 안쪽만 훑으면 경계를 걸친 모티프(CDR 끝 ...SNA + framework S → NAS 당화 서열)를 놓친다. 실제로 SYN-VL-002 에서 이 누락이 드러났다 — 대안: CDR 안쪽만 검사(테스트가 모호해짐) — (확인 불필요)
+- [2026-11-24] Liability labels keep English terms such as 'deamidation (NG)', and only the rationale sentences are required to be in Korean — these are the expressions used in the lab, and translating them would make them harder to recognize — alternatives: translate everything into Korean — (no confirmation needed)
+- [2026-11-24] The generator's CDR cleanliness check was extended to 2 residues on either side of each CDR — scanning only inside the CDR misses motifs that straddle the boundary (CDR ending ...SNA + framework S → NAS glycosylation sequon). This gap actually surfaced in SYN-VL-002 — alternatives: check only inside the CDR (makes the tests ambiguous) — (no confirmation needed)
 
-## 집계 표
+## Summary tables
 
-- [2026-11-24] 리포트 맨 앞에 서열 × 구간 × 위험도 건수 교차 집계 표를 넣었다 — 후보 선별 회의에서 "어느 후보의 어느 CDR에 높음이 몇 건인지"를 한 표에서 비교해야 하는데, 서열별 섹션만으로는 16건을 끝까지 읽어야 한다 — 대안: 별도 CSV 산출물, 집계 없음 — (확인 불필요)
-- [2026-11-24] 집계 표를 중쇄 / 경쇄 / 판별 실패 세 개로 나눈다 — 처음엔 CDR-H1 과 CDR-L1 을 같은 CDR1 칸에 모아 한 표로 냈으나, 사용자가 분리를 요청했다. 나누면 열 이름을 CDR-H1 / CDR-L1 로 정확히 쓸 수 있고 합계도 체인별로 의미가 생긴다 — 대안: 한 표에 CDR1/2/3 통합(열 이름이 모호해짐), 열 6개로 확장(VH/VL 혼재 시 절반이 빈 칸) — (확인 완료)
-- [2026-11-24] 체인은 판별됐지만 주석이 실패한 서열은 해당 체인 표에 남긴다 (SYN-VH-902 는 중쇄 표에) — 체인 정보는 유효하므로 버릴 이유가 없다. 체인조차 판별 못 한 서열만 따로 모은다 — 대안: 주석 실패를 전부 별도 표로(체인 정보 손실) — (확인 불필요)
-- [2026-11-24] 판별 실패 묶음에는 CDR 열을 두지 않고 '검출 모티프' 한 칸만 둔다 — CDR 칸을 0 이나 '-' 로 적으면 'CDR 깨끗함'으로 오독된다 — 대안: CDR 열을 두고 '주석 실패' 표기(열만 낭비) — (확인 불필요)
-- [2026-11-24] 빈 묶음은 표를 만들지 않는다 — 경쇄만 넣었는데 빈 중쇄 표가 나오면 거슬린다 — 대안: 항상 세 표 출력 — (확인 불필요)
-- [2026-11-24] 집계는 건수만 내고 점수·순위·정렬 재배치를 하지 않는다. 입력 순서를 그대로 유지한다 — 순위를 매기는 순간 종합 판정이 되는데 이 도구는 그걸 하지 않기로 했다. 테스트로도 막는다 — 대안: 위험도 가중 점수로 정렬 — (확인 불필요)
-- [2026-11-24] 주석 실패 서열의 '구간 미확정' 모티프는 framework 쪽에 모으고 CDR 칸에는 '주석 실패'를 적는다 — CDR 칸을 0으로 적으면 "CDR 깨끗함"으로 오독된다. 표 아래에 과소평가 경고를 함께 단다 — 대안: 별도 '미확정' 열 추가(열이 늘어 표가 넓어짐) — (확인 필요: framework 칸에 섞이는 것이 혼동을 주는지)
-- [2026-11-24] 집계 로직을 report.py 에 두어 터미널·HTML·JSON 세 출력이 공유하게 했다 — 출력마다 따로 세면 값이 어긋난다 — 대안: 렌더러별 구현 — (확인 불필요)
+- [2026-11-24] A cross-tabulation of counts by sequence × region × risk level was added at the top of the report — in candidate triage meetings people need to compare "how many highs in which CDR of which candidate" in a single table, and with per-sequence sections alone they would have to read all 16 to the end — alternatives: a separate CSV output, no summary — (no confirmation needed)
+- [2026-11-24] The summary is split into three tables: heavy chain / light chain / identification failed — at first CDR-H1 and CDR-L1 were merged into a single CDR1 column in one table, but the user asked for them to be separated. Splitting allows the columns to be named precisely as CDR-H1 / CDR-L1, and the totals become meaningful per chain — alternatives: one table with merged CDR1/2/3 (ambiguous column names), expanding to 6 columns (half empty when VH/VL are mixed) — (confirmed)
+- [2026-11-24] Sequences whose chain was identified but whose annotation failed stay in that chain's table (SYN-VH-902 goes in the heavy-chain table) — the chain information is valid, so there is no reason to discard it. Only sequences whose chain could not be identified are grouped separately — alternatives: put all annotation failures in a separate table (loses chain information) — (no confirmation needed)
+- [2026-11-24] The identification-failed group has no CDR columns, only a single 'detected motifs' column — writing 0 or '-' in CDR cells would be misread as 'CDR clean' — alternatives: keep CDR columns marked 'annotation failed' (wasted columns) — (no confirmation needed)
+- [2026-11-24] No table is produced for an empty group — an empty heavy-chain table when only light chains were input is distracting — alternatives: always output all three tables — (no confirmation needed)
+- [2026-11-24] The summary reports counts only; no scores, rankings, or reordering. Input order is preserved — the moment it ranks, it becomes an overall verdict, which this tool decided not to give. A test enforces this too — alternatives: sort by a risk-weighted score — (no confirmation needed)
+- [2026-11-24] 'Region undetermined' motifs from sequences whose annotation failed are grouped under framework, and the CDR cells read 'annotation failed' — writing 0 in CDR cells would be misread as "CDR clean." An underestimation warning is attached below the table — alternatives: add a separate 'undetermined' column (more columns, wider table) — (needs confirmation: whether mixing them into the framework cell is confusing)
+- [2026-11-24] The summary logic lives in report.py so the terminal, HTML and JSON outputs share it — counting separately per output would let the numbers drift apart — alternatives: per-renderer implementation — (no confirmation needed)
 
 ## CI
 
-- [2026-11-24] GitHub Actions 로 pytest(3.10-3.13) · 의존성 검사 · 코퍼스 재현성 · CLI 동작 네 갈래를 돌린다 — "테스트 실패를 막아달라"는 요구에 테스트만으로는 부족하다. 생성기를 고치고 데이터를 안 만든 경우, 런타임 의존성이 끼어든 경우, README 예시가 낡은 경우도 같은 급의 회귀다 — 대안: pytest 만 실행 — (확인 불필요)
-- [2026-11-24] 파이썬 매트릭스를 3.10-3.13 으로 잡았다 — pyproject 의 requires-python = ">=3.10" 전 구간을 실제로 검증해야 선언이 의미가 있다 — 대안: 최신 한 버전만(선언과 어긋남) — (확인 불필요)
-- [2026-11-24] tomllib 를 쓰는 의존성 검사를 매트릭스에서 빼 3.13 전용 job 으로 분리했다 — tomllib 은 3.11 부터라 3.10 잡에서 실패했다. 버전마다 돌릴 이유가 없는 검사다 — 대안: 3.10 에서 tomli 설치(개발 의존성이 늘어남), 정규식으로 pyproject 파싱(취약) — (확인 불필요)
-- [2026-11-24] 브랜치 보호(필수 상태 검사)는 설정하지 못했고 README 에 수동 절차를 적었다 — 이 세션의 GitHub 프록시가 저장소 설정 API 쓰기를 차단한다(HTTP 403). CI 는 알려줄 뿐이고 실제 차단은 브랜치 보호가 한다 — 대안: 없음(권한 밖) — (확인 필요: 저장소 관리자가 README 절차대로 켜야 실제로 막힌다. 비공개 저장소라면 GitHub Pro/Team 이상 필요)
-- [2026-11-24] .githooks/pre-push 를 추가하고 opt-in(git config core.hooksPath .githooks)으로 뒀다 — 브랜치 보호를 켜기 전까지의 공백을 메운다. 이 세션에서 실제로 테스트 실패 상태를 push 한 적이 있다 — 대안: 훅 없음, 또는 강제 설치(남의 클론 설정을 건드릴 수 없다) — (확인 불필요)
-- [2026-11-24] 커밋된 sample_output/report.html 이 현재 코드의 출력과 같은지 pytest 로 검사한다. 리포트의 ISO 날짜만 고정 문자열로 치환하고 나머지를 전부 비교한다 — 처음엔 '날짜 때문에 매일 깨진다'는 이유로 넣지 않았으나 사용자가 요청했고, 날짜만 정규화하면 비교가 성립한다. CI 전용 단계가 아니라 테스트로 둔 덕에 pre-push 훅도 같이 막아준다 — 대안: CI 전용 diff 단계(로컬에서 못 잡음), 검사 없음(예시 리포트가 조용히 낡음) — (확인 불필요)
-- [2026-11-24] 날짜 정규화가 다른 내용을 건드리지 않는지, 그리고 양식이 바뀌면 실제로 잡히는지를 각각 테스트로 고정했다 — 정규화가 헐거우면 검사가 조용히 무력해진다 — 대안: 비교 테스트만 두기 — (확인 불필요)
+- [2026-11-24] GitHub Actions runs four tracks: pytest (3.10-3.13), dependency check, corpus reproducibility, and CLI behavior — for the request to "prevent test failures," tests alone are not enough. Changing the generator without regenerating the data, a runtime dependency sneaking in, and stale README examples are regressions of the same rank — alternatives: run only pytest — (no confirmation needed)
+- [2026-11-24] The Python matrix is 3.10-3.13 — the requires-python = ">=3.10" declaration in pyproject only means something if the whole range is actually verified — alternatives: only the latest version (inconsistent with the declaration) — (no confirmation needed)
+- [2026-11-24] The dependency check, which uses tomllib, was pulled out of the matrix into a 3.13-only job — tomllib exists only from 3.11, so it failed in the 3.10 job. There is no reason to run this check on every version — alternatives: install tomli on 3.10 (adds a dev dependency), parse pyproject with a regex (fragile) — (no confirmation needed)
+- [2026-11-24] Branch protection (required status checks) could not be configured; the manual procedure is written in the README instead — this session's GitHub proxy blocks writes to the repository settings API (HTTP 403). CI only reports; branch protection is what actually blocks — alternatives: none (outside our permissions) — (needs confirmation: a repository admin must enable it following the README procedure for it to actually block. For a private repository, GitHub Pro/Team or higher is required)
+- [2026-11-24] Added .githooks/pre-push as opt-in (git config core.hooksPath .githooks) — fills the gap until branch protection is enabled. This session did in fact once push while tests were failing — alternatives: no hook, or forced installation (we cannot touch other people's clone settings) — (no confirmation needed)
+- [2026-11-24] pytest checks that the committed sample_output/report.html matches the current code's output. Only the ISO date in the report is replaced with a fixed string; everything else is compared — at first this was left out because "the date would break it every day," but the user requested it, and normalizing just the date makes the comparison valid. Because it is a test rather than a CI-only step, the pre-push hook enforces it too — alternatives: a CI-only diff step (not caught locally), no check (the example report silently goes stale) — (no confirmation needed)
+- [2026-11-24] Separate tests pin down that the date normalization touches nothing else, and that a change in format is actually caught — a loose normalization would silently disable the check — alternatives: only the comparison test — (no confirmation needed)
 
-## 선별 규칙 (triage)
+## Triage rules
 
-- [2026-11-24] 사용자가 정한 선별 규칙을 적용해 '검토 필요'를 표시하는 기능을 넣었다 — 원래 "종합 판정을 내리지 않는다"는 제약 때문에 넣지 않았으나, 사용자가 자동화를 요청했다. 판정과 자동화는 다르다: 도구가 기준을 만드는 게 아니라 연구자가 정한 기준을 기계적으로 적용한다 — 대안: 가중치 기반 점수(가중치에 근거가 없고 사람이 근거 대신 숫자만 보게 됨), 자동화 없음 — (확인 불필요)
-- [2026-11-24] 결과 용어를 '통과/불합격'이 아니라 '검토 필요 / 기준 해당 없음 / 판정 불가'로 정했다 — '통과'라고 적는 순간 도구가 판정한 것이 되고, 안전하다는 보증으로 읽힌다 — 대안: PASS/FAIL — (확인 불필요)
-- [2026-11-24] CDR 주석이 실패한 서열은 '기준 해당 없음'이 아니라 '판정 불가'로 둔다 — CDR 과 framework 를 가를 수 없으면 'CDR 안의 높음' 규칙을 적용할 수 없다. 못 본 것을 괜찮다고 적는 것이 가장 위험하다 — 대안: 규칙 미적용 시 통과 처리 — (확인 불필요)
-- [2026-11-24] 비결합 Cys 도메인 플래그가 '높음'이면 함께 검토 필요로 잡는다 — 사용자가 말한 "CDR에 높음"의 평이한 의미에 포함된다고 봤다. 비결합 Cys 는 위치 하나로 특정할 수 없어 CDR hit 목록에는 안 들어가지만, CDR 안에 있으면 '높음'으로 매겨진다 — 대안: CDR hit 만 보기(SYN-VH-005 같은 건을 놓침) — (확인 필요: 이 규칙까지 원하신 것인지)
-- [2026-11-24] 규칙에 걸리지 않았어도 confident=False 면 경고 문구를 붙인다 — 경계가 밀렸을 수 있어 '기준 해당 없음'을 그대로 믿으면 안 된다 — 대안: 경고 없음 — (확인 불필요)
+- [2026-11-24] Added a feature that applies user-defined triage rules and marks sequences as 'needs review' — it was originally left out because of the "no overall verdict" constraint, but the user asked for automation. Verdicts and automation are different: the tool does not create the criteria, it mechanically applies criteria set by the researcher — alternatives: a weight-based score (the weights have no basis, and people end up looking at a number instead of the evidence), no automation — (no confirmation needed)
+- [2026-11-24] The result terms are 'needs review / no criteria met / cannot assess', not 'pass/fail' — the moment it says 'pass', the tool has made a verdict, and it reads as a safety guarantee — alternatives: PASS/FAIL — (no confirmation needed)
+- [2026-11-24] Sequences whose CDR annotation failed are marked 'cannot assess', not 'no criteria met' — if CDR and framework cannot be separated, the 'high in CDR' rule cannot be applied. Writing that something unseen is fine is the most dangerous outcome — alternatives: treat as passing when the rule cannot be applied — (no confirmation needed)
+- [2026-11-24] An unpaired-Cys domain flag of 'high' also triggers needs review — judged to fall within the plain meaning of the user's "high in CDR." An unpaired Cys cannot be pinned to a single position, so it does not appear in the CDR hit list, but it is graded 'high' when it is in a CDR — alternatives: look only at CDR hits (misses cases like SYN-VH-005) — (needs confirmation: whether this rule is what was intended)
+- [2026-11-24] Even if no rule is triggered, a warning is attached when confident=False — the boundaries may have shifted, so 'no criteria met' should not be taken at face value — alternatives: no warning — (no confirmation needed)
 
-## 실제 데이터로 드러난 문제
+## Issues revealed by real data
 
-- [2026-11-24] 보존 Trp 앵커를 "CDR1 시작 이후 첫 Trp"가 아니라 "CDR1 시작 + 최소 길이 이후 첫 Trp"로 바꿨다 (VH +5, VL +7) — OAS 실제 마우스 레퍼토리로 돌려보니 CDR-H1 안의 Trp 을 앵커로 잘못 집어 CDR-H1 이 2-4 잔기로 잘렸다(SYWMQ, SGYYWN 등 실제 항체에서 흔한 패턴). 합성 데이터는 CDR 내용에서 W 를 빼고 만들었기에 이 경우가 한 번도 없었다 — 대안: 길이 이탈로 confident=False 처리만 하고 두기(원인을 안 고침) — (확인 불필요)
-- [2026-11-24] 같은 사각지대를 막으려고 SYN-VH-009 / SYN-VL-006 (CDR1 안에 Trp) 케이스를 코퍼스에 추가했다 — 합성 데이터의 "깨끗함"이 곧 사각지대였다. 실제 데이터에서 드러난 패턴은 코퍼스에 넣어야 회귀로 남는다 — 대안: 테스트 파일에 하드코딩한 서열로만 검증 — (확인 불필요)
-- [2026-11-24] 실제 OAS 서열 16건 중 12건이 '검토 필요'로 나왔다. CDR 안 '높음' 25건 중 13건이 NS/NT/NN/NH (약한 deamidation 등급이 CDR 상향으로 '높음'이 된 것)이고 NG/DG 는 3건뿐이다 — 선별 규칙이 너무 많이 걸러 변별력이 떨어진다는 신호다 — 사용자가 (a)를 선택했다: 등급 표시는 그대로 두고 선별 규칙만 최고 위험 모티프(당화/NG/DG/DP)로 한정. 16건 중 12건 → 6건으로 줄었다 — 대안: (b) 중간→높음 상향 자체를 없애기(CDR/framework 구분이 약해짐) — (확인 완료)
-- [2026-11-24] 선별 규칙을 MotifSpec.top_within_kind 로 한정했다. 이 플래그는 원래 같은 분류 안에서 겹치는 모티프의 우선순위를 정하려고 둔 것인데, '각 분류에서 가장 빠른 것'이라는 의미가 선별 기준과 정확히 같아 재사용했다 — 대안: 선별용 모티프 목록을 따로 두기(두 곳이 어긋날 수 있음) — (확인 불필요)
-- [2026-11-24] SYN-VH-010 (CDR-H2 에 NT) 케이스를 추가했다 — "CDR 안에서 '높음'으로 표시되지만 선별에는 안 걸린다"는 경계를 고정하는 유일한 케이스다. 이게 없으면 규칙을 되돌려도 테스트가 통과한다 — 대안: 테스트 없음 — (확인 불필요)
+- [2026-11-24] The conserved Trp anchor was changed from "the first Trp after the start of CDR1" to "the first Trp after the start of CDR1 + minimum length" (VH +5, VL +7) — running on a real OAS mouse repertoire, the annotator wrongly picked a Trp inside CDR-H1 as the anchor, truncating CDR-H1 to 2-4 residues (SYWMQ, SGYYWN and similar patterns are common in real antibodies). The synthetic data was built without W in the CDR content, so this case never once occurred — alternatives: leave it at confident=False from the length outlier (does not fix the cause) — (no confirmation needed)
+- [2026-11-24] To close the same blind spot, cases SYN-VH-009 / SYN-VL-006 (Trp inside CDR1) were added to the corpus — the "cleanliness" of the synthetic data was itself the blind spot. Patterns revealed by real data must go into the corpus to remain as regressions — alternatives: verify only with sequences hardcoded in test files — (no confirmation needed)
+- [2026-11-24] 12 of 16 real OAS sequences came out as 'needs review'. Of the 25 'high' hits in CDRs, 13 were NS/NT/NN/NH (weak deamidation grades that became 'high' through the CDR uplift), and only 3 were NG/DG — a sign that the triage rule catches too much and loses discriminating power — the user chose (a): keep the grade display as is and restrict only the triage rule to the highest-risk motifs (glycosylation/NG/DG/DP). This went from 12 of 16 to 6 — alternatives: (b) remove the medium→high uplift itself (weakens the CDR/framework distinction) — (confirmed)
+- [2026-11-24] The triage rule was restricted via MotifSpec.top_within_kind. This flag was originally there to set priority among overlapping motifs within a category, but its meaning, "the top one in each category," is exactly the triage criterion, so it was reused — alternatives: keep a separate motif list for triage (the two could drift apart) — (no confirmation needed)
+- [2026-11-24] Added case SYN-VH-010 (NT in CDR-H2) — the only case that pins the boundary "shown as 'high' in a CDR but not caught by triage." Without it, the tests would still pass if the rule were reverted — alternatives: no test — (no confirmation needed)
 
-## 튜토리얼 / OAS
+## Tutorial / OAS
 
-- [2026-11-24] TUTORIAL.md 를 따로 만들고 README 에서 링크했다 — README 는 설계·한계를 담는 참조 문서라 처음 쓰는 사람에게는 길다. 설치부터 출력 읽는 법까지는 분리하는 편이 낫다 — 대안: README 에 합치기(길어져서 한계 고지가 묻힘) — (확인 불필요)
-- [2026-11-24] 튜토리얼의 예시 서열과 거기 붙인 CDR 표를 테스트로 검증한다 — 문서의 숫자는 조용히 낡는다. 코퍼스를 다시 만들거나 주석 규칙을 바꾸면 테스트가 걸리게 했다 — 대안: 검증 없음 — (확인 불필요)
-- [2026-11-24] scripts/oas_to_fasta.py 를 저장소에 넣었다 — OAS CSV 는 IMGT 정렬이라 '.' 갭이 들어 있어 그대로는 입력 검증에 걸린다. 매번 손으로 변환하게 두면 쓰기 어렵다 — 대안: 튜토리얼에 변환 방법만 글로 적기 — (확인 불필요)
-- [2026-11-24] 실제 OAS 서열은 저장소에 넣지 않고, 돌려본 결과의 집계 수치만 튜토리얼에 적었다 — 합성 데이터만 담는다는 원칙을 유지하면서도 실제 데이터에서 무엇이 나왔는지는 남긴다 — 대안: 실제 서열 몇 개를 예시로 커밋(원칙 위반) — (확인 불필요)
+- [2026-11-24] Created a separate TUTORIAL.md and linked it from the README — the README is a reference document for design and limitations, which is long for first-time users. Installation through reading the output is better split out — alternatives: merge into the README (it gets long and buries the limitations notice) — (no confirmation needed)
+- [2026-11-24] The tutorial's example sequences and their CDR tables are verified by tests — numbers in documentation silently go stale. Regenerating the corpus or changing the annotation rules now trips the tests — alternatives: no verification — (no confirmation needed)
+- [2026-11-24] Added scripts/oas_to_fasta.py to the repository — OAS CSVs are IMGT-aligned and contain '.' gaps, which fail input validation as is. Leaving users to convert by hand every time makes the tool hard to use — alternatives: describe the conversion only in prose in the tutorial — (no confirmation needed)
+- [2026-11-24] Real OAS sequences are not committed; only aggregate figures from the runs are written in the tutorial — keeps the principle of committing only synthetic data while still recording what came out of real data — alternatives: commit a few real sequences as examples (violates the principle) — (no confirmation needed)
 
-## 대규모 실측 (OAS 2,000 서열)
+## Large-scale measurement (OAS 2,000 sequences)
 
-- [2026-11-25] FR3 시작 모티프를 [RK].[TSAV][IMLFV][STA] 에서 [RKQ].[TSAV][IMLFV][STAN] 으로 넓혔다. **원래 작업 지시의 정규식을 바꾼 것이므로 눈여겨볼 것** — OAS VH 1,000건에서 26건(2.6%)이 이 모티프를 못 찾아 CDR-H2/H3 주석에 실패했다. 빠진 둘은 IGHV2 계열의 QVTIS…(첫 자리가 Q)와 RITIN…(끝 자리가 N)이었다. 네 가지 후보 패턴을 실측해 고른 것이고, 넓힌 뒤 실패 26건 → 8건, **기존에 성공하던 1,000건의 주석은 하나도 바뀌지 않았다** — 대안: 원래 패턴 유지(2.6% 주석 실패를 감수), 모티프 대신 Cys92 에서 역산(CDR-H2 끝을 정할 수 없음) — (확인 필요: 지시한 정규식을 바꾼 것이라 승인이 필요하면 FR3_MOTIF_PATTERN_STRICT 로 한 줄 되돌리면 된다)
-- [2026-11-25] SYN-VH-011 / SYN-VH-012 (QVTIS, RITIN 모티프) 케이스를 추가하고, 좁은 패턴으로는 이 둘이 안 걸린다는 것도 테스트로 고정했다 — 전제를 고정하지 않으면 누가 패턴을 다시 좁혀도 모른다 — 대안: 넓힌 패턴만 테스트 — (확인 불필요)
-- [2026-11-25] 케이스별 FR3 모티프 지정(Case.fr3_motif)을 생성기에 추가했다 — 스캐폴드가 모든 VH 케이스에서 공유되므로, germline 계열 변형을 재현하려면 케이스별 지정이 필요하다 — 대안: 스캐폴드를 케이스마다 새로 만들기(프레임워크가 달라져 비교가 어려워짐) — (확인 불필요)
-- [2026-11-25] 실측 결과 남은 신뢰 불가의 대부분이 CDR 길이 범위 이탈이다 (사람 CDR-H3 26-27, CDR-L3 14/20, CDR-H2 20). 사람 CDR-H3 는 26-27 잔기가 드물지 않으므로 통상 범위 상한(3-25)이 좁을 수 있다 — 범위는 '주석을 믿을 수 있는가'의 기준이지 developability 기준이 아니므로, 정상 서열을 신뢰 불가로 떨어뜨리면 경고가 무뎌진다 — 사용자가 오탐을 줄이라고 해서 실측 분포에 맞춰 상한만 넓혔다 (H2 19→20, H3 25→30, L3 13→15). 하한은 그대로 뒀다: 앵커를 잘못 집으면 CDR 이 짧아지므로 하한이 그 신호다 — (확인 완료)
+- [2026-11-25] Widened the FR3 start motif from [RK].[TSAV][IMLFV][STA] to [RKQ].[TSAV][IMLFV][STAN]. **This changes the regex from the original task instructions, so please take note** — in 1,000 OAS VH sequences, 26 (2.6%) failed to match this motif and failed CDR-H2/H3 annotation. The two missing variants were the IGHV2 family's QVTIS… (Q in the first position) and RITIN… (N in the last position). Chosen by measuring four candidate patterns on real data; after widening, failures went from 26 → 8, and **not a single annotation among the 1,000 previously successful ones changed** — alternatives: keep the original pattern (accept 2.6% annotation failure), back-calculate from Cys92 instead of using the motif (the end of CDR-H2 cannot be determined) — (needs confirmation: this changes the instructed regex; if approval is required, it can be reverted in one line via FR3_MOTIF_PATTERN_STRICT)
+- [2026-11-25] Added cases SYN-VH-011 / SYN-VH-012 (QVTIS, RITIN motifs), and a test also pins that the narrow pattern does not match these two — without pinning the premise, nobody would notice if someone narrowed the pattern again — alternatives: test only the widened pattern — (no confirmation needed)
+- [2026-11-25] Added per-case FR3 motif specification (Case.fr3_motif) to the generator — the scaffold is shared by all VH cases, so reproducing germline family variants requires per-case specification — alternatives: build a new scaffold per case (frameworks would differ, making comparison hard) — (no confirmation needed)
+- [2026-11-25] Measurement showed that most remaining low-confidence results were CDR lengths out of range (human CDR-H3 26-27, CDR-L3 14/20, CDR-H2 20). Human CDR-H3 of 26-27 residues is not rare, so the upper bound of the normal range (3-25) may be too narrow — the range is a criterion for "can the annotation be trusted," not a developability criterion, so dropping normal sequences to low confidence dulls the warning — the user asked to reduce false alarms, so only the upper bounds were widened to fit the measured distribution (H2 19→20, H3 25→30, L3 13→15). The lower bounds were left unchanged: a wrongly picked anchor makes the CDR shorter, so the lower bound is that signal — (confirmed)
 
-- [2026-11-25] 보존 Cys 앵커를 "이후 첫 Cys"에서 "이후 첫 [YF]C 의 Cys"로 바꿨다. 문맥으로 못 찾으면 기존처럼 첫 Cys 로 물러서되 경고를 남긴다 — OAS 2,000건에서 7건이 FR3 안의 여분 Cys(…LTIS<C>…)를 앵커로 잘못 집어 CDR3 가 10잔기 넘게 앞에서 시작했다. 보존 Cys 앞 잔기는 실측 Y 83.2% + F 16.1% = 99.3% 다. 바꾼 뒤 그 7건이 전부 교정됐고 나머지 1,993건의 주석은 그대로였다 — 대안: 길이 범위로만 걸러내기(실제로 MOU-259-VH 는 CDR-H3 25 로 범위 안이라 조용히 틀린 채 통과했다) — (확인 불필요)
-- [2026-11-25] 합성 스캐폴드의 보존 Cys 앞 2잔기를 YY 로 고정했다 (실제 83%) — 그러지 않으면 합성 데이터가 [YF]C 경로를 전혀 밟지 않아 새 규칙이 검증되지 않는다. 길이를 유지해 기존 좌표는 그대로다 — 대안: 난수 그대로 두기 — (확인 불필요)
-- [2026-11-25] SYN-VL-007 (FR3 에 여분 Cys) 케이스를 추가했다 — 실제 데이터에서 나온 오주석을 그대로 재현한 회귀다 — 대안: 없음 — (확인 불필요)
-- [2026-11-25] CDR 길이 범위를 실측에 맞춰 넓힌 결과, 사람 1,000건의 신뢰 가능이 98.7% → 99.8% 가 됐다. 남은 2건은 CDR-L3 4 잔기(비정상)와 말단 모티프 없음(진짜 실패)으로, 둘 다 걸러야 할 것들이다 — (확인 불필요)
-- [2026-11-25] FR3 모티프를 못 찾으면 보존 Cys 에서 29잔기 역산해 CDR-H2 의 끝을 잡는 대체 경로를 넣었다. 경고를 남기고 ANARCI 재확인을 안내한다 — 마우스 plasmablast 의 남은 실패 8건은 전부 체세포 과변이로 모티프가 깨진 것이었다(EATLT, RLNIS, KAILT — 1번 또는 3번 자리 치환). 정규식을 더 넓히면 CDR-H2 안에서 우연히 걸려 CDR 이 조용히 짧아질 위험이 커지는 반면, FR3→보존Cys 거리는 실측 992건이 **전부** 29 로 일정했다. 적용 후 8건 전부 복구(CDR 길이도 정상), 나머지 992건 변화 없음, 마우스 신뢰 가능 99.2% → 100% — 대안: 정규식을 계속 넓히기(취약), 실패로 두기(과변이 서열에서 못 씀) — 사용자가 더 보수적으로 가자고 해서 역산한 경우 confident=False 로 내린다. CDR 위치는 그대로 보고하므로 결과를 버리지는 않는다(길이 이탈 케이스와 같은 방식) — (확인 완료)
-- [2026-11-25] 합성 스캐폴드의 FR3→보존Cys 거리를 26 에서 29 로 맞추고, 생성기가 이 거리를 검증하게 했다 — 합성 데이터의 기하가 실제와 다르면 역산 경로가 합성 데이터에서만 틀리거나 맞는다. SYN-VH-013(모티프가 EATLT 로 깨진 케이스)으로 대체 경로를 회귀 고정했다 — 대안: 거리 불일치를 둔 채 두기 — (확인 불필요)
-- [2026-11-25] 사람 naive B 는 역산 경로를 0건 사용했고 마우스 plasmablast 만 8건 썼다 — 과변이 정도의 차이로 설명된다. 대체 경로가 남발되지 않는다는 증거이기도 하다 — (확인 불필요)
-- [2026-11-25] 역산 경로를 탄 서열은 confident=False 로 내리되 CDR 위치는 그대로 보고한다 — 거리는 실측 992건 전부 일정했지만 모티프를 직접 확인한 것보다 약한 근거이고, 결과를 쓰기 전에 사람이 보게 하는 편이 맞다. 결과를 버리지 않으므로 '기능 유지'와 '보수적 표시'를 동시에 만족한다. 마우스 1,000건에서 CDR 주석 성공은 100% 그대로이고 신뢰 가능만 100% → 99.2% 가 된다 — 대안: 경고만 남기고 confident 유지(덜 보수적), 주석 자체를 포기(결과 손실) — (확인 완료)
+- [2026-11-25] The conserved Cys anchor was changed from "the first Cys after" to "the Cys of the first [YF]C after." If none is found by context, it falls back to the first Cys as before but leaves a warning — in 2,000 OAS sequences, 7 wrongly picked an extra Cys in FR3 (…LTIS<C>…) as the anchor, so CDR3 started more than 10 residues early. The residue preceding the conserved Cys is measured as Y 83.2% + F 16.1% = 99.3%. After the change all 7 were corrected and the annotations of the remaining 1,993 were unchanged — alternatives: filter by length range only (in fact MOU-259-VH, with CDR-H3 at 25, was within range and passed silently wrong) — (no confirmation needed)
+- [2026-11-25] The 2 residues before the conserved Cys in the synthetic scaffold were fixed to YY (83% in real data) — otherwise the synthetic data would never exercise the [YF]C path and the new rule would go unverified. Length is preserved, so existing coordinates are unchanged — alternatives: leave them random — (no confirmation needed)
+- [2026-11-25] Added case SYN-VL-007 (extra Cys in FR3) — a regression that reproduces the misannotation seen in real data exactly — alternatives: none — (no confirmation needed)
+- [2026-11-25] After widening the CDR length ranges to fit measurements, confident results on 1,000 human sequences went from 98.7% → 99.8%. The remaining 2 are a CDR-L3 of 4 residues (abnormal) and a missing terminal motif (a genuine failure), both of which should be filtered — (no confirmation needed)
+- [2026-11-25] Added a fallback path that, when the FR3 motif is not found, back-calculates 29 residues from the conserved Cys to locate the end of CDR-H2. It leaves a warning and recommends rechecking with ANARCI — the 8 remaining failures in mouse plasmablasts were all motifs broken by somatic hypermutation (EATLT, RLNIS, KAILT — substitutions in position 1 or 3). Widening the regex further would raise the risk of an accidental match inside CDR-H2 silently shortening the CDR, whereas the FR3→conserved Cys distance was a constant 29 in **all** 992 measured cases. After applying it, all 8 were recovered (with normal CDR lengths), the other 992 were unchanged, and mouse confident results went 99.2% → 100% — alternatives: keep widening the regex (fragile), leave them as failures (unusable on hypermutated sequences) — the user asked to be more conservative, so back-calculated cases are downgraded to confident=False. The CDR positions are still reported, so the result is not discarded (same approach as the length-outlier cases) — (confirmed)
+- [2026-11-25] The synthetic scaffold's FR3→conserved Cys distance was changed from 26 to 29, and the generator now verifies this distance — if the synthetic geometry differs from reality, the back-calculation path would be wrong (or right) only on synthetic data. SYN-VH-013 (motif broken as EATLT) pins the fallback path as a regression — alternatives: leave the distance mismatch in place — (no confirmation needed)
+- [2026-11-25] Human naive B used the back-calculation path 0 times; only mouse plasmablasts used it, 8 times — explained by the difference in degree of hypermutation. It is also evidence that the fallback path is not overused — (no confirmation needed)
+- [2026-11-25] Sequences that took the back-calculation path are downgraded to confident=False, but their CDR positions are still reported — the distance was constant across all 992 measured cases, but it is weaker evidence than directly confirming the motif, and it is better for a person to look before the result is used. Since the result is not discarded, it satisfies both "keep functionality" and "flag conservatively." On 1,000 mouse sequences, CDR annotation success stays at 100% and only confident drops 100% → 99.2% — alternatives: warn only and keep confident (less conservative), give up on annotation (loses results) — (confirmed)
 
-## 공개 데이터 7,000건 검증
+## Validation on 7,000 public sequences
 
-- [2026-11-25] FR3 모티프와 보존 Cys 의 거리(29)로 모티프 매치를 교차검증하고, 어긋나면 Cys 기준으로 고쳐 잡는다 — 실측 3,443건 중 3,429건이 거리 29 였고 어긋난 14건은 전부 모티프가 CDR-H2 안이나 엉뚱한 자리에 걸린 경우였다(CDR-H2 가 15 또는 29 로 나옴). 적용 후 거리 일치가 100% 가 됐다 — 대안: 길이 범위로만 걸러내기(거리 29 인 채 길이만 이탈한 건은 못 잡음) — (확인 불필요)
-- [2026-11-25] 보존 Trp 이 변이된 서열을 FR2 문맥으로 되찾는 수정을 **측정한 뒤 기각했다** — VH `[VI][RK]Q` 85.6%, VL `[YF][QL]Q` 83.1% 인데, 안 맞는 쪽이 오류가 아니라 IGHV4 계열의 정상 FR2(`W G W I R Q`)였다. 되돌리면 IGHV4 경계를 2잔기 민다. 해당 사례는 3,426건 중 1건(0.03%) — 0.03% 를 고치려고 6~8% 를 망가뜨릴 수 없다. 현재 동작(추측하지 않고 신뢰 불가로 거부)이 맞다 — 대안: 패턴 기반 되찾기 — (확인 불필요)
-- [2026-11-25] scripts/validate_on_oas.py 와 VALIDATION.md 를 저장소에 넣었다 — 정확도 수치를 남이 다시 확인할 수 있어야 한다. OAS paired 데이터는 체인 정답이 있으므로 체인 판별은 정답 있는 검증이 되고, CDR 은 정답이 없으므로 주석 성공률·실패 사유 분포·FR3↔Cys 거리(내부 일관성)로 대신 잰다 — 대안: 수치를 글로만 적기(재현 불가) — (확인 불필요)
-- [2026-11-25] 세포 종류가 정확도를 가른다는 것이 드러났다 — 사람 naive B 99.8%, 과변이가 심한 memory/plasma B 93~95%. FR3 모티프가 germline 보존을 전제하기 때문이다. VALIDATION.md 에 데이터셋별로 나눠 적었다 — 평균 하나로 뭉뚱그리면 이 사실이 묻힌다 — (확인 불필요)
+- [2026-11-25] The FR3 motif match is cross-checked against its distance (29) to the conserved Cys, and re-anchored from the Cys if they disagree — of 3,443 measured, 3,429 had distance 29, and all 14 mismatches were cases where the motif matched inside CDR-H2 or in the wrong place (CDR-H2 came out as 15 or 29). After applying it, distance agreement became 100% — alternatives: filter by length range only (misses cases with distance 29 where only the length is out of range) — (no confirmation needed)
+- [2026-11-25] A fix to recover sequences with a mutated conserved Trp via the FR2 context was **measured and then rejected** — VH `[VI][RK]Q` 85.6%, VL `[YF][QL]Q` 83.1%, but the non-matching side was not errors but the normal FR2 of the IGHV4 family (`W G W I R Q`). Applying the recovery would shift IGHV4 boundaries by 2 residues. The affected cases are 1 in 3,426 (0.03%) — 6-8% cannot be broken to fix 0.03%. The current behavior (reject as low confidence rather than guess) is correct — alternatives: pattern-based recovery — (no confirmation needed)
+- [2026-11-25] Added scripts/validate_on_oas.py and VALIDATION.md to the repository — accuracy figures must be verifiable by others. OAS paired data has chain ground truth, so chain identification is validated against ground truth; CDRs have no ground truth, so they are measured instead by annotation success rate, distribution of failure reasons, and FR3↔Cys distance (internal consistency) — alternatives: state the figures in prose only (not reproducible) — (no confirmation needed)
+- [2026-11-25] It became clear that cell type decides accuracy — human naive B 99.8%, heavily hypermutated memory/plasma B 93-95%, because the FR3 motif assumes germline conservation. VALIDATION.md reports each dataset separately — lumping them into a single average would hide this — (no confirmation needed)
 
-## 사용 설명서 PDF
+## User manual PDF
 
-- [2026-11-25] 설명서의 출력 예시를 손으로 옮기지 않고 build_manual.py 가 abcheck 를 직접 호출해 생성하게 했다. 커밋된 manual.html 이 현재 코드의 출력과 같은지, PDF 가 그 HTML 로 만든 것인지(원본 해시)를 테스트로 확인한다 — 설명서의 숫자는 조용히 낡는다. 실제로 코퍼스가 바뀌며 README 예시가 낡은 적이 이미 있었다 — 대안: 손으로 작성(낡음) — (확인 불필요)
-- [2026-11-25] PDF 렌더링에 Playwright(Chromium)를 쓴다. **런타임 의존성이 아니다** — abcheck 자체는 여전히 표준 라이브러리만 쓰고 pyproject 의 dependencies 는 비어 있다(CI 가 검사). Playwright 는 설명서 PDF 를 다시 만들 때만 필요하다 — 대안: 표준 라이브러리로 PDF 직접 생성(한글 글꼴 임베딩이 사실상 불가), reportlab 등 파이썬 패키지(개발 의존성 추가) — (확인 필요: 설명서를 다시 만드는 사람에게 node + Playwright 가 필요하다)
-- [2026-11-25] 설명서를 만들며 실제 오류 메시지를 옮기다가, FASTA 헤더 오류가 **존재하지 않는 --fasta 옵션**을 안내하던 버그를 발견해 고쳤다. 오류 메시지가 실제 CLI 옵션만 안내하는지 대조하는 테스트를 추가했다 — (확인 불필요)
+- [2026-11-25] The manual's output examples are not copied by hand; build_manual.py calls abcheck directly to generate them. Tests check that the committed manual.html matches the current code's output and that the PDF was built from that HTML (source hash) — numbers in documentation silently go stale. The README examples had in fact already gone stale once when the corpus changed — alternatives: write by hand (goes stale) — (no confirmation needed)
+- [2026-11-25] PDF rendering uses Playwright (Chromium). **It is not a runtime dependency** — abcheck itself still uses only the standard library, and dependencies in pyproject is empty (CI checks this). Playwright is needed only to rebuild the manual PDF — alternatives: generate the PDF directly with the standard library (embedding Korean fonts is practically impossible), a Python package such as reportlab (adds a dev dependency) — (needs confirmation: anyone rebuilding the manual needs node + Playwright)
+- [2026-11-25] While copying real error messages into the manual, I found and fixed a bug where the FASTA header error pointed users to a **nonexistent --fasta option**. Added a test that checks error messages refer only to real CLI options — (no confirmation needed)

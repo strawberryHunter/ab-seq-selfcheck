@@ -1,17 +1,18 @@
-"""입력 검증 — 아미노산 아닌 문자, FASTA 헤더, 길이 범위 이탈을 거부한다.
+"""Input validation — rejects non-amino-acid characters, FASTA headers and out-of-range lengths.
 
-오류 메시지는 전부 한글이다. 코딩을 모르는 연구원이 읽고 바로 고칠 수 있어야 하므로,
-"무엇이 문제인지 + 어디가 문제인지 + 어떻게 하면 되는지"를 한 문장에 담는다.
+All error messages are in Korean. Researchers who don't code must be able to read them
+and fix the input right away, so each one packs "what is wrong + where + how to fix it"
+into a single sentence.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-#: 표준 아미노산 20종
+#: The 20 standard amino acids
 STANDARD_AA = frozenset("ACDEFGHIKLMNPQRSTVWY")
 
-#: 모호 코드. 따로 안내 메시지를 내기 위해 분리해 둔다.
+#: Ambiguity codes. Kept separate so they get their own guidance message.
 AMBIGUOUS_AA: dict[str, str] = {
     "X": "불특정 잔기",
     "B": "Asp 또는 Asn",
@@ -21,24 +22,25 @@ AMBIGUOUS_AA: dict[str, str] = {
     "O": "피롤리신",
 }
 
-#: 핵산 오입력 판정에 쓰는 문자 집합. 전부 유효한 아미노산 코드이기도 하다.
+#: Letters used to detect nucleotide input by mistake. All are also valid amino acid codes.
 NUCLEOTIDE_LETTERS = frozenset("ACGTUN")
 
-#: 이 길이 이상이면서 위 집합만으로 이뤄졌고, ACGT 중 3종 이상이 나오는 서열을
-#: 핵산 오입력으로 본다. 3종 조건이 없으면 poly-A 같은 단일 잔기 서열이 오탐된다.
+#: A sequence at least this long, made only of the letters above, and containing 3+
+#: of ACGT is treated as mistaken nucleotide input. Without the 3-letter rule,
+#: single-residue sequences like poly-A would be false positives.
 _NUCLEOTIDE_MIN_LENGTH = 30
 _NUCLEOTIDE_MIN_DISTINCT = 3
 
-#: 가변도메인 하나의 길이 범위. VH 는 보통 115-130, VL 은 105-115 잔기다.
+#: Length range for a single variable domain. VH is usually 115-130 residues, VL 105-115.
 MIN_DOMAIN_LENGTH = 70
 MAX_DOMAIN_LENGTH = 200
 
-#: 공백류는 조용히 제거한다. 줄바꿈된 서열을 그대로 붙여넣는 경우가 대부분이기 때문이다.
+#: Whitespace is stripped silently, since most users paste line-wrapped sequences as-is.
 _STRIPPABLE = frozenset(" \t\r\n\v\f")
 
 
 class SequenceError(ValueError):
-    """입력 서열을 쓸 수 없을 때 올린다. 메시지는 한글이다."""
+    """Raised when an input sequence is unusable. The message is in Korean."""
 
 
 @dataclass
@@ -50,12 +52,12 @@ class ValidationResult:
 
 
 def validate(raw: str) -> ValidationResult:
-    """서열을 검증하고 정리한 결과를 돌려준다. 예외를 올리지 않는다.
+    """Validate a sequence and return the cleaned result. Never raises.
 
-    통과 조건:
-      - FASTA 헤더('>' 로 시작하는 줄)가 섞여 있지 않다
-      - 공백류를 뺀 모든 문자가 표준 아미노산 20종이다 (대소문자 무관)
-      - 길이가 가변도메인 범위(70-200 잔기) 안이다
+    Passes when:
+      - no FASTA header (a line starting with '>') is mixed in
+      - every non-whitespace character is one of the 20 standard amino acids (case-insensitive)
+      - the length is within the variable-domain range (70-200 residues)
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -65,7 +67,7 @@ def validate(raw: str) -> ValidationResult:
 
     text = str(raw)
 
-    # --- FASTA 헤더 ---
+    # --- FASTA header ---
     header_lines = [ln.strip() for ln in text.splitlines() if ln.strip().startswith(">")]
     if header_lines:
         sample = header_lines[0][:40]
@@ -77,7 +79,7 @@ def validate(raw: str) -> ValidationResult:
         )
         return ValidationResult(False, "", errors)
 
-    # --- 공백류 제거, 대문자화 ---
+    # --- strip whitespace, uppercase ---
     cleaned = "".join(ch for ch in text if ch not in _STRIPPABLE).upper()
     if len(cleaned) != len(text):
         warnings.append("공백과 줄바꿈은 제거하고 처리했다.")
@@ -85,7 +87,7 @@ def validate(raw: str) -> ValidationResult:
     if not cleaned:
         return ValidationResult(False, "", ["서열이 비어 있다. 아미노산 한 글자 코드로 붙여넣어라."])
 
-    # --- 문자 검증 ---
+    # --- character check ---
     bad: list[tuple[int, str]] = [
         (i + 1, ch) for i, ch in enumerate(cleaned) if ch not in STANDARD_AA
     ]
@@ -107,10 +109,10 @@ def validate(raw: str) -> ValidationResult:
             )
         return ValidationResult(False, cleaned, errors, warnings)
 
-    # --- 핵산 서열 오입력 ---
-    # A/C/G/T/U/N 은 전부 유효한 아미노산 한 글자 코드이기도 하므로 문자 검증만으로는
-    # DNA 를 걸러낼 수 없다. 이 여섯 글자만으로 이뤄진 긴 서열은 단백질일 가능성이
-    # 사실상 없으므로 핵산 오입력으로 본다.
+    # --- nucleotide sequence entered by mistake ---
+    # A/C/G/T/U/N are all valid one-letter amino acid codes too, so the character
+    # check alone can't catch DNA. A long sequence made only of these six letters is
+    # practically never a protein, so we treat it as mistaken nucleotide input.
     if (
         len(cleaned) >= _NUCLEOTIDE_MIN_LENGTH
         and set(cleaned) <= NUCLEOTIDE_LETTERS
@@ -122,7 +124,7 @@ def validate(raw: str) -> ValidationResult:
         )
         return ValidationResult(False, cleaned, errors, warnings)
 
-    # --- 길이 검증 ---
+    # --- length check ---
     n = len(cleaned)
     if n < MIN_DOMAIN_LENGTH:
         errors.append(
@@ -143,7 +145,7 @@ def validate(raw: str) -> ValidationResult:
 
 
 def ensure_valid(raw: str) -> str:
-    """검증을 통과한 정리된 서열을 돌려준다. 실패하면 SequenceError 를 올린다."""
+    """Return the cleaned sequence if it passes validation; raise SequenceError otherwise."""
     result = validate(raw)
     if not result.ok:
         raise SequenceError(" / ".join(result.errors))

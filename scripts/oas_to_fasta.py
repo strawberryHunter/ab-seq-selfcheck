@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""OAS(Observed Antibody Space) paired 데이터 단위를 abcheck 가 읽는 FASTA 로 바꾼다.
+"""Convert an OAS (Observed Antibody Space) paired data unit into FASTA that abcheck reads.
 
-OAS 는 공개 항체 레퍼토리 데이터베이스다 (CC-BY 4.0).
+OAS is a public antibody repertoire database (CC-BY 4.0).
     https://opig.stats.ox.ac.uk/webapps/oas/
 
-받는 방법
---------
-1. 위 사이트에서 Paired Sequences → Search 로 조건을 고르고 검색한다.
-2. 결과 페이지의 'A shell-script with the commands to download...' 로 받은 스크립트 안에
-   데이터 단위 URL 목록이 들어 있다. 그중 하나를 골라 받는다.
-3. 받은 .csv.gz 를 이 스크립트에 넣는다.
+How to download
+---------------
+1. On the site above, pick criteria under Paired Sequences -> Search and run the search.
+2. The script obtained from 'A shell-script with the commands to download...' on the results page
+   contains a list of data unit URLs. Pick one and download it.
+3. Feed the downloaded .csv.gz to this script.
 
-    python3 scripts/oas_to_fasta.py 받은파일.csv.gz 후보.fasta --count 20
-    python3 -m abcheck.cli 후보.fasta --html
+    python3 scripts/oas_to_fasta.py downloaded.csv.gz candidates.fasta --count 20
+    python3 -m abcheck.cli candidates.fasta --html
 
-주의
-----
-- OAS 의 `*_alignment_aa` 컬럼은 IMGT 정렬이라 '.' 갭이 들어 있다. 그대로 넣으면
-  아미노산이 아닌 문자로 거부당하므로 갭을 제거한다.
-- 받은 서열 파일은 저장소에 커밋하지 말 것. 이 저장소는 합성 데이터만 담는다.
-- 파일 첫 줄은 메타데이터 JSON 이고 둘째 줄부터 CSV 헤더다.
+Notes
+-----
+- OAS's `*_alignment_aa` columns are IMGT alignments and contain '.' gaps. Passed as-is they
+  would be rejected as non-amino-acid characters, so the gaps are removed.
+- Do not commit downloaded sequence files to the repository. This repository holds synthetic data only.
+- The first line of the file is metadata JSON; the CSV header starts on the second line.
 """
 
 from __future__ import annotations
@@ -31,12 +31,12 @@ import json
 import sys
 from pathlib import Path
 
-#: OAS 의 IMGT 정렬 갭 문자
+#: OAS's IMGT alignment gap character
 GAP_CHARS = ".-"
 
 
 def read_metadata(path: Path) -> dict:
-    """데이터 단위 첫 줄의 메타데이터 JSON 을 읽는다."""
+    """Read the metadata JSON on the first line of a data unit."""
     with gzip.open(path, "rt", encoding="utf-8", errors="replace") as fh:
         line = fh.readline().strip()
     if line.startswith('"') and line.endswith('"'):
@@ -54,10 +54,10 @@ def _clean(seq: str) -> str:
 
 
 def extract(path: Path, count: int, productive_only: bool = True) -> list[dict]:
-    """VH/VL 쌍을 뽑아낸다."""
+    """Extract VH/VL pairs."""
     pairs: list[dict] = []
     with gzip.open(path, "rt", encoding="utf-8", errors="replace") as fh:
-        fh.readline()                       # 메타데이터 줄 건너뛰기
+        fh.readline()                       # Skip the metadata line
         for row in csv.DictReader(fh):
             if productive_only and (
                 row.get("productive_heavy") != "T" or row.get("productive_light") != "T"
@@ -68,7 +68,7 @@ def extract(path: Path, count: int, productive_only: bool = True) -> list[dict]:
             vl = _clean(row.get("sequence_alignment_aa_light") or "")
             if not vh or not vl:
                 continue
-            if "*" in vh or "*" in vl:      # 종결코돈이 섞인 것은 버린다
+            if "*" in vh or "*" in vl:      # Discard sequences containing stop codons
                 continue
 
             pairs.append({
