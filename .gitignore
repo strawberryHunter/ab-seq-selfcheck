@@ -5,3 +5,4 @@ __pycache__/
 ci_output/
 build/
 *.egg-info/
+.claude/worktrees/
