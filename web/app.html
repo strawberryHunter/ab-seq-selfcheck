@@ -592,7 +592,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const at = new Array(seq.length + 2).fill(null), liab = new Array(seq.length + 2).fill(null);
     cdrs.forEach((c) => { for (let i = c.start; i <= c.end; i++) at[i] = c.name; });
     (hits || []).forEach((x) => { for (let i = x.start; i <= x.end; i++) liab[i] = (liab[i] ? liab[i] + " / " : "") + `${x.label} ${x.match} · ${x.risk}`; });
-    const width = 50;
+    const width = window.innerWidth < 520 ? 30 : 50;   // phones: no sideways scrolling
     let out = "";
     for (let off = 0; off < seq.length; off += width) {
       let line = "", cur = null, curL = null, buf = "";
@@ -736,7 +736,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (!s.input_ok) return `<div class="blk"><h3>고칠 것</h3><ul>${s.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div>`;
     const a = s.annotation, L = s.liabilities, P = Object.values(s.properties || {});
     let h = "";
-    if (r.reasons.length || r.note) h += `<div class="blk"><h3>규칙 해당 · ${esc(rules().name)}</h3><ul>${r.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}${r.note ? `<li>${esc(r.note)}</li>` : ""}</ul></div>`;
+    if (r.reasons.length || r.note) h += `<div class="blk"><h3>${r.reasons.length ? "규칙 해당 · " + esc(rules().name) : "분류 근거"}</h3><ul>${r.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}${r.note ? `<li>${esc(r.note)}</li>` : ""}</ul></div>`;
     const memos = [...a.reasons.map((x) => ["신뢰 불가 사유", x]), ...a.warnings.map((x) => ["주의", x]), ...s.warnings.map((x) => ["참고", x])];
     if (memos.length) h += `<div class="blk"><h3>주석 메모</h3><ul>${memos.map(([k, x]) => `<li><b>${k}</b> · ${esc(x)}</li>`).join("")}</ul></div>`;
     if (r.cdrs.length) {
@@ -750,8 +750,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (L.domain_flags.length) h += `<ul>${L.domain_flags.map((f) => `<li><b>${esc(f.label)} · ${esc(f.risk)}</b><span class="why2">${esc(f.rationale)}</span></li>`).join("")}</ul>`;
     h += L.hits.length
       ? `<div class="scroll"><table><thead><tr><th>위험도</th><th>항목</th><th class="num">위치</th><th>구간</th></tr></thead><tbody>` +
-        L.hits.map((x) => `<tr><td class="nw"><b>${esc(x.risk)}</b></td><td>${esc(x.label)} <span class="mono">${esc(x.match)}</span><span class="why2">${esc(x.risk_note)} ${esc(x.rationale)}</span></td><td class="num">${x.start === x.end ? x.start : x.start + "-" + x.end}</td><td class="nw">${esc(x.region)}</td></tr>`).join("") +
-        `</tbody></table></div>`
+        L.hits.map((x) => `<tr><td class="nw"><b>${esc(x.risk)}</b></td><td>${esc(x.label)} <span class="mono">${esc(x.match)}</span><span class="why2">${esc(x.risk_note)}</span></td><td class="num">${x.start === x.end ? x.start : x.start + "-" + x.end}</td><td class="nw">${esc(x.region)}</td></tr>`).join("") +
+        `</tbody></table></div>` +
+        // each rationale once, not once per row
+        `<ul class="s13 muted">${L.hits.filter((x, i, a) => a.findIndex((y) => y.label === x.label) === i).map((x) => `<li>${esc(x.label)} — ${esc(x.rationale)}</li>`).join("")}</ul>`
       : `<p class="muted">검출된 모티프 없음</p>`;
     L.warnings.forEach((w) => { h += `<p class="s13 muted">${esc(w)}</p>`; });
     h += `</div>`;
