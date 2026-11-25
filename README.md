@@ -76,7 +76,11 @@ account is in [VALIDATION.md](VALIDATION.md).
 
 ## Quick start
 
-Run from the repository root.
+Run from the repository root (on Windows, use `py` instead of `python3`). To use it from
+any folder, run `python3 -m pip install .` once and then call `abcheck`.
+
+Input can be a pasted sequence, FASTA, a CSV/TSV saved from Excel (`id`/`sequence`
+columns), or JSON; UTF-8, UTF-8 with BOM, UTF-16 and cp949 files are all read.
 
 **1. One sequence, printed as a table**
 
@@ -203,13 +207,15 @@ python3 -m pytest -q
 | Job | Checks |
 |---|---|
 | `pytest (Python 3.10–3.13)` | the full test suite, including that the committed sample report and user manual match current output |
+| `Works on windows-latest` / `macos-latest` | the full test suite on real Windows and macOS, then `pip install .` and `abcheck` from another folder |
 | `No runtime dependencies` | `pyproject.toml` still declares no runtime dependencies |
 | `Synthetic corpus is reproducible` | the committed corpus equals the generator output |
 | `CLI smoke test` | the single-sequence, HTML and JSON examples run on the synthetic corpus; invalid input exits with exactly 1 |
 
 To make failing checks block merges, enable branch protection on `main` and require
-the seven checks above (`pytest (Python 3.10)` … `pytest (Python 3.13)`,
-`No runtime dependencies`, `Synthetic corpus is reproducible`, `CLI smoke test`).
+the nine checks above (`pytest (Python 3.10)` … `pytest (Python 3.13)`,
+`Works on windows-latest`, `Works on macos-latest`, `No runtime dependencies`,
+`Synthetic corpus is reproducible`, `CLI smoke test`).
 The exact `gh api` command is in [README.ko.md](README.ko.md#ci-와-차단).
 
 A local pre-push hook runs the tests and the corpus check before every push:

@@ -40,6 +40,38 @@ jobs:
       - name: Run tests
         run: python -m pytest -q
 
+  os:
+    # Researchers run this on their own Windows and Mac machines, not on Linux.
+    name: Works on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dev dependencies
+        run: python -m pip install --upgrade pip pytest
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Install, then run from another folder
+        shell: bash
+        run: |
+          python -m pip install .
+          cd "$RUNNER_TEMP"
+          abcheck "$GITHUB_WORKSPACE/data/synthetic/sequences.json" --html --out-dir abcheck_out
+          test -s abcheck_out/report.html
+          abcheck "$GITHUB_WORKSPACE/data/synthetic/sequences.json" --json > result.json
+          python -c "import json; assert json.load(open('result.json', encoding='utf-8'))['count'] == 24"
+
   deps:
     name: No runtime dependencies
     runs-on: ubuntu-latest

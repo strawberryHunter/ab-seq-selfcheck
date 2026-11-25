@@ -281,3 +281,99 @@ def test_main_is_callable_in_process(tmp_path):
     code = main([str(CORPUS_PATH), "--html", "--out-dir", str(tmp_path)])
     assert code == 0
     assert (tmp_path / "report.html").exists()
+
+
+# --------------------------------------------------------------------------
+# Files as researchers' tools save them (Windows Notepad / Excel / Korean Windows)
+# --------------------------------------------------------------------------
+
+import os  # noqa: E402
+
+import pytest  # noqa: E402
+
+
+def _fasta_text(records, n=3):
+    return "".join(f">{r['id']} 설명\n{r['sequence']}\n" for r in records[:n])
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig", "utf-16", "cp949"])
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_fasta_is_read_in_every_common_encoding(tmp_path, records, encoding, newline):
+    """A UTF-8 BOM once made the first record vanish silently; UTF-16/cp949 crashed."""
+    path = tmp_path / "후보 목록.fasta"
+    path.write_bytes(_fasta_text(records).replace("\n", newline).encode(encoding))
+    entries, _ = load_input(str(path))
+    assert [e[0] for e in entries] == [r["id"] for r in records[:3]]
+    assert [e[1] for e in entries] == [r["sequence"] for r in records[:3]]
+
+
+@pytest.mark.parametrize("header", ["id,sequence", "이름,서열", "Name,Sequence", None])
+def test_csv_saved_from_excel(tmp_path, records, header):
+    lines = ([header] if header else []) + [f"{r['id']},{r['sequence']}" for r in records[:3]]
+    path = tmp_path / "후보.csv"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8-sig")   # Excel "CSV UTF-8"
+    entries, source = load_input(str(path))
+    assert "표 파일" in source
+    assert entries == [(r["id"], r["sequence"]) for r in records[:3]]
+
+
+def test_tsv_with_extra_columns(tmp_path, records):
+    path = tmp_path / "t.tsv"
+    path.write_text("번호\t메모\t서열\n" + f"7\t좋음\t{records[0]['sequence']}\n", encoding="utf-8")
+    assert load_input(str(path))[0] == [("7", records[0]["sequence"])]
+
+
+def test_xlsx_gets_save_as_csv_guidance(tmp_path):
+    path = tmp_path / "후보.xlsx"
+    path.write_bytes(b"PK\x03\x04")
+    result = _run(str(path))
+    assert result.returncode == 2
+    assert "CSV UTF-8" in result.stderr
+
+
+def test_folder_instead_of_file(tmp_path):
+    result = _run(str(tmp_path))
+    assert result.returncode == 2
+    assert "폴더가 아니라 파일" in result.stderr
+
+
+def test_broken_json_message_is_korean_with_location(tmp_path):
+    path = tmp_path / "bad.json"
+    path.write_text('{"sequences": [ {"id": "a" ', encoding="utf-8")
+    result = _run(str(path))
+    assert result.returncode == 2
+    assert "JSON 형식이 깨져 있다" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_unwritable_out_dir_is_reported_not_crashed(tmp_path):
+    blocker = tmp_path / "file"
+    blocker.write_text("x", encoding="utf-8")
+    result = _run(str(CORPUS_PATH), "--html", "--out-dir", str(blocker / "sub"))
+    assert result.returncode == 2
+    assert "저장하지 못했다" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("mode", [[], ["--json"]])
+def test_redirected_output_on_korean_windows_does_not_crash(mode):
+    """cp949 streams cannot encode an em dash; `--json > result.json` used to die."""
+    env = dict(os.environ, PYTHONIOENCODING="cp949")
+    result = subprocess.run(
+        [sys.executable, "-m", "abcheck.cli", str(CORPUS_PATH), *mode],
+        capture_output=True, env=env, cwd=Path(__file__).resolve().parents[1],
+    )
+    assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
+    text = result.stdout.decode("utf-8")              # written as UTF-8 when redirected
+    if mode:
+        assert json.loads(text)["count"] == 24
+
+
+def test_old_python_gets_a_clear_message():
+    """The version guard must stay parseable by old interpreters and say what to do."""
+    import ast
+
+    source = (Path(__file__).resolve().parents[1] / "abcheck" / "__init__.py").read_text(encoding="utf-8")
+    ast.parse(source, feature_version=(3, 4))
+    assert "sys.version_info < (3, 10)" in source
+    assert "Python 3.10 이상이 필요하다" in source

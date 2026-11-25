@@ -74,7 +74,12 @@ CDR 경계는 OAS 에 들어 있는 **ANARCI 주석을 정답으로** 비교했�
 
 ## 실행 예시 3개
 
-아래 명령은 이 저장소 폴더에서 그대로 복사해 붙여넣으면 된다.
+아래 명령은 이 저장소 폴더에서 그대로 복사해 붙여넣으면 된다. Windows 에서는 `python3` 대신
+`py` 를 쓴다. 다른 폴더에서도 쓰려면 저장소 폴더에서 `python3 -m pip install .` 를 한 번 하고
+`abcheck 후보.fasta --html` 처럼 쓴다.
+
+입력은 서열 문자열, FASTA, 엑셀에서 저장한 CSV(`id`/`sequence` 또는 `이름`/`서열` 열), JSON 을
+받는다. UTF-8 · BOM · UTF-16 · cp949 로 저장된 파일을 모두 읽는다.
 
 ### 1. 서열 하나를 붙여넣어 터미널에서 보기
 
@@ -316,6 +321,7 @@ python3 -m pytest -q
 | job | 검사 |
 |---|---|
 | `pytest (Python 3.10~3.13)` | 전체 테스트. 커밋된 `sample_output/report.html` 이 현재 출력과 같은지(날짜 제외)도 여기서 본다 |
+| `Works on windows-latest` / `macos-latest` | 실제 Windows·Mac 에서 전체 테스트, 그리고 `pip install .` 뒤 다른 폴더에서 `abcheck` 실행 |
 | `No runtime dependencies` | `pyproject.toml` 에 런타임 의존성이 조용히 추가됐는지 |
 | `Synthetic corpus is reproducible` | 저장된 코퍼스가 생성기 출력과 같은지 |
 | `CLI smoke test` | README 실행 예시 3개가 실제로 돌아가는지, 잘못된 입력이 정확히 종료코드 1 로 끝나는지 |
@@ -335,13 +341,15 @@ CI 는 실패를 **알려줄** 뿐이고, 실제로 **막는** 것은 GitHub 의
 
 1. 대상 브랜치: `main`
 2. **Require status checks to pass** 체크
-3. 아래 7개를 필수 검사로 추가
+3. 아래 9개를 필수 검사로 추가
 
    ```
    pytest (Python 3.10)
    pytest (Python 3.11)
    pytest (Python 3.12)
    pytest (Python 3.13)
+   Works on windows-latest
+   Works on macos-latest
    No runtime dependencies
    Synthetic corpus is reproducible
    CLI smoke test
@@ -361,6 +369,8 @@ gh api -X PUT repos/strawberryHunter/ab-seq-selfcheck/branches/main/protection -
       {"context": "pytest (Python 3.11)"},
       {"context": "pytest (Python 3.12)"},
       {"context": "pytest (Python 3.13)"},
+      {"context": "Works on windows-latest"},
+      {"context": "Works on macos-latest"},
       {"context": "No runtime dependencies"},
       {"context": "Synthetic corpus is reproducible"},
       {"context": "CLI smoke test"}

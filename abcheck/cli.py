@@ -5,14 +5,17 @@
 The input type is detected automatically, one of three:
   - `.json`  — synthetic corpus format ({"sequences": [{"id", "sequence"}, ...]})
   - `.fasta` / `.fa` / `.faa` — FASTA file
+  - `.csv` / `.tsv` — table saved from Excel (id and sequence columns)
   - anything else — a raw amino acid sequence string (for pasting)
 """
 
 from __future__ import annotations
 
 import argparse
-import re
+import csv
+import io
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -23,6 +26,10 @@ from .report import SequenceReport, build_many
 
 JSON_SUFFIXES = {".json"}
 FASTA_SUFFIXES = {".fasta", ".fa", ".faa", ".fas"}
+TABLE_SUFFIXES = {".csv": ",", ".tsv": "\t"}
+EXCEL_SUFFIXES = {".xlsx", ".xls"}
+SEQUENCE_HEADERS = {"sequence", "seq", "aa", "aa_sequence", "amino_acid", "서열", "아미노산 서열"}
+ID_HEADERS = {"id", "name", "seq_id", "sequence_id", "이름", "후보", "번호"}
 
 
 # --------------------------------------------------------------------------
@@ -57,7 +64,13 @@ def read_corpus_json(text: str) -> list[tuple[str, str]]:
     Accepts {"sequences": [...]} or a top-level list. Each item must have a
     "sequence" key; items without an "id" are named by their position.
     """
-    data = json.loads(text)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"JSON 형식이 깨져 있다 ({exc.lineno}번째 줄 {exc.colno}번째 글자 근처). "
+            "쉼표·따옴표·괄호가 빠지지 않았는지 확인하라."
+        ) from None
     items = data.get("sequences", data) if isinstance(data, dict) else data
     if not isinstance(items, list):
         raise ValueError(
@@ -76,14 +89,82 @@ def read_corpus_json(text: str) -> list[tuple[str, str]]:
     return entries
 
 
+def read_table(text: str, delimiter: str) -> list[tuple[str, str]]:
+    """Convert a CSV/TSV table (e.g. saved from Excel) into a list of (id, sequence).
+
+    With a header row, the sequence column is found by name (sequence/seq/서열/...) and the
+    id column likewise; without one, two columns are read as (id, sequence) and one column as
+    sequences only.
+    """
+    rows = [r for r in csv.reader(io.StringIO(text), delimiter=delimiter) if any(c.strip() for c in r)]
+    if not rows:
+        return []
+
+    header = [c.strip().lower() for c in rows[0]]
+    seq_col = next((i for i, h in enumerate(header) if h in SEQUENCE_HEADERS), None)
+    if seq_col is not None:
+        id_col = next((i for i, h in enumerate(header) if h in ID_HEADERS), None)
+        body = rows[1:]
+    elif len(rows[0]) == 2:
+        seq_col, id_col, body = 1, 0, rows
+    elif len(rows[0]) == 1:
+        seq_col, id_col, body = 0, None, rows
+    else:
+        raise ValueError(
+            "표에서 서열 열을 찾지 못했다. 첫 줄에 열 이름을 넣어라 — 서열 열은 "
+            "'sequence' 또는 '서열', 이름 열은 'id' 또는 '이름'."
+        )
+
+    entries: list[tuple[str, str]] = []
+    for n, row in enumerate(body, start=1):
+        seq = row[seq_col].strip() if seq_col < len(row) else ""
+        name = row[id_col].strip() if id_col is not None and id_col < len(row) else ""
+        entries.append((name or f"seq{n}", seq))
+    return entries
+
+
+def _read_text(path: Path) -> str:
+    """Read a text file the way researchers' tools save it.
+
+    Windows Notepad and Excel write UTF-8 with a BOM, UTF-16, or the Korean ANSI code page
+    (cp949). A BOM left in place once made the first FASTA record vanish silently, because
+    the first line no longer started with '>'.
+    """
+    data = path.read_bytes()
+    for bom, encoding in ((b"\xef\xbb\xbf", "utf-8-sig"), (b"\xff\xfe", "utf-16"),
+                          (b"\xfe\xff", "utf-16")):
+        if data.startswith(bom):
+            return data.decode(encoding)
+    for encoding in ("utf-8", "cp949"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise ValueError(
+        f"파일의 글자 인코딩을 알 수 없다: {path}. "
+        "메모장이나 엑셀에서 'UTF-8' 로 다시 저장한 뒤 넣어라."
+    )
+
+
 def load_input(raw: str) -> tuple[list[tuple[str, str]], str]:
     """Convert the input into a list of (id, sequence) plus a description of the input type."""
     path = Path(raw)
-    looks_like_path = len(raw) < 4096 and ("/" in raw or "." in raw or path.exists())
+    looks_like_path = len(raw) < 4096 and ("/" in raw or "\\" in raw or "." in raw or path.exists())
+
+    if looks_like_path and path.is_dir():
+        raise ValueError(f"폴더가 아니라 파일을 넣어야 한다: {raw}")
 
     if looks_like_path and path.exists():
-        text = path.read_text(encoding="utf-8")
         suffix = path.suffix.lower()
+        if suffix in EXCEL_SUFFIXES:
+            raise ValueError(
+                "엑셀 파일(.xlsx)은 바로 읽지 않는다. 엑셀에서 '파일 → 다른 이름으로 저장 → "
+                "CSV UTF-8' 로 저장한 뒤 그 .csv 파일을 넣어라. 첫 줄에 'id,sequence' 처럼 "
+                "열 이름이 있으면 된다."
+            )
+        text = _read_text(path)
+        if suffix in TABLE_SUFFIXES:
+            return read_table(text, TABLE_SUFFIXES[suffix]), f"표 파일 ({path})"
         if suffix in JSON_SUFFIXES:
             return read_corpus_json(text), f"코퍼스 JSON ({path})"
         if suffix in FASTA_SUFFIXES or text.lstrip().startswith(">"):
@@ -170,12 +251,33 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _configure_streams() -> None:
+    """Never crash on output encoding.
+
+    On Korean Windows, redirecting output (`... --json > result.json`) gives a cp949 stream,
+    which cannot encode characters such as an em dash, and the run died with a traceback.
+    Redirected output is written as UTF-8 (what JSON readers expect); a terminal keeps its
+    encoding and replaces anything it cannot show.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        if not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            if stream.isatty():
+                stream.reconfigure(errors="replace")
+            else:
+                stream.reconfigure(encoding="utf-8")
+        except (OSError, ValueError):
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    _configure_streams()
     args = _build_parser().parse_args(argv)
 
     try:
         entries, source = load_input(args.input)
-    except (FileNotFoundError, ValueError, json.JSONDecodeError) as exc:
+    except (FileNotFoundError, ValueError, json.JSONDecodeError, PermissionError) as exc:
         print(f"입력을 읽을 수 없다: {exc}", file=sys.stderr)
         return 2
 
@@ -200,10 +302,19 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.html:
         out_dir: Path = args.out_dir
-        out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / args.out_name
-        out_path.write_text(as_html(reports), encoding="utf-8")
-        print(f"HTML 리포트를 썼다: {out_path}", file=sys.stderr)
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path.write_text(as_html(reports), encoding="utf-8")
+        except OSError as exc:
+            print(
+                f"HTML 리포트를 저장하지 못했다: {out_path} ({exc.strerror or exc}). "
+                "--out-dir 로 쓰기 가능한 다른 폴더를 지정하라.",
+                file=sys.stderr,
+            )
+            return 2
+        print(f"HTML 리포트를 썼다: {out_path.resolve()}", file=sys.stderr)
+        print(f"  브라우저로 열기: {out_path.resolve().as_uri()}", file=sys.stderr)
 
     if rejected:
         print("", file=sys.stderr)

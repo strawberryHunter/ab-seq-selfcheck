@@ -32,11 +32,17 @@ python3 --version
 `3.10` 이상이면 된다. 없으면 [python.org](https://www.python.org/downloads/) 에서 설치한다.
 **그 외에 설치할 것은 없다** — 외부 라이브러리를 하나도 쓰지 않는다.
 
+> **Windows** 에서는 `python3` 대신 `py` 를 쓴다 (python.org 설치 파일이 함께 깔아 준다).
+> 이 문서의 `python3 -m abcheck.cli ...` 는 전부 `py -m abcheck.cli ...` 로 바꿔 입력하면 된다.
+> `python3` 를 입력했는데 Microsoft Store 가 열리면 Python 이 아직 설치되지 않은 것이다.
+
 코드를 받는다.
 
 ```bash
 git clone https://github.com/strawberryHunter/ab-seq-selfcheck.git
 ```
+
+git 이 없으면 GitHub 저장소 화면의 **Code → Download ZIP** 으로 받아 압축을 푼다.
 
 ```bash
 cd ab-seq-selfcheck
@@ -47,6 +53,15 @@ cd ab-seq-selfcheck
 ```bash
 python3 -m abcheck.cli --help
 ```
+
+`python3 -m abcheck.cli` 는 **이 저장소 폴더 안에서만** 동작한다. 다른 폴더에서도 쓰고
+싶으면 저장소 폴더에서 한 번만 설치한다.
+
+```bash
+python3 -m pip install .
+```
+
+그 뒤에는 어느 폴더에서든 `abcheck 내후보.fasta --html` 처럼 쓸 수 있다.
 
 ---
 
@@ -174,6 +189,20 @@ EVQLLESG...서열...VTVSS
 ```
 
 `>` 로 시작하는 줄이 이름, 그 아래가 서열이다. 서열은 여러 줄로 나눠 써도 된다.
+
+### 엑셀에 정리해 둔 경우
+
+엑셀에서 **파일 → 다른 이름으로 저장 → CSV UTF-8** 로 저장한 `.csv` 를 그대로 넣는다.
+첫 줄에 열 이름이 있으면 된다 — 서열 열은 `sequence` 또는 `서열`, 이름 열은 `id` 또는 `이름`.
+
+```
+이름,서열
+후보1,QVQLVQSG...VTVSS
+후보2,EVQLLESG...VTVSS
+```
+
+`.xlsx` 를 바로 넣으면 CSV 로 저장하라는 안내가 나온다. 메모장·엑셀이 저장하는 인코딩
+(UTF-8, BOM 붙은 UTF-8, UTF-16, 한글 Windows 기본 cp949)은 전부 알아서 읽는다.
 
 ### HTML 리포트 만들기
 

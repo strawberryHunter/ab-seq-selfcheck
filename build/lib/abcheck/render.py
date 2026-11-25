@@ -1,0 +1,773 @@
+"""Output — terminal table / single-file HTML report / JSON.
+
+All three outputs carry `LIMITATION_NOTICE` and `NO_VERDICT_NOTICE`, because even
+someone who only sees the results must be told that this tool is not a numbering
+engine and that it gives no overall verdict.
+
+The HTML is deliberately plain — Arial, black headers, gray zebra stripes, no color
+highlighting. CDR spans are shown in bold only. Risk is read from the high/medium/low
+text labels, not from color. Color-coding risk invites an overall verdict by "counting
+the red ones", which is exactly what this tool chose not to do.
+"""
+
+from __future__ import annotations
+
+import html
+import json
+import unicodedata
+from datetime import date
+
+from . import LIMITATION_NOTICE, NO_VERDICT_NOTICE, __version__
+from .report import SUMMARY_REGIONS, SequenceReport, summarize
+from .triage import STATUS_REVIEW, TRIAGE_NOTICE
+
+#: Residues per line when displaying a sequence
+SEQUENCE_LINE_WIDTH = 60
+
+#: Placeholder for zero-count cells in the summary table
+EMPTY_CELL = "-"
+
+def _counts_cell(counts: dict[str, int]) -> str:
+    """Format nonzero counts per risk level, e.g. {high: 1, medium: 0, low: 2} → "high 1, low 2" (Korean RISK_LEVELS labels)."""
+    parts = [f"{level} {n}" for level, n in counts.items() if n]
+    return ", ".join(parts) if parts else EMPTY_CELL
+
+
+def _flag_cell(row: dict) -> str:
+    flags = row["domain_flags"]
+    if not flags:
+        return EMPTY_CELL
+    return ", ".join(f"{f['label']} ({f['risk']})" for f in flags)
+
+
+def _chain_group_headers(group: dict) -> list[str]:
+    """Column headers for a group with a known chain. Tables are split, so names are exact, e.g. CDR-H1."""
+    return ["서열", "분류", "주석"] + group["cdr_labels"] + ["framework", "도메인 플래그"]
+
+
+def _triage_cell(row: dict) -> str:
+    triage = row.get("triage")
+    return triage["status"] if triage else "-"
+
+
+def _chain_group_row(row: dict) -> list[str]:
+    cells: list[str] = []
+    for region in SUMMARY_REGIONS:
+        if region.startswith("CDR") and not row["annotated"]:
+            cells.append("주석 실패")
+        else:
+            cells.append(_counts_cell(row["regions"][region]))
+    confidence = "신뢰 가능" if row["confident"] else "신뢰 불가"
+    return [row["id"], _triage_cell(row), confidence] + cells + [_flag_cell(row)]
+
+
+#: Column headers for the chain-unknown group. CDR columns are meaningless there, so they are omitted.
+UNKNOWN_GROUP_HEADERS: list[str] = ["서열", "분류", "상태", "검출 모티프", "도메인 플래그"]
+
+
+def _unknown_group_row(row: dict) -> list[str]:
+    if not row["input_ok"]:
+        return [row["id"], _triage_cell(row), "입력 오류", EMPTY_CELL, EMPTY_CELL]
+    return [
+        row["id"],
+        _triage_cell(row),
+        "체인 판별 실패",
+        _counts_cell(row["regions"]["framework"]),
+        _flag_cell(row),
+    ]
+
+
+# --------------------------------------------------------------------------
+# Terminal width calculation — Korean characters take two columns
+# --------------------------------------------------------------------------
+
+def _display_width(text: str) -> int:
+    return sum(2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in text)
+
+
+def _pad(text: str, width: int, align: str = "left") -> str:
+    gap = max(0, width - _display_width(text))
+    if align == "right":
+        return " " * gap + text
+    return text + " " * gap
+
+
+def _table(headers: list[str], rows: list[list[str]], aligns: list[str] | None = None) -> list[str]:
+    """Build a fixed-width table as a list of lines. No color."""
+    if aligns is None:
+        aligns = ["left"] * len(headers)
+    widths = [
+        max([_display_width(h)] + [_display_width(r[i]) for r in rows])
+        for i, h in enumerate(headers)
+    ]
+    sep = "-+-".join("-" * w for w in widths)
+    out = [
+        " | ".join(_pad(h, widths[i], aligns[i]) for i, h in enumerate(headers)),
+        sep,
+    ]
+    for row in rows:
+        out.append(" | ".join(_pad(c, widths[i], aligns[i]) for i, c in enumerate(row)))
+    return out
+
+
+def _wrap(text: str, width: int, first: str = "", rest: str | None = None) -> list[str]:
+    """Wrap text, accounting for the double width of Korean characters.
+
+    first is prepended to the first line (a bullet, etc.); rest is the indent for following lines.
+    If rest is omitted, spaces as wide as first are used — so the bullet isn't repeated on every line.
+    """
+    if rest is None:
+        rest = " " * _display_width(first)
+
+    lines: list[str] = []
+    current = ""
+    prefix = first
+    for word in text.split():
+        candidate = f"{current} {word}".strip()
+        if current and _display_width(candidate) + _display_width(prefix) > width:
+            lines.append(prefix + current)
+            prefix = rest
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(prefix + current)
+    return lines
+
+
+# --------------------------------------------------------------------------
+# Sequence display
+# --------------------------------------------------------------------------
+
+def _cdr_position_map(report: SequenceReport) -> dict[int, str]:
+    """1-based position → CDR name."""
+    mapping: dict[int, str] = {}
+    if report.annotation:
+        for name, cdr in report.annotation.cdrs.items():
+            for pos in range(cdr.start, cdr.end + 1):
+                mapping[pos] = name
+    return mapping
+
+
+def _sequence_block_text(report: SequenceReport) -> list[str]:
+    """Sequence block for the terminal. CDR spans are marked on the line below (since no color is used)."""
+    seq = report.sequence
+    cdr_at = _cdr_position_map(report)
+    lines: list[str] = []
+
+    for offset in range(0, len(seq), SEQUENCE_LINE_WIDTH):
+        chunk = seq[offset:offset + SEQUENCE_LINE_WIDTH]
+        start = offset + 1
+        lines.append(f"  {start:>4}  {chunk}")
+        marker = "".join("^" if (offset + i + 1) in cdr_at else " " for i in range(len(chunk)))
+        if marker.strip():
+            names: list[str] = []
+            for i in range(len(chunk)):
+                name = cdr_at.get(offset + i + 1)
+                if name and name not in names:
+                    names.append(name)
+            lines.append(f"        {marker}  {', '.join(names)}")
+    return lines
+
+
+def _sequence_block_html(report: SequenceReport) -> str:
+    """Sequence block for HTML. Only CDR spans are bolded with <b>."""
+    seq = report.sequence
+    cdr_at = _cdr_position_map(report)
+    rows: list[str] = []
+
+    for offset in range(0, len(seq), SEQUENCE_LINE_WIDTH):
+        chunk = seq[offset:offset + SEQUENCE_LINE_WIDTH]
+        pieces: list[str] = []
+        buffer = ""
+        buffer_in_cdr = False
+
+        def flush() -> None:
+            if not buffer:
+                return
+            escaped = html.escape(buffer)
+            pieces.append(f"<b>{escaped}</b>" if buffer_in_cdr else escaped)
+
+        for i, residue in enumerate(chunk):
+            in_cdr = (offset + i + 1) in cdr_at
+            if in_cdr != buffer_in_cdr:
+                flush()
+                buffer = ""
+                buffer_in_cdr = in_cdr
+            buffer += residue
+        flush()
+
+        labels = []
+        for i in range(len(chunk)):
+            name = cdr_at.get(offset + i + 1)
+            if name and name not in labels:
+                labels.append(name)
+        rows.append(
+            "<tr>"
+            f'<td class="num">{offset + 1}</td>'
+            f'<td class="seq">{"".join(pieces)}</td>'
+            f'<td class="note">{html.escape(", ".join(labels))}</td>'
+            "</tr>"
+        )
+    return '<div class="scroll"><table class="seqblock">' + "".join(rows) + "</table></div>"
+
+
+# --------------------------------------------------------------------------
+# Terminal output
+# --------------------------------------------------------------------------
+
+def as_text(reports: list[SequenceReport], *, width: int = 100) -> str:
+    """Terminal table output."""
+    out: list[str] = []
+    out.append("=" * width)
+    out.append(f"abcheck {__version__} — 항체 가변도메인 서열 셀프 점검")
+    out.append("=" * width)
+    out.append("")
+    out.append("[이 도구의 한계]")
+    for note in LIMITATION_NOTICE:
+        out.extend(_wrap(note, width - 4, first="  - "))
+    out.append("")
+    out.extend(_wrap(NO_VERDICT_NOTICE, width - 4, first="  "))
+    out.append("")
+
+    out.extend(_summary_text(reports, width))
+    out.append("")
+
+    for report in reports:
+        out.extend(_render_one_text(report, width))
+        out.append("")
+
+    out.append("=" * width)
+    out.append(f"서열 {len(reports)}건 처리. 생성 {date.today().isoformat()}")
+    return "\n".join(out)
+
+
+def _attention_lists(summary: dict) -> list[tuple[str, list[str]]]:
+    """Which sequences to open first, by name, in input order (not a ranking).
+
+    Usability: the triage box used to give only a count ("검토 필요 6건"), so finding the six
+    meant scanning every table row.
+    """
+    rows = summary["rows"]
+    lists = [
+        ("검토 필요", [r["id"] for r in rows if r["triage"]["status"] == "검토 필요"]),
+        ("ANARCI/IMGT 재확인 필요 (주석 신뢰 불가)",
+         [r["id"] for r in rows if r["input_ok"] and not r["confident"]]),
+        ("입력 오류로 제외", [r["id"] for r in rows if not r["input_ok"]]),
+    ]
+    return [(label, ids) for label, ids in lists if ids]
+
+
+def _summary_text(reports: list[SequenceReport], width: int) -> list[str]:
+    """Per-CDR liability summary table (terminal). Heavy and light chains are shown separately."""
+    summary = summarize(reports)
+    out: list[str] = ["-" * width, "[CDR별 liability 집계]", "-" * width]
+    out.extend(_wrap(summary["note"], width - 4, first="  "))
+    out.append("")
+    out.append(f"  적용한 선별 규칙 — 검토 필요 {summary['review_count']}건 / 전체 {len(summary['rows'])}건")
+    for desc in summary["triage_rules"]:
+        out.extend(_wrap(desc, width - 6, first="    - "))
+    out.extend(_wrap(summary["triage_notice"], width - 4, first="  "))
+    attention = _attention_lists(summary)
+    if attention:
+        out.append("")
+        out.append("  먼저 볼 서열 (입력 순서)")
+        for label, ids in attention:
+            out.extend(_wrap(f"{label} {len(ids)}건: " + ", ".join(ids), width - 6, first="    - "))
+
+    for group in summary["groups"]:
+        out.append("")
+        out.append(f"  ■ {group['title']} — {len(group['rows'])}건")
+        out.append("")
+
+        if group["chain"] is None:
+            rows = [_unknown_group_row(r) for r in group["rows"]]
+            out.extend("    " + line for line in _table(UNKNOWN_GROUP_HEADERS, rows))
+            continue
+
+        rows = [_chain_group_row(r) for r in group["rows"]]
+        totals = group["totals"]
+        rows.append(
+            ["합계", "", ""]
+            + [_counts_cell(totals[r]) for r in SUMMARY_REGIONS]
+            + [f"{group['domain_flag_total']}건" if group["domain_flag_total"] else EMPTY_CELL]
+        )
+        out.extend("    " + line for line in _table(_chain_group_headers(group), rows))
+
+    if any(r["regions_unassigned"] for r in summary["rows"]):
+        out.append("")
+        out.extend(_wrap(
+            "'주석 실패' 또는 '체인 판별 실패' 로 표시된 서열은 CDR 구간을 가를 수 없어 "
+            "모티프를 framework 쪽으로 모았다. 실제로는 CDR 안일 수 있으니 과소평가하지 말 것.",
+            width - 4, first="  ",
+        ))
+    return out
+
+
+def _render_one_text(report: SequenceReport, width: int) -> list[str]:
+    out: list[str] = ["-" * width, f"[{report.seq_id}]", "-" * width]
+
+    if not report.ok:
+        out.append("  입력을 쓸 수 없다:")
+        for err in report.errors:
+            out.extend(_wrap(err, width - 6, first="    * "))
+        return out
+
+    ann = report.annotation
+    assert ann is not None
+
+    chain_label = {"H": "중쇄 (VH)", "L": "경쇄 (VL)", None: "판별 실패"}[ann.chain]
+    verdict = "신뢰 가능" if ann.confident else "신뢰 불가 (confident=False)"
+    out.append(f"  체인: {chain_label}    길이: {len(report.sequence)} 잔기    주석 신뢰도: {verdict}")
+    if report.triage is not None:
+        out.append(f"  선별 분류: {report.triage.status}")
+        for reason in report.triage.reasons:
+            out.extend(_wrap(reason, width - 6, first="    → "))
+        if report.triage.note:
+            out.extend(_wrap(report.triage.note, width - 6, first="    "))
+    out.append("")
+
+    if ann.reasons:
+        out.append("  [주석을 신뢰할 수 없는 이유]")
+        for reason in ann.reasons:
+            out.extend(_wrap(reason, width - 6, first="    * "))
+        out.append("")
+
+    for note in ann.warnings + report.warnings + (report.liabilities.warnings if report.liabilities else []):
+        out.extend(_wrap(f"참고: {note}", width - 4, first="  ", rest="        "))
+    if ann.warnings or report.warnings or (report.liabilities and report.liabilities.warnings):
+        out.append("")
+
+    # --- CDR ---
+    out.append("  [CDR 주석]  좌표는 1-based, 양끝 포함")
+    if ann.cdrs:
+        rows = [
+            [cdr.name, f"{cdr.start}-{cdr.end}", str(cdr.length), cdr.seq]
+            for cdr in sorted(ann.cdrs.values(), key=lambda c: c.start)
+        ]
+        out.extend(
+            "    " + line
+            for line in _table(["CDR", "위치", "길이", "서열"], rows,
+                               ["left", "right", "right", "left"])
+        )
+    else:
+        out.append("    앵커를 찾지 못해 CDR 을 끊지 못했다. 위치를 추측하지 않는다.")
+    out.append("")
+
+    if ann.anchors:
+        anchor_labels = {
+            "cys1": "보존 Cys(1)", "trp": "보존 Trp", "fr3_motif": "FR3 모티프",
+            "cys2": "보존 Cys(2)", "terminal_motif": "말단 모티프",
+        }
+        found = ", ".join(
+            f"{anchor_labels.get(k, k)} {v}번" for k, v in ann.anchors.items()
+        )
+        out.extend(_wrap(f"앵커: {found}", width - 4, first="  ", rest="        "))
+        out.append("")
+
+    # --- Sequence ---
+    out.append("  [서열]  ^ 표시가 CDR 구간")
+    out.extend(_sequence_block_text(report))
+    out.append("")
+
+    # --- liability ---
+    lia = report.liabilities
+    assert lia is not None
+    out.append("  [liability 플래그]  CDR 안은 위험도를 한 단계 올리고, framework 는 한 단계 내린다")
+    if lia.hits:
+        counts = ", ".join(f"{lvl} {n}건" for lvl, n in lia.counts_by_risk().items())
+        out.append(f"    등급 분포: {counts}")
+        rows = [
+            [h.risk, h.label, h.match, f"{h.start}-{h.end}" if h.end > h.start else str(h.start),
+             h.region]
+            for h in lia.hits
+        ]
+        out.extend(
+            "    " + line
+            for line in _table(["위험도", "항목", "매치", "위치", "구간"], rows,
+                               ["left", "left", "left", "right", "left"])
+        )
+    else:
+        out.append("    검출된 모티프 없음.")
+
+    for flag in lia.domain_flags:
+        out.append("")
+        out.append(f"    [도메인 플래그] {flag['label']} — 위험도 {flag['risk']}")
+        out.extend(_wrap(flag["rationale"], width - 8, first="      "))
+    out.append("")
+
+    if lia.hits:
+        out.append("  [플래그 근거]")
+        seen: set[str] = set()
+        for hit in lia.hits:
+            if hit.label in seen:
+                continue
+            seen.add(hit.label)
+            out.append(f"    - {hit.label}")
+            out.extend(_wrap(hit.rationale, width - 10, first="        "))
+        out.append("")
+
+    # --- Properties ---
+    out.append(f"  [물성]  pI 는 EMBOSS pKa 기준, GRAVY 는 Kyte-Doolittle, net charge 는 pH 7.4")
+    rows = []
+    for name, props in report.properties.items():
+        d = props.as_dict()
+        rows.append([
+            name,
+            str(d["length"]),
+            "-" if d["pI"] is None else f"{d['pI']:.2f}",
+            "-" if d["GRAVY"] is None else f"{d['GRAVY']:+.3f}",
+            f"{d['net_charge']:+.2f}",
+        ])
+    out.extend(
+        "    " + line
+        for line in _table(["구간", "길이", "pI", "GRAVY", "net charge"], rows,
+                           ["left", "right", "right", "right", "right"])
+    )
+    return out
+
+
+# --------------------------------------------------------------------------
+# JSON output
+# --------------------------------------------------------------------------
+
+def as_json(reports: list[SequenceReport], *, indent: int = 2) -> str:
+    payload = {
+        "tool": {"name": "abcheck", "version": __version__},
+        "generated": date.today().isoformat(),
+        "coordinates": "CDR 위치는 1-based, 양끝 포함",
+        "limitations": list(LIMITATION_NOTICE),
+        "no_verdict": NO_VERDICT_NOTICE,
+        "count": len(reports),
+        "summary": summarize(reports),
+        "sequences": [r.as_dict() for r in reports],
+    }
+    return json.dumps(payload, ensure_ascii=False, indent=indent) + "\n"
+
+
+# --------------------------------------------------------------------------
+# HTML output
+# --------------------------------------------------------------------------
+
+_CSS = """
+:root { color-scheme: light; }
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #000000;
+  background: #ffffff;
+  margin: 0;
+  padding: 24px;
+}
+.wrap { max-width: 960px; margin: 0 auto; }
+h1 { font-size: 20px; margin: 0 0 4px; }
+h2 { font-size: 16px; margin: 28px 0 8px; padding-bottom: 4px; border-bottom: 1px solid #000000; }
+h3 { font-size: 13px; margin: 18px 0 6px; }
+p { margin: 6px 0; }
+.meta { font-size: 12px; color: #555555; margin-bottom: 18px; }
+.notice {
+  border: 1px solid #000000;
+  padding: 12px 14px;
+  margin: 16px 0 24px;
+  background: #f5f5f5;
+}
+.notice ul { margin: 6px 0 0; padding-left: 20px; }
+.notice li { margin: 3px 0; }
+.notice strong { display: block; margin-bottom: 4px; }
+table { border-collapse: collapse; width: 100%; margin: 8px 0 4px; }
+th {
+  background: #000000;
+  color: #ffffff;
+  text-align: left;
+  font-weight: bold;
+  padding: 6px 8px;
+  border: 1px solid #000000;
+}
+td { padding: 5px 8px; border: 1px solid #cccccc; vertical-align: top; }
+tbody tr:nth-child(odd) { background: #ffffff; }
+tbody tr:nth-child(even) { background: #f0f0f0; }
+td.num, td.right { text-align: right; white-space: nowrap; }
+.seqblock { font-family: "Courier New", Courier, monospace; font-size: 13px; }
+.seqblock td { border: none; padding: 1px 8px 1px 0; }
+.seqblock tr { background: #ffffff !important; }
+.seqblock td.seq { letter-spacing: 1px; white-space: pre; }
+.seqblock td.num { color: #555555; }
+.seqblock td.note { font-family: Arial, Helvetica, sans-serif; color: #555555; }
+.seq b { font-weight: bold; }
+.domain-flag { border: 1px solid #000000; padding: 10px 12px; margin: 10px 0; background: #f5f5f5; }
+.failed { border: 1px solid #000000; padding: 10px 12px; background: #f5f5f5; }
+.rationale { font-size: 12px; color: #333333; margin: 2px 0 10px; }
+.seq-section { margin-bottom: 36px; padding-bottom: 8px; border-bottom: 2px solid #000000; }
+.summary { margin-bottom: 40px; padding-bottom: 12px; border-bottom: 2px solid #000000; }
+.summary td:first-child { white-space: nowrap; }
+.summary a { color: #000000; }
+.summary tbody tr:last-child { border-top: 2px solid #000000; }
+.summary h3 { margin-top: 20px; }
+.rules { border: 1px solid #000000; padding: 10px 12px; margin: 12px 0 16px; background: #f5f5f5; }
+.rules ul { margin: 6px 0; padding-left: 20px; }
+.rules li { margin: 3px 0; }
+.summary h3 .count { font-weight: normal; color: #555555; }
+.kv { font-size: 13px; margin: 2px 0; }
+.kv span { display: inline-block; min-width: 120px; color: #555555; }
+ul.reasons { margin: 6px 0; padding-left: 20px; }
+ul.reasons li { margin: 4px 0; }
+footer { margin-top: 32px; font-size: 12px; color: #555555; }
+.count { font-weight: normal; color: #555555; }
+/* Wide tables scroll inside their own box, so the page itself never scrolls sideways on a phone. */
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.scroll table { margin: 0; }
+.scroll { margin: 8px 0 4px; }
+/* Break Korean at spaces, not between syllables -- otherwise narrow cells read one syllable per line. */
+th, td { word-break: keep-all; }
+.seqblock td { white-space: nowrap; }
+@media (max-width: 600px) {
+  body { padding: 16px; }
+  th, td { padding: 4px 6px; }
+}
+"""
+
+
+def _html_table(headers: list[str], rows: list[list[str]],
+                right_cols: set[int] | None = None) -> str:
+    right_cols = right_cols or set()
+    head = "".join(f"<th>{html.escape(h)}</th>" for h in headers)
+    body = []
+    for row in rows:
+        cells = []
+        for i, cell in enumerate(row):
+            cls = ' class="right"' if i in right_cols else ""
+            cells.append(f"<td{cls}>{cell}</td>")
+        body.append("<tr>" + "".join(cells) + "</tr>")
+    return (f'<div class="scroll"><table><thead><tr>{head}</tr></thead>'
+            f"<tbody>{''.join(body)}</tbody></table></div>")
+
+
+def as_html(reports: list[SequenceReport], *, title: str = "항체 서열 셀프 점검 리포트") -> str:
+    """Single-file HTML report. No color highlighting; CDRs in bold only."""
+    parts: list[str] = [
+        "<!doctype html>",
+        '<html lang="ko"><head><meta charset="utf-8">',
+        '<meta name="viewport" content="width=device-width, initial-scale=1">',
+        f"<title>{html.escape(title)}</title>",
+        f"<style>{_CSS}</style>",
+        "</head><body><div class=\"wrap\">",
+        f"<h1>{html.escape(title)}</h1>",
+        f'<p class="meta">abcheck {html.escape(__version__)} · '
+        f"생성 {date.today().isoformat()} · 서열 {len(reports)}건 · "
+        "CDR 좌표는 1-based, 양끝 포함</p>",
+        '<div class="notice"><strong>이 도구의 한계</strong><ul>'
+        + "".join(f"<li>{html.escape(n)}</li>" for n in LIMITATION_NOTICE)
+        + f"</ul><p>{html.escape(NO_VERDICT_NOTICE)}</p></div>",
+        _summary_html(reports),
+    ]
+
+    for report in reports:
+        parts.append(_render_one_html(report))
+
+    parts.append(
+        "<footer>합성 데이터로 검증한 스크리닝 휴리스틱이다. "
+        "결과를 근거로 후보를 탈락시키기 전에 ANARCI/IMGT 로 재확인할 것.</footer>"
+    )
+    parts.append("</div></body></html>")
+    return "\n".join(parts)
+
+
+def _summary_html(reports: list[SequenceReport]) -> str:
+    """Per-CDR liability summary table (HTML). Heavy and light chains are shown separately, at the top of the report."""
+    summary = summarize(reports)
+
+    out = [
+        '<div class="summary">',
+        "<h2>CDR별 liability 집계</h2>",
+        f'<p class="rationale">{html.escape(summary["note"])}</p>',
+        '<div class="rules"><strong>적용한 선별 규칙 — 검토 필요 '
+        f'{summary["review_count"]}건 / 전체 {len(summary["rows"])}건</strong><ul>'
+        + "".join(f"<li>{html.escape(d)}</li>" for d in summary["triage_rules"])
+        + f'</ul><p class="rationale">{html.escape(summary["triage_notice"])}</p></div>',
+    ]
+
+    def _link(seq_id: str) -> str:
+        return f'<a href="#{html.escape(_anchor(seq_id))}">{html.escape(seq_id)}</a>'
+
+    attention = _attention_lists(summary)
+    if attention:
+        out.append(
+            '<div class="rules"><strong>먼저 볼 서열</strong> '
+            '<span class="count">(입력 순서, 누르면 상세로 이동)</span><ul>'
+            + "".join(
+                f"<li>{html.escape(label)} {len(ids)}건: "
+                + ", ".join(_link(i) for i in ids) + "</li>"
+                for label, ids in attention
+            )
+            + "</ul></div>"
+        )
+
+    for group in summary["groups"]:
+        out.append(
+            f"<h3>{html.escape(group['title'])} "
+            f"<span class=\"count\">— {len(group['rows'])}건</span></h3>"
+        )
+
+        if group["chain"] is None:
+            rows = [
+                [_link(r["id"])] + [html.escape(c) for c in _unknown_group_row(r)[1:]]
+                for r in group["rows"]
+            ]
+            out.append(_html_table(UNKNOWN_GROUP_HEADERS, rows))
+            continue
+
+        rows = [
+            [_link(r["id"])] + [html.escape(c) for c in _chain_group_row(r)[1:]]
+            for r in group["rows"]
+        ]
+        totals = group["totals"]
+        rows.append(
+            ["<b>합계</b>", "", ""]
+            + [f"<b>{html.escape(_counts_cell(totals[r]))}</b>" for r in SUMMARY_REGIONS]
+            + [f"<b>{group['domain_flag_total']}건</b>" if group["domain_flag_total"]
+               else EMPTY_CELL]
+        )
+        out.append(_html_table(_chain_group_headers(group), rows))
+
+    if any(r["regions_unassigned"] for r in summary["rows"]):
+        out.append(
+            '<p class="rationale">&lsquo;주석 실패&rsquo; 또는 &lsquo;체인 판별 실패&rsquo; 로 '
+            "표시된 서열은 CDR 구간을 가를 수 없어 모티프를 framework 쪽으로 모았다. "
+            "실제로는 CDR 안일 수 있으니 과소평가하지 말 것.</p>"
+        )
+    out.append("</div>")
+    return "\n".join(out)
+
+
+def _anchor(seq_id: str) -> str:
+    """Sanitize a sequence ID for use as an HTML anchor."""
+    return "seq-" + "".join(ch if ch.isalnum() else "-" for ch in seq_id)
+
+
+def _render_one_html(report: SequenceReport) -> str:
+    out: list[str] = [
+        f'<div class="seq-section" id="{html.escape(_anchor(report.seq_id))}">',
+        f"<h2>{html.escape(report.seq_id)}</h2>",
+    ]
+
+    if not report.ok:
+        out.append('<div class="failed"><strong>입력을 쓸 수 없다</strong><ul class="reasons">')
+        out.extend(f"<li>{html.escape(e)}</li>" for e in report.errors)
+        out.append("</ul></div></div>")
+        return "\n".join(out)
+
+    ann = report.annotation
+    assert ann is not None
+    lia = report.liabilities
+    assert lia is not None
+
+    chain_label = {"H": "중쇄 (VH)", "L": "경쇄 (VL)", None: "판별 실패"}[ann.chain]
+    verdict = "신뢰 가능" if ann.confident else "신뢰 불가 (confident=False)"
+    out.append(
+        f'<p class="kv"><span>체인</span>{html.escape(chain_label)}</p>'
+        f'<p class="kv"><span>길이</span>{len(report.sequence)} 잔기</p>'
+        f'<p class="kv"><span>주석 신뢰도</span>{html.escape(verdict)}</p>'
+    )
+    if report.triage is not None:
+        out.append(
+            f'<p class="kv"><span>선별 분류</span><b>{html.escape(report.triage.status)}</b></p>'
+        )
+        if report.triage.reasons:
+            out.append('<ul class="reasons">')
+            out.extend(f"<li>{html.escape(r)}</li>" for r in report.triage.reasons)
+            out.append("</ul>")
+        if report.triage.note:
+            out.append(f'<p class="rationale">{html.escape(report.triage.note)}</p>')
+
+    if ann.reasons:
+        out.append("<h3>주석을 신뢰할 수 없는 이유</h3><ul class=\"reasons\">")
+        out.extend(f"<li>{html.escape(r)}</li>" for r in ann.reasons)
+        out.append("</ul>")
+
+    notes = list(ann.warnings) + list(report.warnings) + list(lia.warnings)
+    if notes:
+        out.append("<h3>참고</h3><ul class=\"reasons\">")
+        out.extend(f"<li>{html.escape(n)}</li>" for n in notes)
+        out.append("</ul>")
+
+    # --- CDR ---
+    out.append("<h3>CDR 주석</h3>")
+    if ann.cdrs:
+        rows = [
+            [html.escape(c.name), f"{c.start}-{c.end}", str(c.length),
+             f"<b>{html.escape(c.seq)}</b>"]
+            for c in sorted(ann.cdrs.values(), key=lambda c: c.start)
+        ]
+        out.append(_html_table(["CDR", "위치", "길이", "서열"], rows, right_cols={1, 2}))
+    else:
+        out.append(
+            '<p class="failed">앵커를 찾지 못해 CDR 을 끊지 못했다. 위치를 추측하지 않는다.</p>'
+        )
+
+    # --- Sequence ---
+    out.append("<h3>서열 (CDR 구간은 굵게)</h3>")
+    out.append(_sequence_block_html(report))
+
+    # --- liability ---
+    out.append("<h3>liability 플래그</h3>")
+    out.append(
+        '<p class="rationale">CDR 안은 기본 위험도에서 한 단계 올리고, '
+        "framework 는 한 단계 내린다. 위험도는 색이 아니라 글자로 표시한다.</p>"
+    )
+    if lia.hits:
+        rows = [
+            [html.escape(h.risk), html.escape(h.label), f"<code>{html.escape(h.match)}</code>",
+             f"{h.start}-{h.end}" if h.end > h.start else str(h.start),
+             html.escape(h.region), html.escape(h.note)]
+            for h in lia.hits
+        ]
+        out.append(_html_table(
+            ["위험도", "항목", "매치", "위치", "구간", "등급 조정 근거"], rows, right_cols={3}
+        ))
+    else:
+        out.append("<p>검출된 모티프 없음.</p>")
+
+    for flag in lia.domain_flags:
+        out.append(
+            f'<div class="domain-flag"><strong>{html.escape(flag["label"])} '
+            f"— 위험도 {html.escape(flag['risk'])}</strong>"
+            f'<p class="rationale">{html.escape(flag["rationale"])}</p></div>'
+        )
+
+    if lia.hits:
+        out.append("<h3>플래그 근거</h3>")
+        seen: set[str] = set()
+        for hit in lia.hits:
+            if hit.label in seen:
+                continue
+            seen.add(hit.label)
+            out.append(
+                f"<p class=\"kv\"><b>{html.escape(hit.label)}</b></p>"
+                f'<p class="rationale">{html.escape(hit.rationale)}</p>'
+            )
+
+    # --- Properties ---
+    out.append("<h3>물성</h3>")
+    out.append(
+        '<p class="rationale">pI 는 EMBOSS pKa 기준 bisection, GRAVY 는 Kyte-Doolittle 평균, '
+        "net charge 는 pH 7.4. 모두 서열 기반 추정치다. CDR 조각의 pI 는 그 조각을 "
+        "독립 펩타이드로 보고 계산한 값이므로 구간 간 상대 비교에만 쓸 것.</p>"
+    )
+    rows = []
+    for name, props in report.properties.items():
+        d = props.as_dict()
+        rows.append([
+            html.escape(name),
+            str(d["length"]),
+            "-" if d["pI"] is None else f"{d['pI']:.2f}",
+            "-" if d["GRAVY"] is None else f"{d['GRAVY']:+.3f}",
+            f"{d['net_charge']:+.2f}",
+        ])
+    out.append(_html_table(
+        ["구간", "길이", "pI", "GRAVY", "net charge (pH 7.4)"], rows,
+        right_cols={1, 2, 3, 4},
+    ))
+
+    out.append("</div>")
+    return "\n".join(out)

@@ -9,6 +9,10 @@ description = "항체 가변도메인 서열 셀프 점검 도구 (표준 라이
 requires-python = ">=3.10"
 dependencies = []
 
+[project.scripts]
+# `pip install .` once, then `abcheck 후보.fasta --html` works from any folder.
+abcheck = "abcheck.cli:main"
+
 [tool.setuptools]
 packages = ["abcheck"]
 
