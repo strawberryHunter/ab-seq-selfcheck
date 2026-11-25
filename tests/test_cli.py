@@ -134,14 +134,56 @@ def test_pasted_fasta_is_detected(records):
 def test_invalid_sequence_exits_with_one():
     result = _run("ACDEFGHIK")
     assert result.returncode == 1
-    assert "입력 검증에서 걸러진 서열" in result.stderr
-    assert "너무 짧다" in result.stderr
+    assert "입력 검증에서 걸러진 서열" in result.stdout
+    assert "너무 짧다" in result.stdout
+
+
+def test_all_rejected_input_shows_only_the_fix():
+    """When nothing passed validation, show the error and how to proceed -- not a full report.
+
+    A usability pass found a 3-line fix printed under ~45 lines of notices and empty tables.
+    """
+    result = _run("ACDEFGHIK")
+    lines = [l for l in result.stdout.splitlines() if l.strip()]
+    assert len(lines) <= 6, result.stdout
+    assert "다시 실행" in result.stdout
+    assert "[이 도구의 한계]" not in result.stdout
 
 
 def test_dna_input_is_rejected_with_korean_message():
     result = _run("ATGGCCATTGTAATGGGCCGCTGAAAGGGTGCCCGATAG" * 3)
     assert result.returncode == 1
-    assert "DNA/RNA" in result.stderr
+    assert "DNA/RNA" in result.stdout
+
+
+def test_trailing_stop_codon_gets_a_specific_hint(records):
+    result = _run(records[0]["sequence"] + "*")
+    assert result.returncode == 1
+    assert "정지 코돈" in result.stdout
+
+
+def test_mixed_batch_still_lists_rechecks_and_summary(tmp_path):
+    """One bad sequence must not hide the recheck list for the others."""
+    corpus = json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
+    by_id = {r["id"]: r["sequence"] for r in corpus["sequences"]}
+    fasta = tmp_path / "mixed.fasta"
+    fasta.write_text(
+        f">good\n{by_id['SYN-VH-001']}\n>shaky\n{by_id['SYN-VH-903']}\n>bad\nACDEFGHIK\n",
+        encoding="utf-8",
+    )
+    result = _run(str(fasta))
+    assert result.returncode == 1
+    assert "입력 검증에서 걸러진 서열 1건" in result.stderr
+    assert "ANARCI/IMGT 재확인 필요): shaky" in result.stderr
+    assert "3건 중 2건 분석, 1건은 입력 오류로 제외" in result.stderr
+
+
+def test_argument_errors_are_korean_with_an_example():
+    result = _run()
+    assert result.returncode == 2
+    assert "검사할 서열이나 파일을 넣지 않았다" in result.stderr
+    assert "사용 예" in result.stderr
+    assert "required" not in result.stderr
 
 
 def test_missing_file_exits_with_two():
@@ -232,7 +274,7 @@ def test_out_dir_is_created_when_missing(tmp_path, records):
 def test_help_lists_three_examples():
     result = _run("--help")
     assert result.returncode == 0
-    assert result.stdout.count("python -m abcheck.cli") >= 4   # prog line + 3 examples
+    assert result.stdout.count("python3 -m abcheck.cli") >= 4   # prog line + 3 examples
 
 
 def test_main_is_callable_in_process(tmp_path):

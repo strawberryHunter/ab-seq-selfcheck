@@ -1,6 +1,6 @@
 """Command-line interface.
 
-    python -m abcheck.cli <input> [--html] [--json] [--out-dir DIR]
+    python3 -m abcheck.cli <input> [--html] [--json] [--out-dir DIR]
 
 The input type is detected automatically, one of three:
   - `.json`  — synthetic corpus format ({"sequences": [{"id", "sequence"}, ...]})
@@ -11,6 +11,7 @@ The input type is detected automatically, one of three:
 from __future__ import annotations
 
 import argparse
+import re
 import json
 import sys
 from pathlib import Path
@@ -102,18 +103,48 @@ def load_input(raw: str) -> tuple[list[tuple[str, str]], str]:
 # Running
 # --------------------------------------------------------------------------
 
+class _KoreanArgumentParser(argparse.ArgumentParser):
+    """argparse with Korean error messages -- the users are researchers, not programmers.
+
+    argparse's own messages are English and name internals ("arguments are required: input").
+    Translate the common ones and always end with a runnable example.
+    """
+
+    _MESSAGES = [
+        ("the following arguments are required: input",
+         "검사할 서열이나 파일을 넣지 않았다."),
+        ("unrecognized arguments:", "알 수 없는 옵션이 있다:"),
+        ("invalid float value:", "숫자가 아닌 값이 들어왔다:"),
+        ("expected one argument", "옵션 뒤에 값이 빠졌다."),
+    ]
+
+    def error(self, message: str):  # noqa: D401 -- argparse API
+        message = re.sub(r"^argument (\S+): ", r"\1 옵션: ", message)
+        for english, korean in self._MESSAGES:
+            if english in message:
+                message = message.replace(english, korean)
+                break
+        self.exit(2, (
+            f"오류: {message}\n\n"
+            "사용 예:\n"
+            '  python3 -m abcheck.cli "서열"                 서열 하나를 터미널에서 보기\n'
+            "  python3 -m abcheck.cli 후보.fasta --html      여러 서열을 HTML 리포트로\n"
+            "전체 도움말: python3 -m abcheck.cli --help\n"
+        ))
+
+
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="python -m abcheck.cli",
+    parser = _KoreanArgumentParser(
+        prog="python3 -m abcheck.cli",
         description=(
             "항체 가변도메인(VH/VL) 서열의 CDR 위치와 developability 플래그를 점검한다. "
             "스크리닝 휴리스틱이며 numbering 엔진이 아니다."
         ),
         epilog=(
             "예시:\n"
-            "  python -m abcheck.cli QVQL...SS\n"
-            "  python -m abcheck.cli data/synthetic/sequences.json --html\n"
-            "  python -m abcheck.cli my_seqs.fasta --json > result.json\n"
+            '  python3 -m abcheck.cli "QVQL...SS"\n'
+            "  python3 -m abcheck.cli data/synthetic/sequences.json --html\n"
+            "  python3 -m abcheck.cli my_seqs.fasta --json > result.json\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -153,6 +184,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     reports: list[SequenceReport] = build_many(entries, args.ph)
+    rejected = [r for r in reports if not r.ok]
+
+    # Nothing passed validation: there is no result to read, only something to fix. Show just
+    # that, instead of burying a 3-line fix under the full report's notices and empty tables.
+    if len(rejected) == len(reports) and not (args.json or args.html):
+        _print_rejections(rejected, sys.stdout)
+        print("\n고친 뒤 같은 명령을 다시 실행하면 된다. 결과 리포트는 만들지 않았다.")
+        return 1
 
     if args.json:
         sys.stdout.write(as_json(reports))
@@ -166,17 +205,12 @@ def main(argv: list[str] | None = None) -> int:
         out_path.write_text(as_html(reports), encoding="utf-8")
         print(f"HTML 리포트를 썼다: {out_path}", file=sys.stderr)
 
-    rejected = [r for r in reports if not r.ok]
     if rejected:
         print("", file=sys.stderr)
-        print(f"입력 검증에서 걸러진 서열 {len(rejected)}건:", file=sys.stderr)
-        for report in rejected:
-            print(f"  [{report.seq_id}]", file=sys.stderr)
-            for err in report.errors:
-                print(f"    - {err}", file=sys.stderr)
-        return 1
+        _print_rejections(rejected, sys.stderr)
 
-    not_confident = [r for r in reports if not r.confident]
+    # Keep going after rejections: in a mixed batch the recheck list matters just as much.
+    not_confident = [r for r in reports if r.ok and not r.confident]
     if not_confident:
         print("", file=sys.stderr)
         print(
@@ -186,8 +220,21 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
 
-    print(f"처리 완료: {source} — 서열 {len(reports)}건", file=sys.stderr)
-    return 0
+    done = len(reports) - len(rejected)
+    print(
+        f"처리 완료: {source} — 서열 {len(reports)}건 중 {done}건 분석"
+        + (f", {len(rejected)}건은 입력 오류로 제외" if rejected else ""),
+        file=sys.stderr,
+    )
+    return 1 if rejected else 0
+
+
+def _print_rejections(rejected: list[SequenceReport], stream) -> None:
+    print(f"입력 검증에서 걸러진 서열 {len(rejected)}건:", file=stream)
+    for report in rejected:
+        print(f"  [{report.seq_id}]", file=stream)
+        for err in report.errors:
+            print(f"    - {err}", file=stream)
 
 
 if __name__ == "__main__":

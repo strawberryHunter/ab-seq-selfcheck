@@ -94,9 +94,9 @@ def _cdr_high_risk(report: "SequenceReport") -> list[str]:
     reasons = []
     for hit in report.liabilities.cdr_hits:
         if hit.risk == "높음" and hit.top_within_kind:
-            reasons.append(
-                f"{hit.region} {hit.start}번에 {hit.label} ({hit.match}) — 위험도 높음"
-            )
+            # Labels such as "deamidation (NG)" already name the motif; do not repeat it.
+            label = hit.label if f"({hit.match})" in hit.label else f"{hit.label} ({hit.match})"
+            reasons.append(f"{hit.region} {hit.start}번에 {label} — 위험도 높음")
     return reasons
 
 

@@ -455,7 +455,7 @@ git 이 없으면 GitHub 화면의 초록색 <b>Code → Download ZIP</b> 으로
 <h1>6. 결과 ② HTML 리포트</h1>
 <p><code>--html</code> 로 만든 리포트다. 아래 화면은 저장소의 합성 예시 24개를 넣어 만든 <code>sample_output/report.html</code> 이다.</p>
 <div class="keep"><h2>맨 앞 — 후보 비교표</h2>
-<p>중쇄·경쇄·체인 판별 실패가 따로 나온다. <b>분류</b> 열로 먼저 볼 후보를 고르고, 서열 이름을 누르면 상세로 이동한다.</p>
+<p>선별 규칙 바로 아래 <b>먼저 볼 서열</b> 상자에 '검토 필요'와 'ANARCI/IMGT 재확인 필요' 서열이 이름으로 나온다. 이름을 누르면 상세로 이동한다. 그 아래 비교표는 중쇄·경쇄·체인 판별 실패가 따로 나온다. 휴대폰에서는 넓은 표를 옆으로 밀어서 본다.</p>
 <figure><img src="img/report_summary.png" alt="HTML 리포트 비교표">
 <figcaption>그림 1. 리포트 맨 앞의 비교표. 위험도는 색이 아니라 글자로 표시한다.</figcaption></figure></div>
 <div class="keep"><h2>서열별 상세</h2>

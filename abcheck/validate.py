@@ -106,6 +106,10 @@ def validate(raw: str) -> ValidationResult:
             errors.append(
                 f"아미노산이 아닌 문자가 있다: {', '.join(repr(c) for c in others)} ({spots}). "
                 "DNA 서열이나 숫자·구두점이 섞이지 않았는지 확인하라."
+                + (
+                    " '*' 는 번역 도구가 정지 코돈 자리에 붙이는 기호다. 지우고 다시 넣어라."
+                    if "*" in others else ""
+                )
             )
         return ValidationResult(False, cleaned, errors, warnings)
 

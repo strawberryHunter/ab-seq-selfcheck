@@ -253,3 +253,51 @@ def test_json_states_coordinate_convention(records):
     payload = json.loads(as_json(_reports(records, "SYN-VH-001")))
     assert "1-based" in payload["coordinates"]
     assert "1-based" in payload["sequences"][0]["annotation"]["coordinates"]
+
+
+# --------------------------------------------------------------------------
+# Usability pass (phone layout, "what to open first")
+# --------------------------------------------------------------------------
+
+def test_summary_names_the_sequences_to_open_first(corpus_reports):
+    """The triage box used to give only a count; the user had to scan every row to find them."""
+    from abcheck.render import as_html, as_text
+
+    text = as_text(corpus_reports)
+    assert "먼저 볼 서열" in text
+    assert "검토 필요 6건: SYN-VH-003" in text
+    assert "ANARCI/IMGT 재확인 필요 (주석 신뢰 불가) 5건" in text
+
+    page = as_html(corpus_reports)
+    assert "먼저 볼 서열" in page
+    assert 'href="#seq-SYN-VH-003"' in page
+
+
+def test_every_html_table_scrolls_inside_its_own_box(corpus_reports):
+    """On a phone, wide tables must scroll in place instead of widening the whole page."""
+    import re
+
+    from abcheck.render import as_html
+
+    page = as_html(corpus_reports)
+    tables = re.findall(r"(.{0,40})<table", page)
+    assert tables
+    for before in tables:
+        assert before.endswith('<div class="scroll">'), before
+    assert "word-break: keep-all" in page        # Korean breaks at spaces, not per syllable
+
+
+def test_triage_reason_does_not_repeat_the_motif(corpus_reports):
+    from abcheck.render import as_text
+
+    text = as_text(corpus_reports)
+    for motif in ["NG", "DG", "DP"]:
+        assert f"({motif}) ({motif})" not in text
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(scope="module")
+def corpus_reports(records):
+    return build_many([(r["id"], r["sequence"]) for r in records])

@@ -209,7 +209,7 @@ def _sequence_block_html(report: SequenceReport) -> str:
             f'<td class="note">{html.escape(", ".join(labels))}</td>'
             "</tr>"
         )
-    return "<table class=\"seqblock\">" + "".join(rows) + "</table>"
+    return '<div class="scroll"><table class="seqblock">' + "".join(rows) + "</table></div>"
 
 
 # --------------------------------------------------------------------------
@@ -242,6 +242,22 @@ def as_text(reports: list[SequenceReport], *, width: int = 100) -> str:
     return "\n".join(out)
 
 
+def _attention_lists(summary: dict) -> list[tuple[str, list[str]]]:
+    """Which sequences to open first, by name, in input order (not a ranking).
+
+    Usability: the triage box used to give only a count ("검토 필요 6건"), so finding the six
+    meant scanning every table row.
+    """
+    rows = summary["rows"]
+    lists = [
+        ("검토 필요", [r["id"] for r in rows if r["triage"]["status"] == "검토 필요"]),
+        ("ANARCI/IMGT 재확인 필요 (주석 신뢰 불가)",
+         [r["id"] for r in rows if r["input_ok"] and not r["confident"]]),
+        ("입력 오류로 제외", [r["id"] for r in rows if not r["input_ok"]]),
+    ]
+    return [(label, ids) for label, ids in lists if ids]
+
+
 def _summary_text(reports: list[SequenceReport], width: int) -> list[str]:
     """Per-CDR liability summary table (terminal). Heavy and light chains are shown separately."""
     summary = summarize(reports)
@@ -252,6 +268,12 @@ def _summary_text(reports: list[SequenceReport], width: int) -> list[str]:
     for desc in summary["triage_rules"]:
         out.extend(_wrap(desc, width - 6, first="    - "))
     out.extend(_wrap(summary["triage_notice"], width - 4, first="  "))
+    attention = _attention_lists(summary)
+    if attention:
+        out.append("")
+        out.append("  먼저 볼 서열 (입력 순서)")
+        for label, ids in attention:
+            out.extend(_wrap(f"{label} {len(ids)}건: " + ", ".join(ids), width - 6, first="    - "))
 
     for group in summary["groups"]:
         out.append("")
@@ -491,6 +513,18 @@ td.num, td.right { text-align: right; white-space: nowrap; }
 ul.reasons { margin: 6px 0; padding-left: 20px; }
 ul.reasons li { margin: 4px 0; }
 footer { margin-top: 32px; font-size: 12px; color: #555555; }
+.count { font-weight: normal; color: #555555; }
+/* Wide tables scroll inside their own box, so the page itself never scrolls sideways on a phone. */
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.scroll table { margin: 0; }
+.scroll { margin: 8px 0 4px; }
+/* Break Korean at spaces, not between syllables -- otherwise narrow cells read one syllable per line. */
+th, td { word-break: keep-all; }
+.seqblock td { white-space: nowrap; }
+@media (max-width: 600px) {
+  body { padding: 16px; }
+  th, td { padding: 4px 6px; }
+}
 """
 
 
@@ -505,7 +539,8 @@ def _html_table(headers: list[str], rows: list[list[str]],
             cls = ' class="right"' if i in right_cols else ""
             cells.append(f"<td{cls}>{cell}</td>")
         body.append("<tr>" + "".join(cells) + "</tr>")
-    return f"<table><thead><tr>{head}</tr></thead><tbody>{''.join(body)}</tbody></table>"
+    return (f'<div class="scroll"><table><thead><tr>{head}</tr></thead>'
+            f"<tbody>{''.join(body)}</tbody></table></div>")
 
 
 def as_html(reports: list[SequenceReport], *, title: str = "항체 서열 셀프 점검 리포트") -> str:
@@ -554,6 +589,19 @@ def _summary_html(reports: list[SequenceReport]) -> str:
 
     def _link(seq_id: str) -> str:
         return f'<a href="#{html.escape(_anchor(seq_id))}">{html.escape(seq_id)}</a>'
+
+    attention = _attention_lists(summary)
+    if attention:
+        out.append(
+            '<div class="rules"><strong>먼저 볼 서열</strong> '
+            '<span class="count">(입력 순서, 누르면 상세로 이동)</span><ul>'
+            + "".join(
+                f"<li>{html.escape(label)} {len(ids)}건: "
+                + ", ".join(_link(i) for i in ids) + "</li>"
+                for label, ids in attention
+            )
+            + "</ul></div>"
+        )
 
     for group in summary["groups"]:
         out.append(
