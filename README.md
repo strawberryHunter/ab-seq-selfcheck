@@ -42,7 +42,8 @@ CDR 경계는 OAS 에 들어 있는 **ANARCI 주석을 정답으로** 비교했�
 
 ---
 
-> 처음 쓰신다면 **[TUTORIAL.md](TUTORIAL.md)** — 설치부터 출력 읽는 법까지 단계별로.
+> 처음 쓰신다면 **[사용 설명서 PDF](docs/manual/abcheck_manual.pdf)** (22쪽, 실제 출력·화면 포함)
+> 또는 **[TUTORIAL.md](TUTORIAL.md)** — 설치부터 출력 읽는 법까지 단계별로.
 
 ## 먼저 읽을 것 — 이 도구의 한계
 
@@ -407,6 +408,7 @@ scripts/
 data/synthetic/   합성 서열 + 정답 CDR 좌표
 sample_output/    HTML 리포트 예시
 tests/
+docs/manual/      사용 설명서 PDF 와 그걸 만드는 스크립트
 README.en.md      English summary
 VALIDATION.md     검증 기록 (공개 데이터 7,000 서열)
 DECISIONS.md      설계 판단 기록

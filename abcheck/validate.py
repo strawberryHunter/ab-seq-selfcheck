@@ -72,7 +72,8 @@ def validate(raw: str) -> ValidationResult:
         errors.append(
             f"FASTA 헤더가 섞여 있다 (예: '{sample}'). "
             "'>' 로 시작하는 줄을 지우고 아미노산 서열만 남겨라. "
-            "FASTA 파일 전체를 넣고 싶으면 --fasta 옵션을 쓴다."
+            "여러 서열을 FASTA 로 넣으려면 파일로 저장한 뒤 파일 경로를 넣으면 된다 "
+            "(예: python3 -m abcheck.cli 후보.fasta)."
         )
         return ValidationResult(False, "", errors)
 

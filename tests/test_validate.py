@@ -119,3 +119,23 @@ def test_ensure_valid_raises_korean_message():
 def test_ensure_valid_returns_cleaned(records):
     seq = records[0]["sequence"]
     assert ensure_valid(seq.lower() + "\n") == seq
+
+
+def test_error_messages_only_mention_options_that_exist():
+    """오류 메시지가 없는 옵션을 안내하면 안 된다.
+
+    한때 FASTA 헤더 오류가 존재하지 않는 '--fasta' 옵션을 안내했다. 매뉴얼을 만들며
+    실제 메시지를 옮기다 발견했다. CLI 의 실제 옵션과 대조한다.
+    """
+    import re
+
+    from abcheck.cli import _build_parser
+
+    known = {a for action in _build_parser()._actions for a in action.option_strings}
+    vh = "Q" * 100
+    inputs = [">x\n" + vh, "S" * 10, "S" * 300, "S" * 50 + "X" + "S" * 50,
+              "S" * 50 + "1" + "S" * 50, "ACGT" * 30]
+    for raw in inputs:
+        for message in validate(raw).errors:
+            for opt in re.findall(r"--[a-z][a-z-]*", message):
+                assert opt in known, f"없는 옵션 {opt} 를 안내한다: {message}"
