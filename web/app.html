@@ -585,7 +585,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function finish(ok) {
     if (ok) {
       const t = ABUI.tally(state.rows);
-      toast(`후보 ${t.all}건 분석${t.errors ? ` · 입력 오류 ${t.errors}` : ""}`);
+      toast(`후보 ${t.all}건 분석${t.errors ? ` · 입력 오류 ${t.errors}` : ""}${unkept() ? " · 저장 안 됨" : ""}`);
       if (state.view === "all") render(); else go("all");
     } else if (state.view === "new") render(); else go("new");
   }
@@ -634,15 +634,24 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     }, (e) => { console.error("abcheck: reading the dropped files failed", e); fail("파일을 읽지 못함", "다시 끌어다 놓기"); });
   }
 
+  /**
+   * Keep this analysis in the browser. state.recentId stays null when it could not be kept (too
+   * big, or storage refused the write); the screen then says "저장 안 됨". When storage is full,
+   * older analyses make room first: the newest one is the one the user is looking at.
+   */
   function remember(entries, source, ph, text) {
     const body = JSON.stringify(entries);
-    if (body.length + text.length > 500000) { state.recentId = null; return; }   // too big for browser storage
+    state.recentId = null;
+    if (body.length + text.length > 500000) return;      // too big for browser storage
     const list = recents().filter((r) => JSON.stringify(r.entries) !== body);
     const id = "r" + Date.now();
     list.unshift({ id, entries, source, ph, text, count: entries.length, at: Date.now(), picked: [] });
-    store.set(K.recent, list.slice(0, 6));
-    state.recentId = id;
+    for (let keep = Math.min(6, list.length); keep >= 1; keep--) {
+      if (store.set(K.recent, list.slice(0, keep))) { state.recentId = id; return; }
+    }
   }
+  /** An analysis the user ran that is not in browser storage: it is gone after a reload. */
+  const unkept = () => !!state.payload && !state.isExample && !state.recentId;
   function savePicked() {
     if (!state.recentId) return;
     const list = recents();
@@ -731,7 +740,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <h2>${esc(s.title)}</h2>
         <p class="why" title="${esc(s.why)}">${esc(s.why)}</p>
         <div class="meta"><a class="chip" href="#rules">규칙 ${esc(rules().name)}</a><span>후보 ${t.all}</span><span>·</span><span>${esc(state.source)}</span><span>·</span><span class="num">${whenShort(state.at)}</span>
-          ${state.isExample ? `<span class="chip">예시 데이터</span><button class="chip" type="button" id="hero-clear">비우기</button>` : ""}</div></div>
+          ${state.isExample ? `<span class="chip">예시 데이터</span><button class="chip" type="button" id="hero-clear">비우기</button>` : ""}${unkept() ? `<span class="chip" title="브라우저에 남지 않음 · 새로 고치면 사라짐">저장 안 됨</span>` : ""}</div></div>
       <a class="btn primary big" href="#${s.btn[1]}">${s.btn[0]} ${icon("arrow")}</a>
       ${nav}</section>`;
   }
@@ -1153,7 +1162,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       <section class="card guide"><h2>한계</h2><ul>${p.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}<li><b>${esc(p.no_verdict)}</b></li></ul></section>
       <section class="card guide"><h2>저장 범위</h2><dl>
         <dt>로컬 처리</dt><dd>분석은 이 브라우저 안에서만 실행. 서열은 어디로도 전송되지 않음</dd>
-        <dt>브라우저 저장</dt><dd>최근 분석 6건 · 규칙 세트 · 필터와 테마. 다른 사람에게 보이지 않음. 저장된 분석은 새 분석 화면에서 삭제</dd></dl></section>`;
+        <dt>브라우저 저장</dt><dd>최근 분석 6건 · 규칙 세트 · 필터와 테마. 다른 사람에게 보이지 않음. 저장된 분석은 새 분석 화면에서 삭제. 너무 크거나 저장이 막혀 남기지 못한 분석은 '저장 안 됨' 표시</dd></dl></section>`;
   }
 
   /* ---------- sidebar ---------- */
