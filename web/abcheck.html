@@ -2732,17 +2732,40 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return { entries: entries, source: source };
   }
 
-  var CHAIN_TOKEN = /^(vh|vl|vk|hc|lc|h|l|heavy|light|kappa|lambda)$/i;
+  // Marks for the heavy or the light chain in a name. A mark is a whole token, so the "L" in
+  // "CTRL" is not one. Numbered marks ("VH1") and gene names ("IGHV3") are left alone: they say
+  // more than which chain it is, and two names differing in them need not be one antibody.
+  var CHAIN_TOKEN = /^(vh|vl|vk|vκ|vλ|vkappa|vlambda|hc|lc|h|l|κ|λ|heavy|light|kappa|lambda|igh|igk|igl|중쇄|경쇄)$/i;
+  var NAME_SEP = /([-_. |\/:;,()\[\]]+)/;      // separators are kept by split(), at the odd positions
 
-  /** A candidate's name without its chain token, lower-cased: "mAb01_VH" -> "mab01",
-      "SYN-VL-003" -> "syn-003", "Ab7 heavy" -> "ab7". null when the name has no chain token. */
-  function pairKey(id) {
-    var tokens = String(id).split(/[-_. ]+/).filter(Boolean);
-    var rest = tokens.filter(function (t) { return !CHAIN_TOKEN.test(t); });
-    if (rest.length === tokens.length) {
-      var m = /^(.*[0-9a-z])(VH|VL|HC|LC)$/.exec(String(id));   // "mAb01VH": upper-case suffix only
-      return m ? m[1].toLowerCase() : null;
+  /**
+   * A name cut into tokens and separators, with the positions of its chain marks:
+   * {parts, drop: [even indexes]} or null when there is no mark. The word "chain" (or "사슬")
+   * right after a mark belongs to it ("H_chain", "heavy chain"). Names written without a
+   * separator are read too: upper-case VH / VL / VK / HC / LC at the end ("mAb01VH"), or a single
+   * H / L right after a digit ("mAb01H", but not "CTRL").
+   */
+  function chainMarks(id) {
+    id = String(id);
+    var parts = id.split(NAME_SEP), drop = [];
+    for (var i = 0; i < parts.length; i += 2) {
+      if (CHAIN_TOKEN.test(parts[i])) {
+        drop.push(i);
+        if (i + 2 < parts.length && /^(chain|사슬)$/i.test(parts[i + 2])) { drop.push(i + 2); i += 2; }
+      }
     }
+    if (drop.length) return { parts: parts, drop: drop };
+    var m = /^(.*[0-9a-z])(VH|VL|VK|HC|LC)$/.exec(id) || /^(.*[0-9])(H|L)$/.exec(id);
+    return m ? { parts: [m[1], "", m[2]], drop: [2] } : null;
+  }
+
+  /** A candidate's name without its chain marks, lower-cased: "mAb01_VH" -> "mab01",
+      "SYN-VL-003" -> "syn-003", "Ab7 heavy" -> "ab7", "mAb01|VH" -> "mab01", "1A2H" -> "1a2".
+      null when the name has no chain mark, or nothing besides it. */
+  function pairKey(id) {
+    var f = chainMarks(id);
+    if (!f) return null;
+    var rest = f.parts.filter(function (t, i) { return i % 2 === 0 && t && f.drop.indexOf(i) < 0; });
     return rest.length ? rest.join("-").toLowerCase() : null;
   }
 
@@ -2861,18 +2884,23 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return { text: lines.join("\n"), digits: digits, stops: stops };
   }
 
-  /** An antibody's display name from one chain's name: the name without its chain token
-      ("mAb02_VH" -> "mAb02", "SYN-VL-003" -> "SYN-003"). null when there is no chain token. */
+  /** An antibody's display name from one chain's name: the name without its chain marks
+      ("mAb02_VH" -> "mAb02", "SYN-VL-003" -> "SYN-003", "mAb01 (VH)" -> "mAb01"). null when
+      there is no chain mark. */
   function pairName(id) {
-    var parts = String(id).split(/([-_. ]+)/);   // tokens at even positions, separators at odd
-    for (var i = 0; i < parts.length; i += 2) {
-      if (CHAIN_TOKEN.test(parts[i])) {
-        if (i > 0) parts.splice(i - 1, 2); else parts.splice(i, 2);
-        return parts.join("") || null;
-      }
-    }
-    var m = /^(.*[0-9a-z])(VH|VL|HC|LC)$/.exec(String(id));
-    return m ? m[1] : null;
+    var f = chainMarks(id);
+    if (!f) return null;
+    var keep = f.parts.slice();
+    f.drop.forEach(function (i) {            // each mark goes with one separator next to it
+      keep[i] = null;
+      if (i > 0 && keep[i - 1] !== null) keep[i - 1] = null;
+      else if (i + 1 < keep.length) keep[i + 1] = null;
+    });
+    var name = keep.filter(function (x) { return x !== null; }).join("")
+      .replace(/^[-_. |\/:;,)\]]+|[-_. |\/:;,(\[]+$/g, "");
+    var opened = (name.match(/[(\[]/g) || []).length, closed = (name.match(/[)\]]/g) || []).length;
+    if (opened !== closed) name = name.replace(/[()\[\]]/g, "").trim();     // a bracket left without its partner
+    return name || null;
   }
 
   // ---- values read back from browser storage ------------------------------------------
@@ -3948,7 +3976,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>FASTA 복사</dt><dd>지금 보이는 목록의 서열. 판정 불가 목록을 ANARCI · IMGT 에 붙여넣을 때</dd>
         <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준. JSON 은 엔진 원본 출력이고, 기본이 아닌 규칙 세트를 쓰는 중이면 rule_set · rule_result 항목이 더 붙음</dd>
         <dt>한 장</dt><dd>북마크로 고른 후보만 A4 한 장 HTML 로 저장. 브라우저에서 열어 인쇄</dd>
-        <dt>짝 체인</dt><dd>이름이 체인 표시(VH · VL · HC · LC · heavy · light)만 다른 두 서열. 한 장에 함께 넣고 나란히 표시</dd>
+        <dt>짝 체인</dt><dd>이름이 체인 표시만 다른 두 서열 (mAb01_VH · mAb01_VL). 표시로 읽는 것: VH · VL · VK · HC · LC · H · L · heavy · light · IGH · IGK · IGL · 중쇄 · 경쇄, 구분 기호 없이 붙인 mAb01H · mAb01L 포함. 엔진이 한쪽을 VH, 다른 쪽을 VL 로 판정한 정확히 두 서열만 묶음</dd>
         <dt>항체 단위</dt><dd>짝 체인을 한 카드에 묶어 표시. 분류는 체인별로 따로 두고 합치지 않음. 짝이 있는 체인이 절반을 넘으면 처음부터 항체로 열림. 서열 · 항체를 한 번 고르면 그 뒤로는 고른 대로</dd></dl></section>
       <section class="card guide"><h2>단축키</h2><dl>
         <dt><kbd>/</kbd></dt><dd>검색</dd><dt><kbd>Enter</kbd> <kbd>↓</kbd></dt><dd>검색 칸에서 첫 결과로</dd><dt><kbd>Esc</kbd></dt><dd>상세 · 메뉴 닫기</dd>

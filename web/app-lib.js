@@ -321,17 +321,40 @@
     return { entries: entries, source: source };
   }
 
-  var CHAIN_TOKEN = /^(vh|vl|vk|hc|lc|h|l|heavy|light|kappa|lambda)$/i;
+  // Marks for the heavy or the light chain in a name. A mark is a whole token, so the "L" in
+  // "CTRL" is not one. Numbered marks ("VH1") and gene names ("IGHV3") are left alone: they say
+  // more than which chain it is, and two names differing in them need not be one antibody.
+  var CHAIN_TOKEN = /^(vh|vl|vk|vκ|vλ|vkappa|vlambda|hc|lc|h|l|κ|λ|heavy|light|kappa|lambda|igh|igk|igl|중쇄|경쇄)$/i;
+  var NAME_SEP = /([-_. |\/:;,()\[\]]+)/;      // separators are kept by split(), at the odd positions
 
-  /** A candidate's name without its chain token, lower-cased: "mAb01_VH" -> "mab01",
-      "SYN-VL-003" -> "syn-003", "Ab7 heavy" -> "ab7". null when the name has no chain token. */
-  function pairKey(id) {
-    var tokens = String(id).split(/[-_. ]+/).filter(Boolean);
-    var rest = tokens.filter(function (t) { return !CHAIN_TOKEN.test(t); });
-    if (rest.length === tokens.length) {
-      var m = /^(.*[0-9a-z])(VH|VL|HC|LC)$/.exec(String(id));   // "mAb01VH": upper-case suffix only
-      return m ? m[1].toLowerCase() : null;
+  /**
+   * A name cut into tokens and separators, with the positions of its chain marks:
+   * {parts, drop: [even indexes]} or null when there is no mark. The word "chain" (or "사슬")
+   * right after a mark belongs to it ("H_chain", "heavy chain"). Names written without a
+   * separator are read too: upper-case VH / VL / VK / HC / LC at the end ("mAb01VH"), or a single
+   * H / L right after a digit ("mAb01H", but not "CTRL").
+   */
+  function chainMarks(id) {
+    id = String(id);
+    var parts = id.split(NAME_SEP), drop = [];
+    for (var i = 0; i < parts.length; i += 2) {
+      if (CHAIN_TOKEN.test(parts[i])) {
+        drop.push(i);
+        if (i + 2 < parts.length && /^(chain|사슬)$/i.test(parts[i + 2])) { drop.push(i + 2); i += 2; }
+      }
     }
+    if (drop.length) return { parts: parts, drop: drop };
+    var m = /^(.*[0-9a-z])(VH|VL|VK|HC|LC)$/.exec(id) || /^(.*[0-9])(H|L)$/.exec(id);
+    return m ? { parts: [m[1], "", m[2]], drop: [2] } : null;
+  }
+
+  /** A candidate's name without its chain marks, lower-cased: "mAb01_VH" -> "mab01",
+      "SYN-VL-003" -> "syn-003", "Ab7 heavy" -> "ab7", "mAb01|VH" -> "mab01", "1A2H" -> "1a2".
+      null when the name has no chain mark, or nothing besides it. */
+  function pairKey(id) {
+    var f = chainMarks(id);
+    if (!f) return null;
+    var rest = f.parts.filter(function (t, i) { return i % 2 === 0 && t && f.drop.indexOf(i) < 0; });
     return rest.length ? rest.join("-").toLowerCase() : null;
   }
 
@@ -450,18 +473,23 @@
     return { text: lines.join("\n"), digits: digits, stops: stops };
   }
 
-  /** An antibody's display name from one chain's name: the name without its chain token
-      ("mAb02_VH" -> "mAb02", "SYN-VL-003" -> "SYN-003"). null when there is no chain token. */
+  /** An antibody's display name from one chain's name: the name without its chain marks
+      ("mAb02_VH" -> "mAb02", "SYN-VL-003" -> "SYN-003", "mAb01 (VH)" -> "mAb01"). null when
+      there is no chain mark. */
   function pairName(id) {
-    var parts = String(id).split(/([-_. ]+)/);   // tokens at even positions, separators at odd
-    for (var i = 0; i < parts.length; i += 2) {
-      if (CHAIN_TOKEN.test(parts[i])) {
-        if (i > 0) parts.splice(i - 1, 2); else parts.splice(i, 2);
-        return parts.join("") || null;
-      }
-    }
-    var m = /^(.*[0-9a-z])(VH|VL|HC|LC)$/.exec(String(id));
-    return m ? m[1] : null;
+    var f = chainMarks(id);
+    if (!f) return null;
+    var keep = f.parts.slice();
+    f.drop.forEach(function (i) {            // each mark goes with one separator next to it
+      keep[i] = null;
+      if (i > 0 && keep[i - 1] !== null) keep[i - 1] = null;
+      else if (i + 1 < keep.length) keep[i + 1] = null;
+    });
+    var name = keep.filter(function (x) { return x !== null; }).join("")
+      .replace(/^[-_. |\/:;,)\]]+|[-_. |\/:;,(\[]+$/g, "");
+    var opened = (name.match(/[(\[]/g) || []).length, closed = (name.match(/[)\]]/g) || []).length;
+    if (opened !== closed) name = name.replace(/[()\[\]]/g, "").trim();     // a bracket left without its partner
+    return name || null;
   }
 
   // ---- values read back from browser storage ------------------------------------------

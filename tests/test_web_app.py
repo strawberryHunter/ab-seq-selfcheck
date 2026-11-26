@@ -369,6 +369,72 @@ def test_partner_chains_are_found_by_name():
 
 
 @needs_node
+def test_partner_chains_under_the_naming_schemes_people_use():
+    out = _node("""
+      const s = Object.fromEntries(entries);
+      const VH = s["SYN-VH-001"], VL = s["SYN-VL-001"], VH2 = s["SYN-VH-003"], VL2 = s["SYN-VL-004"];
+      // every scheme is tried with two antibodies at once, so pairing across antibodies would show
+      const second = (name) => name.replace("mAb01", "mAb02").replace("1A2", "3B4").replace("clone 7", "clone 8");
+      const tryScheme = ([h, l]) => {
+        const rows = ABUI.buildRows(ABCHECK.analyze([[h, VH], [second(h), VH2], [l, VL], [second(l), VL2]], 7.4));
+        const p = ABUI.pairMap(rows);
+        if (p[0] === 2 && p[2] === 0 && p[1] === 3 && p[3] === 1) return ABUI.pairName(h) + " + " + ABUI.pairName(second(l));
+        return Object.keys(p).length ? "WRONG " + JSON.stringify(p) : null;
+      };
+      const paired = [["mAb01_VH", "mAb01_VL"], ["mAb01-HC", "mAb01-LC"], ["mAb01 heavy", "mAb01 light"], ["mAb01.H", "mAb01.L"],
+        ["mAb01_VH", "mAb01_VK"], ["mAb01_VH", "mAb01_Vκ"], ["mAb01_VH", "mAb01_Vλ"], ["mAb01_VH", "mAb01_VLambda"],
+        ["mAb01H", "mAb01L"], ["1A2H", "1A2L"], ["1A2_h", "1A2_l"], ["mAb01VH", "mAb01VL"], ["mAb01HC", "mAb01LC"],
+        ["mAb01_H_chain", "mAb01_L_chain"], ["mAb01_heavy_chain", "mAb01_light_chain"], ["mAb01|VH", "mAb01|VL"],
+        ["mAb01/VH", "mAb01/VL"], ["mAb01:VH", "mAb01:VL"], ["VH_mAb01", "VL_mAb01"], ["HC mAb01", "LC mAb01"],
+        ["mAb01(VH)", "mAb01(VL)"], ["mAb01 (VH)", "mAb01 (VL)"], ["mAb01 중쇄", "mAb01 경쇄"], ["mAb01_IGH", "mAb01_IGK"],
+        ["mAb01_IGH", "mAb01_IGL"], ["clone 7 VH", "clone 7 VL"], ["IGH_mAb01_VH", "IGK_mAb01_VL"]];
+      const unpaired = [["mAb01_VH1", "mAb01_VL1"], ["mAb01_HV", "mAb01_LV"], ["mAb01_IGHV3", "mAb01_IGKV1"],
+        ["mAb01-CTRH", "mAb01-CTRL"], ["mAb01aH", "mAb01aL"], ["mAb01", "mAb01"]];
+      // three chains under one name are ambiguous and stay apart; a mark alone is not a name
+      const three = ABUI.pairMap(ABUI.buildRows(ABCHECK.analyze([["x_VH", VH], ["x_VL", VL], ["x_VK", VL2]], 7.4)));
+      console.log(JSON.stringify({
+        paired: paired.map(tryScheme), unpaired: unpaired.map(tryScheme), three,
+        names: ["mAb01 (clone 7) VH", "SYN-VL-003", "mAb01H", "CTRL", "VH", "H_chain", "mAb01_heavy_chain"].map(ABUI.pairName),
+        keys: ["mAb01|VH", "1A2H", "mAb01 중쇄", "CTRL", "mAb01_VH1"].map(ABUI.pairKey)}));""")
+    assert all(name is not None and not name.startswith("WRONG") for name in out["paired"]), out["paired"]
+    assert out["paired"][0] == "mAb01 + mAb02" and out["paired"][9] == "1A2 + 3B4" and out["paired"][25] == "clone 7 + clone 8"
+    assert out["unpaired"] == [None] * 6
+    assert out["three"] == {}
+    assert out["names"] == ["mAb01 clone 7", "SYN-003", "mAb01", None, None, None, "mAb01"]
+    assert out["keys"] == ["mab01", "1a2", "mab01", None, None]
+
+
+@needs_node
+def test_default_rule_set_reproduces_the_engine_triage_on_every_parity_case(tmp_path):
+    """The same comparison as above over everything scripts/js_parity.py analyses: corpus and all edge cases, three pH values."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("js_parity", ROOT / "scripts" / "js_parity.py")
+    parity = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(parity)
+    cases = [{"label": label, "entries": [list(e) for e in entries], "ph": ph} for label, entries, ph in parity.standard_cases()]
+    path = tmp_path / "cases.json"
+    path.write_text(json.dumps(cases, ensure_ascii=False), encoding="utf-8")
+    out = _node("const cases = JSON.parse(fs.readFileSync(" + json.dumps(str(path)) + """, "utf8"));
+      let n = 0; const diffs = [], seen = {};
+      for (const c of cases) {
+        const p = ABCHECK.analyze(c.entries, c.ph);
+        const rows = ABUI.buildRows(p, ABUI.DEFAULT_RULESET);
+        p.sequences.forEach((s, i) => {
+          n++;
+          const t = ABUI.applyRules(s, ABUI.DEFAULT_RULESET), e = s.triage;
+          seen[e.status] = (seen[e.status] || 0) + 1;
+          if (t.status !== e.status || JSON.stringify(t.reasons) !== JSON.stringify(e.reasons) ||
+              t.evaluable !== e.evaluable || t.note !== e.note) diffs.push([c.label, s.id, t, e]);
+          if (s.input_ok && rows[i].status !== e.status) diffs.push([c.label, s.id, "row", rows[i].status, e.status]);
+        });
+      }
+      console.log(JSON.stringify({n, diffs: diffs.slice(0, 5), statuses: Object.keys(seen).length}));""")
+    assert out["n"] == sum(len(c["entries"]) for c in cases) and out["n"] > 500
+    assert out["statuses"] == 3                      # the cases reach all three outcomes
+    assert out["diffs"] == []
+
+
+@needs_node
 def test_stored_analyses_are_checked_when_read_back():
     out = _node("""
       const seq = entries[0][1];
