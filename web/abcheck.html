@@ -3479,12 +3479,13 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function viewHome(view) {
     const t = ABUI.tally(state.rows, state.picked);
     if (!state.payload) return hero(t) + `<div class="blank"><span>분석한 후보 없음</span></div>`;
-    const shown = ABUI.sortRows(ABUI.filterRows(state.rows, { view, chain: ui.chain, conf: ui.conf, query: state.query, picked: state.picked }), ui.sort);
+    const hasPairs = Object.keys(state.pairs).length > 0;
+    const abMode = hasPairs && ui.unit === "ab";       // an antibody has both chains: the chain filter does not apply
+    const shown = ABUI.sortRows(ABUI.filterRows(state.rows, { view, chain: abMode ? "all" : ui.chain, conf: ui.conf, query: state.query, picked: state.picked }), ui.sort);
     const cur = (v) => (view === v ? ' aria-current="true"' : "");
     const opt = (list, val) => list.map(([k, l]) => `<option value="${k}"${val === k ? " selected" : ""}>${l}</option>`).join("");
     let h = view === "all" && !state.query ? hero(t) : "";
-    const hasPairs = Object.keys(state.pairs).length > 0;
-    const units = hasPairs && ui.unit === "ab" ? ABUI.antibodyUnits(shown, state.rows, state.pairs) : null;
+    const units = abMode ? ABUI.antibodyUnits(shown, state.rows, state.pairs) : null;
     state.openList = units ? units.flatMap((u) => (u.h ? [u.h, u.l] : [u.row])) : shown;
     const nPairs = units ? units.filter((u) => u.h).length : 0;
     const count = units ? `항체 ${nPairs}쌍${units.length > nPairs ? ` · 단독 ${units.length - nPairs}건` : ""}` : `${shown.length}건`;
@@ -3501,7 +3502,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <span class="spacer s13 muted num">${when(state.at)} 분석</span>
       </div>
       <div class="row">
-        <label class="sr" for="f-chain">체인</label><select id="f-chain">${opt([["all", "체인 전체"], ["H", "VH"], ["L", "VL"]], ui.chain)}</select>
+        ${abMode ? "" : `<label class="sr" for="f-chain">체인</label><select id="f-chain">${opt([["all", "체인 전체"], ["H", "VH"], ["L", "VL"]], ui.chain)}</select>`}
         <label class="sr" for="f-conf">주석</label><select id="f-conf">${opt([["all", "주석 전체"], ["yes", "신뢰 가능"], ["no", "신뢰 불가"]], ui.conf)}</select>
         <div class="seg" role="group" aria-label="분류">
           ${[["all", "전체", t.all], ["review", "검토 필요", t.review], ["unknown", "판정 불가", t.unknown], ["clear", "기준 해당 없음", t.clear]].map(([k, l, n]) =>
@@ -3511,7 +3512,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         ${sortSelect("spacer")}
       </div>`;
     if (!shown.length) {
-      const filtered = state.query || ui.chain !== "all" || ui.conf !== "all";
+      const filtered = state.query || (!abMode && ui.chain !== "all") || ui.conf !== "all";
       const msg = view === "picked" && !filtered ? "고른 후보 없음 · 카드의 북마크로 고르기" : filtered ? "조건에 맞는 후보 없음" : `${LISTS[view]} 후보 없음`;
       h += `<div class="blank"><span>${msg}</span>${filtered ? `<button class="btn" type="button" id="f-reset">필터 지우기</button>` : ""}</div>`;
     } else {
