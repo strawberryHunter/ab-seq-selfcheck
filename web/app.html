@@ -258,6 +258,7 @@ textarea[aria-invalid="true"] { border-color: var(--text); }
 .form { display: grid; gap: 14px; }
 .form .frow { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px; align-items: center; }
 .form .frow > span { color: var(--muted); font-size: 13px; }
+#r-paste { flex: 1 1 120px; min-width: 0; max-width: 360px; }
 .toggles { display: flex; flex-wrap: wrap; gap: 6px; }
 .toggle { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 6px 10px; color: var(--muted); }
 .toggle[aria-pressed="true"] { background: var(--brand-tint); color: var(--text); font-weight: 700; border-color: var(--brand); }
@@ -1100,6 +1101,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
           <button class="btn${fixed ? " primary" : ""}" type="button" id="r-copy">복제</button>
           <button class="btn" type="button" id="r-del"${dis}>삭제</button></div></div>
         <div class="frow"><span>이름</span><div><label class="sr" for="r-name">이름</label><input id="r-name" type="text" maxlength="30" value="${esc(rs.name)}"${dis}></div></div>
+        <div class="frow"><span>공유</span><div class="row">
+          <button class="btn" type="button" id="r-share">복사</button>
+          <label class="sr" for="r-paste">복사한 규칙</label><input id="r-paste" type="text" spellcheck="false" autocomplete="off" placeholder="복사한 규칙 붙여넣기">
+          <button class="btn" type="button" id="r-import">가져오기</button></div></div>
         <div class="frow"><span>모티프</span><div class="toggles">${ABUI.MOTIFS.map((x) =>
           `<button class="toggle" type="button" data-motif="${esc(x.pattern)}" aria-pressed="${rs.motifs.includes(x.pattern)}" title="${esc(x.label)} · 기본 ${x.base}"${dis}>${esc(x.short)}</button>`).join("")}</div></div>
         <div class="frow"><span>위치</span>${seg("where", Object.entries(ABUI.WHERE), rs.where)}</div>
@@ -1139,6 +1144,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       <section class="card guide"><h2>입력</h2><dl>
         <dt>붙여넣기</dt><dd>서열 하나 · FASTA 여러 개 · 엑셀 표(이름, 서열 두 열)</dd>
         <dt>파일</dt><dd>FASTA · CSV · TSV · JSON 여러 개를 한 번에 끌어다 놓기. .xlsx 는 'CSV UTF-8' 로 저장 후 열기</dd>
+        <dt>규칙 공유</dt><dd>선별 규칙 화면의 '복사' 가 규칙 세트를 글 한 줄로 복사. 받은 사람은 같은 화면에 붙여넣고 '가져오기'. 이 화면에서 저장한 JSON 결과를 붙여넣어도 그 안의 규칙을 가져옴</dd>
         <dt>번호 섞인 복사</dt><dd>위치 번호 · 끝의 * 가 섞인 서열은 오류 아래 버튼으로 한 번에 지움. 서열 중간의 * 는 지우지 않음</dd>
         <dt>자동 정리</dt><dd>공백 · 줄바꿈 · 소문자 · 정렬 갭(. -)</dd>
         <dt>서열 단위</dt><dd>VH 또는 VL 도메인 하나, 70–200 잔기. scFv · Fab 는 VH 와 VL 로 나눠서</dd></dl></section>
@@ -1338,6 +1344,23 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       changed(); toast(`${name} 만듦`);
       const input = $("r-name"); if (input) { input.focus(); input.select(); }
     });
+    // hand a rule set to a colleague: one line of text out, a paste in
+    on("r-share", "click", () => copy(ABUI.ruleSetToText(rules()), `${rules().name} 규칙 복사`));
+    const takeIn = () => {
+      const box = $("r-paste");
+      if (!box.value.trim()) { box.focus(); return toast("복사한 규칙 붙여넣기 필요"); }
+      let got;
+      try { got = ABUI.ruleSetFromText(box.value); }
+      catch (e) { console.warn("abcheck: pasted rule set refused", e); box.focus(); box.select(); return toast("규칙으로 읽을 수 없음"); }
+      const taken = [ABUI.DEFAULT_RULESET].concat(state.rules.sets).map((s) => s.name);
+      let name = got.name, n = 2;
+      while (taken.includes(name)) name = `${got.name} ${n++}`;
+      const rs = ABUI.normalizeRuleSet(Object.assign({}, got, { id: "s" + Date.now(), name }));
+      state.rules.sets.push(rs); state.rules.active = rs.id;
+      changed(); toast(`${name} 가져옴`);
+    };
+    on("r-import", "click", takeIn);
+    on("r-paste", "keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); takeIn(); } });
     on("r-del", "click", () => {
       const rs = editable(); if (!rs) return;
       const at = state.rules.sets.indexOf(rs);

@@ -492,6 +492,36 @@
     return name || null;
   }
 
+  // ---- a rule set as text, to hand to a colleague -------------------------------------
+
+  /** One line of JSON that ruleSetFromText() reads back. The id stays behind: it belongs to this browser. */
+  function ruleSetToText(ruleSet) {
+    var rs = normalizeRuleSet(ruleSet);
+    return JSON.stringify({ abcheck: "rule-set", name: rs.name, motifs: rs.motifs, where: rs.where, minRisk: rs.minRisk, cys: rs.cys });
+  }
+
+  /**
+   * The rule set in a pasted text: the line ruleSetToText() wrote, or a JSON result saved from
+   * this page (its "rule_set" block is used). Returns {name, motifs, where, minRisk, cys} checked
+   * by normalizeRuleSet; throws an Error that says what is wrong. Text around the JSON (a mail
+   * quote, a chat prefix) is ignored.
+   */
+  function ruleSetFromText(text) {
+    text = String(text);
+    var from = text.indexOf("{"), to = text.lastIndexOf("}");
+    if (from < 0 || to <= from) throw new Error("no rule set in the text");
+    var value;
+    try { value = JSON.parse(text.slice(from, to + 1)); }
+    catch (e) { throw new Error("the text is not complete JSON: " + e.message); }
+    if (value && typeof value === "object" && value.rule_set && typeof value.rule_set === "object") value = value.rule_set;
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("no rule set in the text");
+    var rs = normalizeRuleSet({
+      id: "imported", name: value.name, motifs: value.motifs, where: value.where,
+      minRisk: value.minRisk !== undefined ? value.minRisk : value.min_risk, cys: value.cys
+    });
+    return { name: rs.name, motifs: rs.motifs, where: rs.where, minRisk: rs.minRisk, cys: rs.cys };
+  }
+
   // ---- values read back from browser storage ------------------------------------------
   // They were written by this page, possibly by an older version of it, possibly cut short.
   // Each reader keeps what has the expected shape and counts what it had to leave out, so
@@ -788,7 +818,7 @@
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
-    cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules,
+    cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };

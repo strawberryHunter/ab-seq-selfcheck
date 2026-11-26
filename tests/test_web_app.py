@@ -203,6 +203,33 @@ def test_json_export_carries_the_active_rule_set():
 
 
 @needs_node
+def test_a_rule_set_travels_as_text():
+    out = _node("""
+      const team = {id: "s123", name: "DS 포함", motifs: ["NG", "D[STD]", "W"], where: "cdr3", minRisk: "중간", cys: "off"};
+      const line = ABUI.ruleSetToText(team);
+      const back = ABUI.ruleSetFromText(line);
+      const payload = ABCHECK.analyze(entries, 7.4);
+      const savedJson = ABCHECK.toJSON(ABUI.withRuleResults(payload, team));
+      const fails = (text) => { try { ABUI.ruleSetFromText(text); return null; } catch (e) { return e.message; } };
+      const same = (a, b) => JSON.stringify(ABUI.buildRows(payload, Object.assign({id: "x"}, a)).map(r => [r.status, r.reasons]))
+                          === JSON.stringify(ABUI.buildRows(payload, Object.assign({id: "y"}, b)).map(r => [r.status, r.reasons]));
+      console.log(JSON.stringify({
+        line, oneLine: !line.includes("\\n"), back,
+        sameResults: same(team, back),
+        inMail: ABUI.ruleSetFromText("민준님, 규칙 보냅니다 > " + line + " 확인 부탁"),
+        fromSavedJson: ABUI.ruleSetFromText(savedJson),
+        defaultSet: ABUI.ruleSetFromText(ABUI.ruleSetToText(ABUI.DEFAULT_RULESET)),
+        refused: [fails(""), fails("그냥 글"), fails('{"name":"x"'), fails('{"name":"x","motifs":["ZZZ"],"where":"cdr","minRisk":"높음","cys":"cdr"}'),
+                  fails('{"name":"","motifs":["NG"],"where":"cdr","minRisk":"높음","cys":"cdr"}'), fails("[1,2]"), fails('{"a":1}')]}));""")
+    assert out["oneLine"] and '"abcheck":"rule-set"' in out["line"] and "s123" not in out["line"]     # the id stays behind
+    expected = {"name": "DS 포함", "motifs": ["NG", "D[STD]", "W"], "where": "cdr3", "minRisk": "중간", "cys": "off"}
+    assert out["back"] == expected and out["inMail"] == expected and out["fromSavedJson"] == expected
+    assert out["sameResults"]                                  # the colleague gets the same classification
+    assert out["defaultSet"]["name"] == "기본" and out["defaultSet"]["motifs"] == ["N[^P][ST]", "NG", "DG", "DP"]
+    assert all(out["refused"]), out["refused"]                 # every bad text is refused with a reason
+
+
+@needs_node
 def test_rule_sets_are_validated_and_described():
     out = _node("""
       const errors = [{}, {name: "x", motifs: ["XX"], where: "cdr", minRisk: "높음", cys: "cdr"},
