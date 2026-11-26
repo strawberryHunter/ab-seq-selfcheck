@@ -131,9 +131,15 @@ checks this), so sequences stay on the machine.
   browser (the default set reproduces the engine's triage; a set can be handed to a
   colleague as one line of text), VH/VL partner chains found by name and shown as one
   antibody with each chain's own result, CDR comparison against a reference candidate
-  (a dot where a residue is the same; no alignment is made), a pI × GRAVY scatter, a
-  one-page sheet for picked candidates, and exports (table for a spreadsheet, mail text,
-  FASTA, CSV, JSON).
+  (a dot where a residue is the same; no alignment is made), groups of candidates whose
+  CDR3 have the same length and differ in a few residues, a table of how the motifs
+  spread over the panel (candidates per motif and region; a number opens those
+  candidates), a substitution trial in the candidate drawer (`N56Q` is applied and run
+  through the same engine and rule set, shown beside the parent, and can be added to the
+  list; places are 1-based places in the sequence as entered, not Kabat numbers), a note
+  per candidate, a pI × GRAVY scatter, a one-page sheet for picked candidates, and
+  exports (table for a spreadsheet, mail text, FASTA, CSV, JSON; picks and notes travel
+  with the mail text, the sheet and the tables).
 - **Build.** `python3 web/build.py` inlines `web/app.html`, `web/app-lib.js`, the engine
   and the bundled fonts into `web/abcheck.html`. `python3 web/build.py --check` fails when
   the committed page is stale; the test suite runs the same check.
