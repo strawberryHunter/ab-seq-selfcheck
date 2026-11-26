@@ -482,7 +482,7 @@ def test_stored_analyses_are_checked_when_read_back():
     assert out["notAList"] == [{"list": [], "dropped": 1}] * 3
     assert out["good"]["dropped"] == 0 and out["good"]["list"][0]["picked"] == [1] and out["good"]["list"][0]["ph"] == 5.5
     assert out["older"]["list"][0] == {"id": "r0", "entries": out["older"]["list"][0]["entries"], "ph": 7.4,
-                                       "at": 1763000000000, "count": 1, "source": "예전 분석", "text": "", "picked": []}
+                                       "at": 1763000000000, "count": 1, "source": "예전 분석", "text": "", "picked": [], "notes": {}}
     assert out["junk"]["dropped"] == 4 and [r["id"] for r in out["junk"]["list"]] == ["r1"]
     # an analysis whose rows, pH or time cannot be trusted is left out, not restored with made-up values
     assert out["rows"] == {"list": [], "dropped": 1}
@@ -652,6 +652,65 @@ def test_taking_an_entry_out_keeps_picks_and_references_on_the_same_candidates()
     assert out["last"] == {"entries": ["a", "b", "c", "d"], "picked": ["a"], "ref": {"H": None, "L": "c"}}
     assert out["bare"] == [] and out["inputUnchanged"] is True
     assert all(m and "withoutEntry: no entry" in m for m in out["refused"])
+
+
+@needs_node
+def test_notes_are_one_line_and_checked_when_read_back():
+    out = _node("""
+      const rec = (notes) => ({id: "r1", entries: [["a", "AAA"], ["b", "CCC"], ["c", "DDD"]], ph: 7.4, at: 1, notes});
+      const back = (notes) => ABUI.cleanRecent([rec(notes)]).list[0].notes;
+      console.log(JSON.stringify({
+        clean: ["  발현량  높음\\n다음 라운드 ", "", null, undefined, 7, "가".repeat(250)].map(ABUI.cleanNote).map(x => x.length > 40 ? x.length : x),
+        kept: back({0: "대표 후보", 2: " H3 NG \\t 제거 필요 "}),
+        bad: back({"-1": "x", 3: "밖", 1.5: "x", a: "x", 1: 5, 2: "   ", 0: "남음"}),
+        notObject: [back(["x"]), back("x"), back(null), back(undefined)],
+        moved: ABUI.withoutEntry([["a", "A"], ["b", "C"], ["c", "D"], ["d", "E"]], 1, [], {}, {0: "첫째", 1: "빠짐", 3: "넷째"}).notes,
+        noNotes: ABUI.withoutEntry([["a", "A"], ["b", "C"]], 0, [], {}).notes}));""")
+    assert out["clean"] == ["발현량 높음 다음 라운드", "", "", "", "7", 200]
+    assert out["kept"] == {"0": "대표 후보", "2": "H3 NG 제거 필요"}
+    assert out["bad"] == {"0": "남음"}                         # outside the list, not a place, not text, blank: left out
+    assert out["notObject"] == [{}, {}, {}, {}]
+    assert out["moved"] == {"0": "첫째", "2": "넷째"}             # the note of the removed entry goes, the later one moves up
+    assert out["noNotes"] == {}
+
+
+@needs_node
+def test_picks_and_notes_travel_with_the_exports():
+    out = _node("""
+      const rows = ABUI.buildRows(ABCHECK.analyze(entries.concat([["bad", "ACDEFGHIK"]]), 7.4));
+      const by = Object.fromEntries(rows.map(r => [r.id, r.index]));
+      const meta = {ruleName: "기본", when: "2026-11-26 10:00"};
+      const notes = {[by["SYN-VH-003"]]: "N56Q 변이체 제작", [by["SYN-VH-001"]]: '대표 <b>후보</b>, "1순위"', [by["bad"]]: "서열 다시 받기"};
+      const picked = new Set([by["SYN-VH-001"], by["SYN-VL-001"]]);
+      const plain = ABUI.toMailText(rows, meta), marked = ABUI.toMailText(rows, Object.assign({picked, notes}, meta));
+      const body = plain.split("\\n\\nKabat")[0];
+      const some = rows.slice(0, 5);
+      const csv = ABUI.toCsv(some, "기본", notes).split("\\r\\n"), tsv = ABUI.toTsv(some, "기본", notes).split("\\n");
+      const page = ABUI.onePageFragment(some, Object.assign({notes}, meta));
+      console.log(JSON.stringify({
+        ids: some.map(r => r.id),
+        plainHasMarks: /고른 후보|메모/.test(plain), startsSame: marked.startsWith(body), tail: marked.slice(body.length),
+        emptyMarks: ABUI.toMailText(rows, Object.assign({picked: new Set(), notes: {}}, meta)) === plain,
+        csvSame: ABUI.toCsv(some, "기본", {}) === ABUI.toCsv(some, "기본") && ABUI.toCsv(some, "기본", {[by["bad"]]: "목록에 없음"}) === ABUI.toCsv(some, "기본"),
+        csvHead: csv[0].split(",").slice(-2), csvRow1: csv[1].slice(-28), csvRow2: csv[2].split(",").slice(-1),
+        tsvHead: tsv[0].split("\\t").slice(-1), tsvRow1: tsv[1].split("\\t").slice(-1), tsvRow5: tsv[5].split("\\t").slice(-1), tsvWidths: [...new Set(tsv.map(l => l.split("\\t").length))],
+        pageNote: (page.match(/<tr class="op-note">.*?<\\/tr>/g) || []), pagePlain: ABUI.onePageFragment(some, meta).includes("op-note")}));""")
+    assert out["ids"][0] == "SYN-VH-001" and out["ids"][4] == "SYN-VH-003"
+    assert out["plainHasMarks"] is False and out["emptyMarks"] is True       # nothing marked: the text is what it was
+    assert out["startsSame"] is True                                         # the other sections are untouched
+    assert out["tail"] == (
+        '\n\n고른 후보 2\n- SYN-VH-001 (VH): 대표 <b>후보</b>, "1순위"\n- SYN-VL-001 (VL)'
+        "\n\n메모 2\n- SYN-VH-003 (VH): N56Q 변이체 제작\n- bad: 서열 다시 받기"
+        "\n\nKabat 근사 · ANARCI/IMGT 아님 · 종합 판정 없음")
+    assert out["csvSame"] is True                                            # no note on a listed row: the file is what it was
+    assert out["csvHead"] == ["입력 오류", "메모"]
+    assert out["csvRow1"].endswith(',"대표 <b>후보</b>, ""1순위"""')          # quoted for Excel
+    assert out["csvRow2"] == [""]
+    assert out["tsvHead"] == ["메모"] and out["tsvRow1"] == ['대표 <b>후보</b>, "1순위"'] and out["tsvRow5"] == ["N56Q 변이체 제작"]
+    assert len(out["tsvWidths"]) == 1                                        # every line has the same number of columns
+    assert out["pageNote"] == ['<tr class="op-note"><td colspan="7"><small>메모</small> 대표 &lt;b&gt;후보&lt;/b&gt;, &quot;1순위&quot;</td></tr>',
+                               '<tr class="op-note"><td colspan="7"><small>메모</small> N56Q 변이체 제작</td></tr>']
+    assert out["pagePlain"] is False
 
 
 @needs_node

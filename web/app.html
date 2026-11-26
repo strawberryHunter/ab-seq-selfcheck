@@ -171,7 +171,9 @@ select, input[type="text"], input[type="number"] { border: 1px solid var(--line)
 .stat:hover b { color: var(--brand); }
 .stat[aria-current="true"] { border-bottom-color: var(--brand); color: var(--text); }
 .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
-.cand { display: grid; gap: 8px; cursor: pointer; align-content: start; }
+.cand { display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
+.cand > * { min-width: 0; }
+.cand > .cfoot { margin-top: auto; }      /* cards of one row end on the same line, with or without a note */
 .cand:hover { border-color: var(--brand); }
 .chead { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .cname { border: none; background: none; padding: 0; font-family: var(--fm); font-weight: 700; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -186,6 +188,9 @@ select, input[type="text"], input[type="number"] { border: 1px solid var(--line)
 .ctitle.seq { font-family: var(--fm); }
 .ctitle .k { font-family: var(--ff); font-size: 13px; color: var(--muted); margin-right: 8px; }
 .cstate { font-size: 13px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cnote { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cnote::before { content: "메모 "; color: var(--muted); }
+#sheet-note { width: 100%; }
 .cfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .cfoot .s13 { color: var(--muted); }
 .cand.ab { cursor: default; }
@@ -375,6 +380,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       <button class="pick" type="button" id="sheet-pick" aria-pressed="false" aria-label="고르기"></button>
       <button class="iconbtn" type="button" id="sheet-close" aria-label="닫기"></button></div>
     <div class="row" id="sheet-sub"></div>
+    <input id="sheet-note" type="text" maxlength="200" placeholder="메모" aria-label="메모" autocomplete="off" title="메일용 글 · 한 장 · Excel · CSV 에 함께 실림">
   </div>
   <div class="sb" id="sheet-body"></div>
   <div class="sf">
@@ -442,7 +448,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const unitNow = () => ui.unitChoice || ABUI.preferredUnit(state.rows, state.pairs);
   const state = {
     payload: null, rows: [], entries: [], source: "", ph: 7.4, at: null, isExample: false, recentId: null,
-    view: "all", query: "", limit: PAGE, tableLimit: 200, hero: 0, picked: new Set(),
+    view: "all", query: "", limit: PAGE, tableLimit: 200, hero: 0, picked: new Set(), notes: {},
     input: "", fileName: "", error: null, rejected: null,
     rules: { active: "default", sets: [] }, pairs: {},
     open: null, openList: [], opener: null,
@@ -566,7 +572,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const rules = () => state.rules.sets.find((s) => s.id === state.rules.active) || ABUI.DEFAULT_RULESET;
   const saveRules = () => store.set(K.rules, state.rules);
   const retriage = () => { if (state.payload) { state.rows = ABUI.buildRows(state.payload, rules()); state.pairs = ABUI.pairMap(state.rows); } };
-  const meta = () => ({ ruleName: rules().name, when: when(state.at), pairs: state.pairs });
+  const meta = () => ({ ruleName: rules().name, when: when(state.at), pairs: state.pairs, picked: state.picked, notes: state.notes });
 
   /* ---------- analysis ---------- */
   function setBusy(msg) { $("busy").innerHTML = msg ? `<div class="busy" role="status"><div>${esc(msg)}</div></div>` : ""; }
@@ -578,7 +584,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     state.payload = payload; state.entries = entries; state.source = source; state.ph = ph;
     state.at = opts.at ? new Date(opts.at) : new Date();
     state.isExample = !!opts.example; state.recentId = opts.recentId || null;
-    state.picked = new Set(opts.picked || []);
+    state.picked = new Set(opts.picked || []); state.notes = Object.assign({}, opts.notes || {});
     state.limit = PAGE; state.hero = 0; state.error = null; state.rejected = null;
     state.ref = { H: null, L: null }; state.motif = null;
     retriage();
@@ -657,21 +663,22 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (body.length + text.length > 500000) return;      // too big for browser storage
     const list = recents().filter((r) => JSON.stringify(r.entries) !== body);
     const id = "r" + Date.now();
-    list.unshift({ id, entries, source, ph, text, count: entries.length, at: Date.now(), picked: [] });
+    list.unshift({ id, entries, source, ph, text, count: entries.length, at: Date.now(), picked: [], notes: {} });
     for (let keep = Math.min(6, list.length); keep >= 1; keep--) {
       if (store.set(K.recent, list.slice(0, keep))) { state.recentId = id; return; }
     }
   }
   /** An analysis the user ran that is not in browser storage: it is gone after a reload. */
   const unkept = () => !!state.payload && !state.isExample && !state.recentId;
-  function savePicked() {
+  /** The user's marks on the analysis on screen (picks, notes) go into its stored copy. */
+  function saveMarks() {
     if (!state.recentId) return;
     const list = recents();
     const r = list.find((x) => x.id === state.recentId);
-    if (r) { r.picked = Array.from(state.picked); store.set(K.recent, list); }
+    if (r) { r.picked = Array.from(state.picked); r.notes = state.notes; store.set(K.recent, list); }
   }
   function openRecent(r) {
-    run(() => finish(analyzeEntries(r.entries, r.source, r.ph, { recentId: r.id, picked: r.picked, at: r.at })), r.entries.length);
+    run(() => finish(analyzeEntries(r.entries, r.source, r.ph, { recentId: r.id, picked: r.picked, notes: r.notes, at: r.at })), r.entries.length);
   }
   const recentText = (r) => r.text || r.entries.map((e) => ">" + e[0] + "\n" + e[1] + "\n").join("");
 
@@ -772,6 +779,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const sortSelect = (cls) => `<label class="sr" for="f-sort">정렬</label><select id="f-sort" class="${cls}">` +
     [["input", "입력 순"], ["name", "이름 순"], ["pi-desc", "pI 높은 순"], ["pi-asc", "pI 낮은 순"]].map(([k, l]) => `<option value="${k}"${ui.sort === k ? " selected" : ""}>${l}</option>`).join("") + `</select>`;
 
+  const noteLine = (r) => state.notes[r.index] ? `<span class="cnote" data-note="${r.index}" title="${esc(state.notes[r.index])}">${esc(state.notes[r.index])}</span>` : "";
+
   function candCard(r) {
     let title, sub = "";
     const stateLine = stateLineOf(r);
@@ -793,7 +802,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return `<article class="card cand" data-i="${r.index}">
       <div class="chead"><span class="chain">${chainText(r)}</span><button class="cname" type="button" data-open="${r.index}">${esc(r.id)}</button>${r.inputOk ? pickBtn(r) : ""}</div>
       ${title}${sub}
-      <div class="cstate" title="${esc(stateLine)}">${esc(stateLine)}</div>
+      <div class="cstate" title="${esc(stateLine)}">${esc(stateLine)}</div>${noteLine(r)}
       <div class="cfoot">${tag(r)}<span class="row s13">${partner ? `<button class="chip" type="button" data-open="${partner.index}" title="${esc(partner.id)}">짝 ${chainText(partner)}</button>` : ""}<span>${r.inputOk ? (r.confident ? "신뢰 가능" : "신뢰 불가") : ""}</span></span></div>
     </article>`;
   }
@@ -807,7 +816,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       const under = r.cdr3 && why ? why : stateLineOf(r);
       return `<button class="abrow" type="button" data-open="${r.index}" aria-label="${esc(r.id)} 상세">
         <span class="abtop"><span class="chain">${chainText(r)}</span><span class="abseq${r.cdr3 ? " seq" : ""}">${body}</span>${tag(r)}</span>
-        <span class="cstate" title="${esc(under)}">${esc(under)}</span></button>`;
+        <span class="cstate" title="${esc(under)}">${esc(under)}</span>${noteLine(r)}</button>`;
     };
     const both = state.picked.has(u.h.index) && state.picked.has(u.l.index);
     return `<article class="card cand ab">
@@ -972,15 +981,15 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
    * the new entries, and what the user had set follows -- picks and references as given, the motif
    * filter, the page of the list. The stored copy of the old list is replaced, not kept beside it.
    */
-  function relist(entries, source, picked, ref, done) {
+  function relist(entries, source, picked, ref, notes, done) {
     const keep = { motif: state.motif, limit: state.limit, hero: state.hero, recentId: state.recentId };
     run(() => {
-      if (!analyzeEntries(entries, source, state.ph, { picked })) throw new Error("relist: the changed list of " + entries.length + " was rejected");
+      if (!analyzeEntries(entries, source, state.ph, { picked, notes })) throw new Error("relist: the changed list of " + entries.length + " was rejected");
       state.ref = ref; state.motif = keep.motif; state.limit = keep.limit; state.hero = keep.hero;
       if (state.recentId) {
         const list = recents().filter((x) => x.id !== keep.recentId);
         const cur = list.find((x) => x.id === state.recentId);
-        if (cur) cur.picked = picked;
+        if (cur) { cur.picked = picked; cur.notes = notes; }
         store.set(K.recent, list);
       }
       state.input = recentText({ entries }); state.fileName = "";      // 새 분석 shows the list as it is now
@@ -991,7 +1000,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   /** Put a variant on the list, at its end. */
   function addVariant(r, t) {
     const source = / \+ 변이체$/.test(state.source) ? state.source : state.source + " + 변이체";
-    relist(state.entries.concat([[t.name, t.seq]]), source, Array.from(state.picked), state.ref, () => {
+    relist(state.entries.concat([[t.name, t.seq]]), source, Array.from(state.picked), state.ref, state.notes, () => {
       openSheet(r.index);
       if ($("t-subs")) $("t-subs").focus();
       const msg = `${t.name} 추가${unkept() ? " · 저장 안 됨" : ""}`;
@@ -1003,11 +1012,11 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function dropEntry(index) {
     const r = state.rows[index];
     if (!r || state.entries.length !== state.rows.length) throw new Error("dropEntry: entry " + index + " of " + state.entries.length + " entries, " + state.rows.length + " rows");
-    const before = { entries: state.entries, source: state.source, picked: Array.from(state.picked), ref: state.ref };
-    const next = ABUI.withoutEntry(before.entries, index, before.picked, before.ref);
+    const before = { entries: state.entries, source: state.source, picked: Array.from(state.picked), ref: state.ref, notes: state.notes };
+    const next = ABUI.withoutEntry(before.entries, index, before.picked, before.ref, before.notes);
     closeSheet();
-    relist(next.entries, before.source, next.picked, next.ref, () => {
-      toast(`${r.id} 뺌${unkept() ? " · 저장 안 됨" : ""}`, "되돌리기", () => relist(before.entries, before.source, before.picked, before.ref, () => toast(`${r.id} 되돌림`)));
+    relist(next.entries, before.source, next.picked, next.ref, next.notes, () => {
+      toast(`${r.id} 뺌${unkept() ? " · 저장 안 됨" : ""}`, "되돌리기", () => relist(before.entries, before.source, before.picked, before.ref, before.notes, () => toast(`${r.id} 되돌림`)));
     });
   }
 
@@ -1026,6 +1035,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (partner) $("sheet-partner").addEventListener("click", () => openSheet(partner.index));
     $("sheet-pick").hidden = !r.inputOk;
     $("sheet-pick").setAttribute("aria-pressed", String(state.picked.has(index)));
+    $("sheet-note").value = state.notes[index] || "";
     const last = r.inputOk && state.rows.filter((x) => x.inputOk).length === 1;      // a list needs one sequence that can be analysed
     $("sheet-body").innerHTML = sheetBody(r) +
       `<div class="blk"><div class="row"><button class="btn" type="button" id="sheet-drop"${last ? ' disabled title="분석할 수 있는 마지막 서열"' : ""}>목록에서 빼기</button></div></div>`;
@@ -1058,7 +1068,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   }
   function togglePick(index) {
     if (state.picked.has(index)) state.picked.delete(index); else state.picked.add(index);
-    savePicked();
+    saveMarks();
     if (state.open === index) $("sheet-pick").setAttribute("aria-pressed", String(state.picked.has(index)));
     refreshPicks();
   }
@@ -1066,7 +1076,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function togglePair(h, l) {
     const both = state.picked.has(h) && state.picked.has(l);
     [h, l].forEach((i) => { if (both) state.picked.delete(i); else state.picked.add(i); });
-    savePicked();
+    saveMarks();
     refreshPicks();
   }
   function refreshPicks() {
@@ -1307,6 +1317,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>파일</dt><dd>FASTA · CSV · TSV · JSON 여러 개를 한 번에 끌어다 놓기. .xlsx 는 'CSV UTF-8' 로 저장 후 열기</dd>
         <dt>모티프 분포</dt><dd>항목과 구간마다 그 모티프가 한 번이라도 있는 후보 수 (모티프 개수가 아니며 순위도 아님). 숫자를 누르면 그 후보만 목록에 표시되고, 목록의 칩을 누르면 해제</dd>
         <dt>치환 시험</dt><dd>후보 상세에서 치환을 적으면 (N56Q, 여러 개는 띄어쓰기) 바뀐 서열을 같은 엔진 · 같은 규칙으로 다시 계산해 원본과 나란히 표시. 번호는 입력한 서열의 순번이며 Kabat 번호가 아님. 원래 잔기가 그 자리와 다르면 고치지 않고 거절. '후보로 추가' 는 변이체를 목록 끝에 넣음</dd>
+        <dt>메모</dt><dd>후보 상세 위쪽의 한 줄 (200자). 카드에 보이고 메일용 글의 '고른 후보' · '메모' 단락, 한 장, Excel용 복사 · CSV 의 마지막 열에 함께 실림. JSON 에는 넣지 않음</dd>
         <dt>목록에서 빼기</dt><dd>후보 상세 맨 아래. 뺀 뒤에도 고른 후보와 비교 기준은 같은 후보를 가리키며, 알림의 '되돌리기' 로 복구</dd>
         <dt>기준 대비 비교</dt><dd>CDR 비교에서 '기준' 후보를 고르면 나머지 후보는 기준과 같은 잔기를 · 으로, 다른 잔기만 글자로 표시. 길이가 다른 CDR 은 겹쳐 볼 수 없어 서열 그대로 두고 '길이 다름' 으로 표시 (정렬하지 않음)</dd>
         <dt>규칙 공유</dt><dd>선별 규칙 화면의 '복사' 가 규칙 세트를 글 한 줄로 복사. 받은 사람은 같은 화면에 붙여넣고 '가져오기'. 이 화면에서 저장한 JSON 결과를 붙여넣어도 그 안의 규칙을 가져옴</dd>
@@ -1417,15 +1428,15 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       const again = $("view").querySelector(`[data-ref="${sel.dataset.ref}"]`);
       if (again) again.focus();
     }));
-    on("x-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name), `표 ${state.openList.length}행 복사`));
+    on("x-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name, state.notes), `표 ${state.openList.length}행 복사`));
     on("x-mail", "click", () => copy(ABUI.toMailText(state.rows, meta()), "메일용 글 복사"));
     on("x-fasta", "click", () => { const n = state.openList.filter((r) => r.inputOk).length; copy(ABUI.toFasta(state.openList), `FASTA ${n}건 복사`); });
-    on("x-csv", "click", () => save(`abcheck-${stamp()}.csv`, ABUI.toCsv(state.openList, rules().name), "text/csv"));
+    on("x-csv", "click", () => save(`abcheck-${stamp()}.csv`, ABUI.toCsv(state.openList, rules().name, state.notes), "text/csv"));
     on("x-json", "click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(ABUI.withRuleResults(state.payload, rules())), "application/json"));
     const slideCount = () => heroSlides(ABUI.tally(state.rows)).length;
     on("hero-prev", "click", () => { const n = slideCount(); state.hero = (Math.min(state.hero, n - 1) + n - 1) % n; render(); $("hero-prev").focus(); });
     on("hero-next", "click", () => { const n = slideCount(); state.hero = (Math.min(state.hero, n - 1) + 1) % n; render(); $("hero-next").focus(); });
-    on("hero-clear", "click", () => { state.payload = null; state.rows = []; state.picked = new Set(); state.isExample = false; render(); const ta = $("hero-input"); if (ta) ta.focus(); });
+    on("hero-clear", "click", () => { state.payload = null; state.rows = []; state.picked = new Set(); state.notes = {}; state.isExample = false; render(); const ta = $("hero-input"); if (ta) ta.focus(); });
     on("hero-run", "click", () => analyzeText($("hero-input").value, "", state.ph));
     on("hero-input", "keydown", (ev) => { if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); analyzeText(ev.target.value, "", state.ph); } });
     on("hero-file", "change", (ev) => { analyzeFiles(ev.target.files, state.ph); ev.target.value = ""; });
@@ -1442,12 +1453,12 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         const p = state.pairs[r.index];
         if (p !== undefined && state.rows[p].cats[0] !== "review" && !state.picked.has(p)) { state.picked.add(p); partners += 1; }
       });
-      savePicked(); render();
+      saveMarks(); render();
       if (partners) toast(`짝 체인 ${partners}건 함께 넣음`);
     });
-    on("op-pair", "click", () => { state.openList.forEach((r) => { const p = state.pairs[r.index]; if (p !== undefined) state.picked.add(p); }); savePicked(); render(); });
-    on("op-clear", "click", () => { state.picked = new Set(); savePicked(); render(); });
-    on("op-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name), `표 ${state.openList.length}행 복사`));
+    on("op-pair", "click", () => { state.openList.forEach((r) => { const p = state.pairs[r.index]; if (p !== undefined) state.picked.add(p); }); saveMarks(); render(); });
+    on("op-clear", "click", () => { state.picked = new Set(); saveMarks(); render(); });
+    on("op-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name, state.notes), `표 ${state.openList.length}행 복사`));
     on("op-save", "click", () => save(`abcheck-onepage-${stamp()}.html`, ABUI.onePageDoc(state.openList, meta()), "text/html"));
     if (state.view === "rules") bindRules();
     const fig = $("fig");
@@ -1616,6 +1627,14 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   $("sheet-prev").addEventListener("click", () => stepSheet(-1));
   $("sheet-next").addEventListener("click", () => stepSheet(1));
   $("sheet-pick").addEventListener("click", () => { if (state.open !== null) togglePick(state.open); });
+  // the note is kept as it is typed; the screen behind is drawn again when the field is left
+  $("sheet-note").addEventListener("input", () => {
+    if (state.open === null) return;
+    const note = ABUI.cleanNote($("sheet-note").value);
+    if (note) state.notes[state.open] = note; else delete state.notes[state.open];
+    saveMarks();
+  });
+  $("sheet-note").addEventListener("change", () => { const keep = $("view").scrollTop; render(); $("view").scrollTop = keep; });
   $("sheet-copy").addEventListener("click", () => { const r = state.rows[state.open]; if (r) copy(ABUI.toFasta([r]), `${r.id} FASTA 복사`); });
   document.addEventListener("keydown", (ev) => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
@@ -1675,7 +1694,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const last = recents()[0];
   let started = false;
   if (last) {
-    try { started = analyzeEntries(last.entries, last.source, last.ph, { recentId: last.id, picked: last.picked, at: last.at }); }
+    try { started = analyzeEntries(last.entries, last.source, last.ph, { recentId: last.id, picked: last.picked, notes: last.notes, at: last.at }); }
     catch (e) { console.error("abcheck: the stored last analysis could not be restored", e); }
   }
   if (!started) {

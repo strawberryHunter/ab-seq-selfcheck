@@ -304,9 +304,9 @@
   /**
    * The list without one entry. Picks and comparison references are kept by place in the list, so
    * they are renumbered to stay on the same candidates; those of the removed entry are dropped.
-   * Returns {entries, picked, ref}.
+   * Notes move with their candidates the same way. Returns {entries, picked, ref, notes}.
    */
-  function withoutEntry(entries, index, picked, ref) {
+  function withoutEntry(entries, index, picked, ref, notes) {
     if (!(Number.isInteger(index) && index >= 0 && index < entries.length)) {
       throw new Error("withoutEntry: no entry " + index + " in a list of " + entries.length);
     }
@@ -319,7 +319,11 @@
     return {
       entries: entries.slice(0, index).concat(entries.slice(index + 1)),
       picked: (picked || []).filter(function (i) { return i !== index; }).map(shift),
-      ref: newRef
+      ref: newRef,
+      notes: Object.keys(notes || {}).reduce(function (out, k) {
+        if (Number(k) !== index) out[shift(Number(k))] = notes[k];
+        return out;
+      }, {})
     };
   }
 
@@ -696,6 +700,23 @@
   // usable pH or time is left out rather than restored with a made-up one.
 
   /** Stored analyses -> {list, dropped}. */
+  /** A note as it is kept: one line, no surrounding blanks, at most 200 characters. */
+  function cleanNote(text) {
+    return String(text === null || text === undefined ? "" : text).replace(/\s+/g, " ").trim().slice(0, 200);
+  }
+  /** Notes read back from storage: {place in the list: text}; anything else is left out. */
+  function cleanNotes(value, count) {
+    var out = {};
+    if (!value || typeof value !== "object" || Array.isArray(value)) return out;
+    Object.keys(value).forEach(function (k) {
+      var i = Number(k);
+      if (!/^[0-9]+$/.test(k) || i >= count || typeof value[k] !== "string") return;
+      var note = cleanNote(value[k]);
+      if (note) out[i] = note;
+    });
+    return out;
+  }
+
   function cleanRecent(value) {
     if (value === null || value === undefined) return { list: [], dropped: 0 };
     if (!Array.isArray(value)) return { list: [], dropped: 1 };
@@ -711,7 +732,8 @@
         entries: r.entries, ph: r.ph, at: r.at, count: n,
         source: typeof r.source === "string" && r.source ? r.source : "저장된 분석",
         text: typeof r.text === "string" ? r.text : "",
-        picked: Array.isArray(r.picked) ? r.picked.filter(function (i) { return Number.isInteger(i) && i >= 0 && i < n; }) : []
+        picked: Array.isArray(r.picked) ? r.picked.filter(function (i) { return Number.isInteger(i) && i >= 0 && i < n; }) : [],
+        notes: cleanNotes(r.notes, n)
       });
     });
     return { list: list, dropped: dropped };
@@ -862,20 +884,27 @@
     });
   }
 
+  /** Head and records of the table exports. A last column 메모 is added only when a listed row has a note. */
+  function tableWithNotes(rows, ruleName, notes) {
+    var recs = tableRecords(rows, ruleName);
+    if (!notes || !rows.some(function (r) { return notes[r.index]; })) return [TABLE_HEAD].concat(recs);
+    return [TABLE_HEAD.concat(["메모"])].concat(recs.map(function (rec, i) { return rec.concat([notes[rows[i].index] || ""]); }));
+  }
+
   /** CSV for Excel: UTF-8 with BOM (so Korean opens correctly), CRLF, RFC 4180 quoting. */
-  function toCsv(rows, ruleName) {
+  function toCsv(rows, ruleName, notes) {
     var q = function (v) {
       var s = String(v);
       return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     };
-    var lines = [TABLE_HEAD].concat(tableRecords(rows, ruleName)).map(function (rec) { return rec.map(q).join(","); });
+    var lines = tableWithNotes(rows, ruleName, notes).map(function (rec) { return rec.map(q).join(","); });
     return "﻿" + lines.join("\r\n") + "\r\n";
   }
 
   /** Tab-separated text for pasting into Excel or Sheets. */
-  function toTsv(rows, ruleName) {
+  function toTsv(rows, ruleName, notes) {
     var clean = function (v) { return String(v).replace(/[\t\r\n]+/g, " "); };
-    return [TABLE_HEAD].concat(tableRecords(rows, ruleName)).map(function (rec) { return rec.map(clean).join("\t"); }).join("\n");
+    return tableWithNotes(rows, ruleName, notes).map(function (rec) { return rec.map(clean).join("\t"); }).join("\n");
   }
 
   /** Sequences as FASTA text (valid inputs only), 60 residues per line. */
@@ -909,6 +938,16 @@
       return r.cdrs.length ? "주석 신뢰 불가" : "CDR 주석 실패";
     });
     section("입력 오류", rows.filter(function (r) { return r.cats[0] === "errors"; }), function (r) { return firstSentence(r.errors[0] || ""); });
+    // what the user marked: the picks (with their notes), then notes on candidates that were not picked
+    var notes = meta.notes || {}, picked = meta.picked || { has: function () { return false; } };
+    var marks = function (title, list) {
+      if (!list.length) return;
+      if (meta.pairs) list = withPartnersAdjacent(list, meta.pairs);
+      out.push("", title + " " + list.length);
+      list.forEach(function (r) { out.push("- " + r.id + (r.chain ? " (" + chainName(r) + ")" : "") + (notes[r.index] ? ": " + notes[r.index] : "")); });
+    };
+    marks("고른 후보", rows.filter(function (r) { return picked.has(r.index); }));
+    marks("메모", rows.filter(function (r) { return notes[r.index] && !picked.has(r.index); }));
     out.push("", "Kabat 근사 · ANARCI/IMGT 아님 · 종합 판정 없음");
     return out.join("\n");
   }
@@ -949,9 +988,11 @@
       }).join("");
       var hits = r.reasons.length ? r.reasons.map(esc).join("<br>") : "-";
       var anno = !r.inputOk ? "입력 오류" : !r.cdrs.length ? "CDR 주석 실패" : r.confident ? "신뢰 가능" : "신뢰 불가";
-      return "<tr><td class=\"op-id\"><b>" + esc(r.id) + "</b><small>" + esc(chainName(r) || "-") + " · " + (r.length || "-") +
+      var note = meta.notes && meta.notes[r.index];
+      return "<tr" + (note ? " class=\"op-noted\"" : "") + "><td class=\"op-id\"><b>" + esc(r.id) + "</b><small>" + esc(chainName(r) || "-") + " · " + (r.length || "-") +
         " aa</small></td>" + cdrCells + "<td>" + hits + "</td><td>" + anno + "</td><td class=\"op-num\">" +
-        (r.pI === null ? "-" : r.pI.toFixed(2)) + "<br>" + (r.gravy === null ? "-" : r.gravy.toFixed(3)) + "</td></tr>";
+        (r.pI === null ? "-" : r.pI.toFixed(2)) + "<br>" + (r.gravy === null ? "-" : r.gravy.toFixed(3)) + "</td></tr>" +
+        (note ? "<tr class=\"op-note\"><td colspan=\"7\"><small>메모</small> " + esc(note) + "</td></tr>" : "");
     }).join("");
     return head + "<table class=\"op-table\"><thead><tr><th>서열</th><th>CDR1</th><th>CDR2</th><th>CDR3</th><th>규칙 해당</th>" +
       "<th>주석</th><th class=\"op-num\">pI<br>GRAVY</th></tr></thead><tbody>" + body + "</tbody></table>" +
@@ -966,6 +1007,7 @@
     ".op-table{width:100%;border-collapse:collapse}" +
     ".op-table th{text-align:left;font-size:13px;color:#5A6469;border-bottom:1px solid #1A1F1C;padding:6px}" +
     ".op-table td{border-bottom:1px solid #E3E8E6;padding:6px;vertical-align:top}" +
+    ".op-table tr.op-noted td{border-bottom:none}.op-table tr.op-note td{padding-top:0}.op-note small{color:#5A6469;font-size:13px;margin-right:6px}" +
     ".op-id small,.op-seq small{display:block;color:#5A6469;font-size:13px;font-family:inherit}" +
     ".op-seq{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all}" +
     ".op-seq u{text-decoration:underline 2px;text-underline-offset:3px}" +
@@ -988,7 +1030,7 @@
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
     variantName: variantName, regionAt: regionAt, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
-    cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
+    cleanNote: cleanNote, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
