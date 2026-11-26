@@ -135,8 +135,10 @@ python3 -m abcheck.cli data/synthetic/sequences.json --json > result.json
   하나라도 다르면 `tests/test_js_parity.py` 가 실패한다 (`node` 가 필요하고, 없으면 건너뛴다).
 - **엔진 바깥** (`web/app-lib.js`, `tests/test_web_app.py` 가 `node` 로 검사): 엑셀에서 복사한 행
   붙여넣기, 파일 여러 개 한 번에, 브라우저에 저장하는 선별 규칙 세트(기본 세트는 엔진의 선별과
-  같은 결과), VH·VL 짝을 항체 하나로 묶어 보기(분류는 체인별로 따로), CDR 비교, pI × GRAVY
-  산점도, 고른 후보 한 장, 내보내기(엑셀용 표 · 메일용 글 · FASTA · CSV · JSON).
+  같은 결과이고, 세트는 글 한 줄로 동료에게 넘길 수 있다), 이름으로 찾은 VH·VL 짝을 항체 하나로
+  묶어 보기(분류는 체인별로 따로), 기준 후보 대비 CDR 비교(같은 잔기는 점으로 표시하며 정렬은
+  하지 않는다), pI × GRAVY 산점도, 고른 후보 한 장, 내보내기(엑셀용 표 · 메일용 글 · FASTA ·
+  CSV · JSON).
 - **빌드.** `python3 web/build.py` 가 `web/app.html`, `web/app-lib.js`, 엔진, 글꼴을
   `web/abcheck.html` 한 파일로 합친다. `python3 web/build.py --check` 는 커밋된 페이지가 낡았으면
   실패하고, 테스트도 같은 검사를 한다.

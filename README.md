@@ -128,8 +128,10 @@ checks this), so sequences stay on the machine.
   and is skipped without it).
 - **Around the engine** (`web/app-lib.js`, tested through `node` in `tests/test_web_app.py`):
   rows pasted from a spreadsheet, several files at once, triage rule sets kept in the
-  browser (the default set reproduces the engine's triage), VH/VL partner chains shown as
-  one antibody with each chain's own result, CDR comparison, a pI × GRAVY scatter, a
+  browser (the default set reproduces the engine's triage; a set can be handed to a
+  colleague as one line of text), VH/VL partner chains found by name and shown as one
+  antibody with each chain's own result, CDR comparison against a reference candidate
+  (a dot where a residue is the same; no alignment is made), a pI × GRAVY scatter, a
   one-page sheet for picked candidates, and exports (table for a spreadsheet, mail text,
   FASTA, CSV, JSON).
 - **Build.** `python3 web/build.py` inlines `web/app.html`, `web/app-lib.js`, the engine
