@@ -1004,6 +1004,39 @@ def test_differences_from_the_reference_travel_with_the_exports():
 
 
 @needs_node
+def test_one_record_per_motif_as_the_python_engine_finds_them():
+    """모티프 분포 › Excel용 복사: every record is recounted here with the Python package, in the same order."""
+    from abcheck.annotate import annotate
+    from abcheck.liabilities import find_liabilities
+
+    corpus = json.loads((ROOT / "data" / "synthetic" / "sequences.json").read_text(encoding="utf-8"))["sequences"]
+    expected = []
+    for rec in corpus:
+        rep = find_liabilities(annotate(rec["sequence"]))
+        expected += [[rec["id"], h.label, h.match, h.start, h.end, h.region, h.risk, h.base_risk] for h in rep.hits]
+        expected += [[rec["id"], f["label"], "", "", "", "도메인 전체", f["risk"], ""] for f in rep.domain_flags]
+
+    out = _node(r"""
+      const rows = ABUI.buildRows(ABCHECK.analyze(entries.concat([["bad", "ACDEFGHIK"], ["tab\tname", entries[0][1]]]), 7.4));
+      const t = ABUI.hitsTable(rows), tsv = ABUI.toHitsTsv(rows).split("\n").map(l => l.split("\t"));
+      console.log(JSON.stringify({
+        head: t[0], records: t.slice(1), statuses: Object.fromEntries(rows.map(r => [r.id, r.status])),
+        chains: Object.fromEntries(rows.map(r => [r.id, r.chain === "H" ? "VH" : r.chain === "L" ? "VL" : ""])),
+        tsvLines: tsv.length, widths: [...new Set(tsv.map(l => l.length))], tsvHead: tsv[0],
+        tsvSame: tsv.slice(1).every((l, i) => l.join("|") === t[i + 1].map(v => String(v).replace(/\t/g, " ")).join("|")),
+        tabName: tsv.filter(l => l[0] === "tab name").length, empty: ABUI.hitsTable([]), onlyBad: ABUI.hitsTable(rows.filter(r => !r.inputOk))}));""")
+    head = ["서열 이름", "체인", "분류", "항목", "모티프", "시작", "끝", "구간", "위험도", "기본 위험도"]
+    assert out["head"] == head and out["tsvHead"] == head
+    own = [r for r in out["records"] if r[0] != "tab\tname"]          # the extra entry repeats the first sequence under another name
+    assert [[r[0]] + r[3:] for r in own] == expected and len(expected) > 40
+    assert all(r[1] == out["chains"][r[0]] and r[2] == out["statuses"][r[0]] for r in out["records"])
+    assert not any(r[0] == "bad" for r in out["records"])             # an input error has no record
+    assert out["tsvLines"] == len(out["records"]) + 1 and out["widths"] == [10] and out["tsvSame"]
+    assert out["tabName"] == sum(1 for r in expected if r[0] == corpus[0]["id"]) > 0      # a tab in a name does not shift the columns
+    assert out["empty"] == [head] and out["onlyBad"] == [head]
+
+
+@needs_node
 def test_similar_cdr3_groups_by_length_and_a_few_residues():
     out = _node("""
       const s = Object.fromEntries(entries);

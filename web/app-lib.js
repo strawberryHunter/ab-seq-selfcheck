@@ -1172,6 +1172,31 @@
     return tableWithNotes(rows, ruleName, notes, refs).map(function (rec) { return rec.map(clean).join("\t"); }).join("\n");
   }
 
+  var HITS_HEAD = ["서열 이름", "체인", "분류", "항목", "모티프", "시작", "끝", "구간", "위험도", "기본 위험도"];
+
+  /**
+   * One record per detected motif, for a spreadsheet: the head, then for every row in list
+   * order its hits as the engine lists them (name, residues, place, region, the risk after the
+   * region adjustment and the one before it), then its domain flags with the region
+   * "도메인 전체" and no place. A row with an input error or without any hit has no record.
+   */
+  function hitsTable(rows) {
+    var out = [HITS_HEAD];
+    rows.forEach(function (r) {
+      if (!r.inputOk) return;
+      var lead = [r.id, chainName(r), r.status];
+      r.hits.forEach(function (x) { out.push(lead.concat([x.label, x.match, x.start, x.end, x.region, x.risk, x.base_risk])); });
+      r.flags.forEach(function (f) { out.push(lead.concat([f.label, "", "", "", "도메인 전체", f.risk, ""])); });
+    });
+    return out;
+  }
+
+  /** hitsTable() as tab-separated text for pasting into Excel or Sheets. */
+  function toHitsTsv(rows) {
+    var clean = function (v) { return String(v).replace(/[\t\r\n]+/g, " "); };
+    return hitsTable(rows).map(function (rec) { return rec.map(clean).join("\t"); }).join("\n");
+  }
+
   /** Sequences as FASTA text (valid inputs only), 60 residues per line. */
   function toFasta(rows) {
     return rows.filter(function (r) { return r.inputOk; }).map(function (r) {
@@ -1304,7 +1329,7 @@
     variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, refLine: refLine, refNotes: refNotes, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanNote: cleanNote, withReview: withReview, reviewFromJson: reviewFromJson, joinReviews: joinReviews, sameRules: sameRules, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
-    withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
+    withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, hitsTable: hitsTable, toHitsTsv: toHitsTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
 });

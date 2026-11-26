@@ -1334,7 +1334,9 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const rows = ABUI.filterRows(state.rows, { view: "all", query: state.query }).filter((r) => r.inputOk);
     state.openList = rows;
     const m = ABUI.motifTable(rows);
-    let h = `<div class="titlebar"><h1>모티프 분포</h1><span class="cnt num">${m.evaluated}건</span></div>`;
+    const records = ABUI.hitsTable(rows).length - 1;
+    let h = `<div class="titlebar"><h1>모티프 분포</h1><span class="cnt num">${m.evaluated}건</span>
+      <div class="row"><button class="btn" type="button" id="m-tsv"${records ? "" : " disabled"} title="검출된 모티프를 한 줄에 하나씩 · 서열 이름 · 항목 · 위치 · 구간 · 위험도">Excel용 복사 · 모티프 ${records}행</button></div></div>`;
     if (!m.evaluated) return h + `<div class="blank"><span>표시할 후보 없음</span></div>`;
     const num = (n, label, region, flag) => n
       ? `<button class="rowlink num" type="button" data-motif="${esc(label)}" data-region="${esc(region)}"${flag ? ' data-flag="1"' : ""} aria-label="${esc(label)}${region ? " " + esc(region) : ""} 후보 ${n}건 보기">${n}</button>`
@@ -1443,6 +1445,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>규칙 세트</dt><dd>선별 규칙 화면에서 복제해 수정. 이 브라우저에 저장되고 다음 분석에 그대로 적용</dd></dl></section>
       <section class="card guide"><h2>내보내기</h2><dl>
         <dt>Excel용 복사</dt><dd>지금 보이는 목록을 표로 복사</dd>
+        <dt>모티프별 표</dt><dd>모티프 분포 화면의 Excel용 복사. 검출된 모티프를 한 줄에 하나씩 (서열 이름 · 체인 · 분류 · 항목 · 모티프 · 시작 · 끝 · 구간 · 위험도 · 기본 위험도). 비결합 Cys 가능성은 구간 '도메인 전체' 로, 검색으로 좁힌 후보만</dd>
         <dt>메일용 복사</dt><dd>건수와 규칙 해당 내용을 글로 복사</dd>
         <dt>FASTA 복사</dt><dd>지금 보이는 목록의 서열. 판정 불가 목록을 ANARCI · IMGT 에 붙여넣을 때</dd>
         <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준. JSON 은 엔진 원본 출력이고, 기본이 아닌 규칙 세트를 쓰는 중이면 rule_set · rule_result 항목이, 고르거나 메모한 서열에는 review 항목이 더 붙음</dd>
@@ -1581,6 +1584,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     });
     on("op-pair", "click", () => { state.openList.forEach((r) => { const p = state.pairs[r.index]; if (p !== undefined) state.picked.add(p); }); saveMarks(); render(); });
     on("op-clear", "click", () => { state.picked = new Set(); saveMarks(); render(); });
+    on("m-tsv", "click", () => copy(ABUI.toHitsTsv(state.openList), `모티프 ${ABUI.hitsTable(state.openList).length - 1}행 복사`));
     on("op-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name, state.notes, meta().refs), `표 ${state.openList.length}행 복사`));
     on("op-save", "click", () => save(`abcheck-onepage-${stamp()}.html`, ABUI.onePageDoc(state.openList, meta()), "text/html"));
     if (state.view === "rules") bindRules();
