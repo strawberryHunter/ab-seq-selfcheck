@@ -369,6 +369,65 @@ def test_partner_chains_are_found_by_name():
 
 
 @needs_node
+def test_stored_analyses_are_checked_when_read_back():
+    out = _node("""
+      const seq = entries[0][1];
+      const good = {id: "r1", entries: [["a", seq], ["b", seq]], source: "붙여넣은 FASTA", ph: 5.5, text: ">a", at: 1764000000000, picked: [1], count: 2};
+      const older = {id: "r0", entries: [["old", seq]], source: "예전 분석", ph: 7.4, at: 1763000000000};     // no picked, no text
+      const c = ABUI.cleanRecent;
+      console.log(JSON.stringify({
+        nothing: [c(null), c(undefined)],
+        notAList: [c({}), c("x"), c(42)],
+        good: c([good]), older: c([older]),
+        junk: c([null, 42, {entries: "oops"}, {entries: []}, good]),
+        rows: c([Object.assign({}, good, {entries: [["a"], "b", [1, 2]]})]),
+        noPh: c([Object.assign({}, good, {ph: "x"}), Object.assign({}, good, {ph: 99})]),
+        noTime: c([Object.assign({}, good, {at: "yesterday"})]),
+        soft: c([Object.assign({}, good, {id: 7, source: 123, text: 5, picked: [0, 7, -1, "x", 1.5], count: "many"})])}));""")
+    empty = {"list": [], "dropped": 0}
+    assert out["nothing"] == [empty, empty]
+    assert out["notAList"] == [{"list": [], "dropped": 1}] * 3
+    assert out["good"]["dropped"] == 0 and out["good"]["list"][0]["picked"] == [1] and out["good"]["list"][0]["ph"] == 5.5
+    assert out["older"]["list"][0] == {"id": "r0", "entries": out["older"]["list"][0]["entries"], "ph": 7.4,
+                                       "at": 1763000000000, "count": 1, "source": "예전 분석", "text": "", "picked": []}
+    assert out["junk"]["dropped"] == 4 and [r["id"] for r in out["junk"]["list"]] == ["r1"]
+    # an analysis whose rows, pH or time cannot be trusted is left out, not restored with made-up values
+    assert out["rows"] == {"list": [], "dropped": 1}
+    assert out["noPh"] == {"list": [], "dropped": 2} and out["noTime"] == {"list": [], "dropped": 1}
+    soft = out["soft"]["list"][0]
+    assert out["soft"]["dropped"] == 0
+    assert (soft["id"], soft["source"], soft["text"], soft["picked"], soft["count"]) == ("r1764000000000", "저장된 분석", "", [0], 2)
+
+
+@needs_node
+def test_stored_settings_and_rule_sets_are_checked_when_read_back():
+    out = _node("""
+      const views = ["new", "all", "review", "rules"];
+      const set = (id, extra) => Object.assign({id, name: id, motifs: ["NG"], where: "all", minRisk: "낮음", cys: "off"}, extra || {});
+      console.log(JSON.stringify({
+        uiNothing: [ABUI.cleanUi(null, views), ABUI.cleanUi([1, 2], views), ABUI.cleanUi("x", views)],
+        uiBad: ABUI.cleanUi({chain: "X", conf: "maybe", sort: "liab", view: "zzz", unitChoice: 5}, views),
+        uiGood: ABUI.cleanUi({chain: "H", conf: "no", sort: "pi-desc", view: "rules", unitChoice: "seq"}, views),
+        uiLegacy: [ABUI.cleanUi({unit: "ab"}, views).unitChoice, ABUI.cleanUi({unit: "seq"}, views).unitChoice],
+        rulesNothing: [ABUI.cleanRules(null), ABUI.cleanRules([]), ABUI.cleanRules("x"), ABUI.cleanRules({})],
+        rulesNotAList: ABUI.cleanRules({active: "x", sets: "nope"}),
+        rulesGood: ABUI.cleanRules({active: "team", sets: [set("team"), set("other")]}),
+        rulesMixed: ABUI.cleanRules({active: "gone", sets: [set("team"), set("old", {motifs: ["ZZZ"]}), set("team"), set("default")]})}));""")
+    default_ui = {"chain": "all", "conf": "all", "sort": "input", "view": "all", "unitChoice": None}
+    assert out["uiNothing"] == [default_ui] * 3 and out["uiBad"] == default_ui
+    assert out["uiGood"] == {"chain": "H", "conf": "no", "sort": "pi-desc", "view": "rules", "unitChoice": "seq"}
+    assert out["uiLegacy"] == ["ab", None]
+    nothing = {"active": "default", "sets": [], "dropped": 0, "errors": []}
+    assert out["rulesNothing"] == [nothing] * 4
+    assert out["rulesNotAList"]["sets"] == [] and out["rulesNotAList"]["dropped"] == 1
+    assert out["rulesGood"]["active"] == "team" and [s["id"] for s in out["rulesGood"]["sets"]] == ["team", "other"]
+    mixed = out["rulesMixed"]
+    # unknown motif, a repeated id and the built-in id are left out; the active set falls back to the built-in one
+    assert [s["id"] for s in mixed["sets"]] == ["team"] and mixed["dropped"] == 3 and mixed["active"] == "default"
+    assert len(mixed["errors"]) == 3
+
+
+@needs_node
 def test_list_starts_in_the_antibody_view_when_most_chains_are_paired():
     out = _node("""
       const s = Object.fromEntries(entries);

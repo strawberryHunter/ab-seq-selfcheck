@@ -464,6 +464,71 @@
     return m ? m[1] : null;
   }
 
+  // ---- values read back from browser storage ------------------------------------------
+  // They were written by this page, possibly by an older version of it, possibly cut short.
+  // Each reader keeps what has the expected shape and counts what it had to leave out, so
+  // the caller can tell the user. Nothing is repaired by guessing: an analysis without a
+  // usable pH or time is left out rather than restored with a made-up one.
+
+  /** Stored analyses -> {list, dropped}. */
+  function cleanRecent(value) {
+    if (value === null || value === undefined) return { list: [], dropped: 0 };
+    if (!Array.isArray(value)) return { list: [], dropped: 1 };
+    var list = [], dropped = 0;
+    value.forEach(function (r) {
+      var ok = r && typeof r === "object" && Array.isArray(r.entries) && r.entries.length > 0 &&
+        r.entries.every(function (e) { return Array.isArray(e) && e.length === 2 && typeof e[0] === "string" && typeof e[1] === "string"; }) &&
+        typeof r.ph === "number" && r.ph >= 0 && r.ph <= 14 && typeof r.at === "number" && isFinite(r.at);
+      if (!ok) { dropped += 1; return; }
+      var n = r.entries.length;
+      list.push({
+        id: typeof r.id === "string" && r.id ? r.id : "r" + r.at,
+        entries: r.entries, ph: r.ph, at: r.at, count: n,
+        source: typeof r.source === "string" && r.source ? r.source : "저장된 분석",
+        text: typeof r.text === "string" ? r.text : "",
+        picked: Array.isArray(r.picked) ? r.picked.filter(function (i) { return Number.isInteger(i) && i >= 0 && i < n; }) : []
+      });
+    });
+    return { list: list, dropped: dropped };
+  }
+
+  /** Stored list settings -> the same fields with allowed values only (views: the screen names). */
+  function cleanUi(value, views) {
+    var v = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    var pick = function (x, allowed, fallback) { return allowed.indexOf(x) >= 0 ? x : fallback; };
+    return {
+      chain: pick(v.chain, ["all", "H", "L"], "all"),
+      conf: pick(v.conf, ["all", "yes", "no"], "all"),
+      sort: pick(v.sort, ["input", "name", "pi-desc", "pi-asc"], "input"),
+      view: pick(v.view, views, "all"),
+      // the unit the user picked, if any. Up to v15 "seq" was stored without a click, "ab" only after one.
+      unitChoice: pick(v.unitChoice, ["seq", "ab"], v.unit === "ab" ? "ab" : null)
+    };
+  }
+
+  /**
+   * Stored rule sets -> {active, sets, dropped, errors}. A set that fails normalizeRuleSet, or
+   * that carries the built-in set's id or an id already seen, is left out: under the id
+   * "default" it would replace the built-in rules while still being shown as 기본.
+   */
+  function cleanRules(value) {
+    var out = { active: DEFAULT_RULESET.id, sets: [], dropped: 0, errors: [] };
+    if (!value || typeof value !== "object" || Array.isArray(value) || value.sets === undefined) return out;
+    if (!Array.isArray(value.sets)) { out.dropped = 1; out.errors.push("sets is not a list"); return out; }
+    var seen = {};
+    seen[DEFAULT_RULESET.id] = true;
+    value.sets.forEach(function (s) {
+      var rs;
+      try { rs = normalizeRuleSet(s); }
+      catch (e) { out.dropped += 1; out.errors.push(e.message); return; }
+      if (seen[rs.id]) { out.dropped += 1; out.errors.push("rule set id used twice: " + rs.id); return; }
+      seen[rs.id] = true;
+      out.sets.push(rs);
+    });
+    if (typeof value.active === "string" && seen[value.active]) out.active = value.active;
+    return out;
+  }
+
   /**
    * The list unit to start with while the user has not picked one: "ab" (one card per antibody)
    * when more than half of the chains the engine identified have a partner, else "seq".
@@ -695,6 +760,7 @@
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
+    cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };

@@ -417,9 +417,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
 
   /* ---------- browser storage: per-viewer conveniences only ---------- */
   const store = {
+    unreadable: new Set(),      // keys that could not be read (storage blocked, or a value cut short); the user is told at start
     get(key, fallback) {
       try { const v = localStorage.getItem(key); return v === null ? fallback : JSON.parse(v); }
-      catch (e) { console.warn("abcheck: could not read " + key + " from browser storage", e); return fallback; }
+      catch (e) { store.unreadable.add(key); console.warn("abcheck: could not read " + key + " from browser storage", e); return fallback; }
     },
     set(key, value) {
       try { localStorage.setItem(key, JSON.stringify(value)); return true; }
@@ -428,9 +429,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   };
   const K = { recent: "abcheck.recent.v2", theme: "abcheck.theme.v2", ui: "abcheck.ui.v1", rules: "abcheck.rules.v1" };
 
-  const ui = Object.assign({ chain: "all", conf: "all", sort: "input", unitChoice: null, view: "all" }, store.get(K.ui, {}));
-  // the unit the user picked, if any. Up to v15 "seq" was stored without a click, "ab" only after one.
-  if (ui.unitChoice !== "seq" && ui.unitChoice !== "ab") ui.unitChoice = ui.unit === "ab" ? "ab" : null;
+  const ui = ABUI.cleanUi(store.get(K.ui, null), VIEWS);
   const unitNow = () => ui.unitChoice || ABUI.preferredUnit(state.rows, state.pairs);
   const state = {
     payload: null, rows: [], source: "", ph: 7.4, at: null, isExample: false, recentId: null,
@@ -505,16 +504,33 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const whenShort = (d) => d ? `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}` : "";
 
   /* ---------- rule sets ---------- */
+  /** One toast for whatever storage could not give back (the readers below may each have something to say). */
+  const notes = [];
+  function note(msg) {
+    if (!notes.length) setTimeout(() => { toast(notes.join(" · ")); notes.length = 0; }, 500);
+    notes.push(msg);
+  }
   function loadRules() {
-    const raw = store.get(K.rules, null);
-    if (!raw) return;
-    let dropped = 0;
-    (raw.sets || []).forEach((s) => {
-      try { state.rules.sets.push(ABUI.normalizeRuleSet(s)); }
-      catch (e) { dropped += 1; console.error("abcheck: a stored rule set was dropped", e); }
-    });
-    state.rules.active = state.rules.sets.some((s) => s.id === raw.active) ? raw.active : "default";
-    if (dropped) setTimeout(() => toast(`저장된 규칙 세트 ${dropped}개를 읽지 못함`), 500);
+    const got = ABUI.cleanRules(store.get(K.rules, null));
+    state.rules.sets = got.sets; state.rules.active = got.active;
+    if (got.dropped) {
+      got.errors.forEach((m) => console.error("abcheck: a stored rule set was dropped: " + m));
+      note(`저장된 규칙 세트 ${got.dropped}개를 읽지 못함`);
+    }
+  }
+  /** Stored analyses, checked on every read. What does not have the expected shape is removed from storage and reported once. */
+  let recentWarned = false;
+  function recents() {
+    const got = ABUI.cleanRecent(store.get(K.recent, null));
+    if (got.dropped) {
+      store.set(K.recent, got.list);
+      if (!recentWarned) {
+        recentWarned = true;
+        console.error(`abcheck: ${got.dropped} stored analyses had an unexpected shape and were removed`);
+        note(`저장된 분석 ${got.dropped}건을 읽지 못함`);
+      }
+    }
+    return got.list;
   }
   const rules = () => state.rules.sets.find((s) => s.id === state.rules.active) || ABUI.DEFAULT_RULESET;
   const saveRules = () => store.set(K.rules, state.rules);
@@ -601,7 +617,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function remember(entries, source, ph, text) {
     const body = JSON.stringify(entries);
     if (body.length + text.length > 500000) { state.recentId = null; return; }   // too big for browser storage
-    const list = store.get(K.recent, []).filter((r) => JSON.stringify(r.entries) !== body);
+    const list = recents().filter((r) => JSON.stringify(r.entries) !== body);
     const id = "r" + Date.now();
     list.unshift({ id, entries, source, ph, text, count: entries.length, at: Date.now(), picked: [] });
     store.set(K.recent, list.slice(0, 6));
@@ -609,7 +625,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   }
   function savePicked() {
     if (!state.recentId) return;
-    const list = store.get(K.recent, []);
+    const list = recents();
     const r = list.find((x) => x.id === state.recentId);
     if (r) { r.picked = Array.from(state.picked); store.set(K.recent, list); }
   }
@@ -906,7 +922,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
 
   /* ---------- other screens ---------- */
   function recentRows() {
-    const list = store.get(K.recent, []);
+    const list = recents();
     if (!list.length) return "";
     return `<section class="card"><div class="scroll"><table><thead><tr><th>최근 입력</th><th class="num wide-only">서열</th><th class="num wide-only">시각</th><th></th></tr></thead><tbody>` +
       list.map((r, i) => `<tr><td>${esc(r.source)}<span class="s13 muted only-narrow">${r.count}건 · ${whenShort(new Date(r.at))}</span></td><td class="num wide-only">${r.count}</td><td class="nw num wide-only">${whenShort(new Date(r.at))}</td>
@@ -1124,7 +1140,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function renderSidebar() {
     const t = ABUI.tally(state.rows, state.picked);
     const nav = (v, label, n) => `<a class="nav" href="#${v}"${state.view === v ? ' aria-current="page"' : ""}>${label}${n === undefined ? "" : `<b>${n}</b>`}</a>`;
-    const recent = store.get(K.recent, []).slice(0, 4);
+    const recent = recents().slice(0, 4);
     $("side").innerHTML = `
       <a class="brand" href="#all">${LOGO}AbCheck</a>
       <a class="cta" href="#new">+ 새 분석</a>
@@ -1141,7 +1157,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function closeMenu() { $("side").classList.remove("on"); if (!$("sheet").classList.contains("on")) $("scrim").classList.remove("on"); }
   $("side").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-rec]");
-    if (b) { const r = store.get(K.recent, [])[Number(b.dataset.rec)]; if (r) openRecent(r); }
+    if (b) { const r = recents()[Number(b.dataset.rec)]; if (r) openRecent(r); }
     if (ev.target.closest("a, [data-rec]")) closeMenu();
   });
   $("menu").addEventListener("click", () => { $("side").classList.add("on"); $("scrim").classList.add("on"); });
@@ -1255,14 +1271,14 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     on("example", "click", loadExample);
     on("clear", "click", () => { state.input = ""; state.fileName = ""; state.error = null; state.rejected = null; render(); $("input").focus(); });
     $("view").querySelectorAll("[data-load]").forEach((b) => b.addEventListener("click", () => {
-      const r = store.get(K.recent, [])[Number(b.dataset.load)];
+      const r = recents()[Number(b.dataset.load)];
       if (!r) return;
       state.input = recentText(r); state.fileName = ""; state.error = null; state.rejected = null; state.ph = r.ph;
       render(); $("input").focus();
     }));
     // sequences of an analysis stay in this browser until removed here (or pushed out by six newer ones)
     $("view").querySelectorAll("[data-forget]").forEach((b) => b.addEventListener("click", () => {
-      const list = store.get(K.recent, []), at = Number(b.dataset.forget), r = list[at];
+      const list = recents(), at = Number(b.dataset.forget), r = list[at];
       if (!r) return;
       list.splice(at, 1);
       store.set(K.recent, list);
@@ -1270,7 +1286,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       if (wasOpen) state.recentId = null;
       render();
       toast(`${r.source} 삭제`, "되돌리기", () => {
-        const now = store.get(K.recent, []);
+        const now = recents();
         now.splice(Math.min(at, now.length), 0, r);
         store.set(K.recent, now.slice(0, 6));
         if (wasOpen) state.recentId = r.id;
@@ -1426,9 +1442,9 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
 
   /* ---------- start: the last analysis if there is one, otherwise the synthetic example ---------- */
   loadRules();
-  const last = store.get(K.recent, [])[0];
+  const last = recents()[0];
   let started = false;
-  if (last && Array.isArray(last.entries)) {
+  if (last) {
     try { started = analyzeEntries(last.entries, last.source, last.ph, { recentId: last.id, picked: last.picked, at: last.at }); }
     catch (e) { console.error("abcheck: the stored last analysis could not be restored", e); }
   }
@@ -1437,5 +1453,6 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (!analyzeEntries(entries, source, 7.4, { example: true })) console.error("abcheck: the built-in example failed to analyse", state.rejected);
   }
   route();
+  if (store.unreadable.size) note("브라우저 저장값을 읽지 못함");
 })();
 </script>
