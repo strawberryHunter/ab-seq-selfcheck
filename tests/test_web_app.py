@@ -67,7 +67,7 @@ def test_app_screens_are_all_present():
     for view in ["new", "all", "review", "unknown", "errors", "picked", "compare", "properties", "motifs",
                  "onepage", "rules", "validation", "guide"]:
         assert f'"{view}"' in html, view
-    for label in ["+ 새 분석", "검토 필요", "판정 불가", "CDR 비교", "물성 분포", "모티프 분포", "선별 규칙", "검증 기록", "사용법",
+    for label in ['${icon("plus", 18)}새 분석', "검토 필요", "판정 불가", "CDR 비교", "물성 분포", "모티프 분포", "선별 규칙", "검증 기록", "사용법",
                   "개인 프로젝트 · 셀트리온과 무관"]:
         assert label in html, label
 
@@ -83,6 +83,22 @@ def test_design_tokens_follow_the_series():
     assert "box-shadow" not in css
     for risky in ["#D92D20", "#C2410C"]:                      # status colours stay unused: risk is text only
         assert risky.lower() not in css.lower(), risky
+
+
+def test_shell_follows_the_series():
+    """Values shared by the three tools (portfolio-prompts/4-시리즈-맞추기.md); the measuring is done by series-check.mjs."""
+    src = (ROOT / "web" / "app.html").read_text(encoding="utf-8")
+    css = re.search(r"<style>(.*?)</style>", src, re.S).group(1)
+    assert "--edge: #86908C" in css                           # outer border of inputs, dropdowns, segments (3:1 on white)
+    assert "background: var(--bright)" not in css             # no green dot on the status chip: green is brand / action only
+    assert 'stroke-width="2"' in src and 'stroke-width="1.8"' not in src
+    # the series line: the two other tools are links the viewer may follow, this tool is not a link
+    links = re.findall(r'\["([^"]+)", "(https://claude\.ai/artifact/[A-Za-z0-9]+)"\]', src)
+    assert [name for name, _ in links] == ["RegRadar", "Deviation 데스크"]
+    assert '["AbCheck", ""]' in src and 'target="_blank" rel="noopener noreferrer"' in src
+    # every address in the built page: these links and the validation record, nothing else
+    addresses = set(re.findall(r"https?://[^\s\"'<>)]+", APP.read_text(encoding="utf-8")))
+    assert addresses == {url for _, url in links} | {"https://github.com/strawberryHunter/ab-seq-selfcheck/blob/main/VALIDATION.md"}
 
 
 # --------------------------------------------------------------------------

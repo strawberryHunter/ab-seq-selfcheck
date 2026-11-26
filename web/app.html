@@ -11,6 +11,7 @@
   --card: #FFFFFF;
   --field: #FFFFFF;
   --line: #E3E8E6;
+  --edge: #86908C;
   --text: #1A1F1C;
   --muted: #5A6469;
   --brand: #00733C;
@@ -29,14 +30,14 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0F1412; --card: #171D1A; --field: #121815; --line: #2A332F; --text: #E8EEEA; --muted: #9BA7A1;
-    --brand: #5FE65A; --brand-strong: #8AF086; --brand-tint: #16301F; --on-brand: #0F1412;
+    --brand: #5FE65A; --brand-strong: #8AF086; --brand-tint: #16301F; --on-brand: #0F1412; --edge: #6B7872;
     --accent: #7FB6DE; --bright: #00CD00; --cdr: #1B2E3B; --vh: #4590D0; --vl: #E26A38;
     --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0F1412; --card: #171D1A; --field: #121815; --line: #2A332F; --text: #E8EEEA; --muted: #9BA7A1;
-  --brand: #5FE65A; --brand-strong: #8AF086; --brand-tint: #16301F; --on-brand: #0F1412;
+  --brand: #5FE65A; --brand-strong: #8AF086; --brand-tint: #16301F; --on-brand: #0F1412; --edge: #6B7872;
   --accent: #7FB6DE; --bright: #00CD00; --cdr: #1B2E3B; --vh: #4590D0; --vl: #E26A38;
   --scrim: rgba(0, 0, 0, 0.6); color-scheme: dark;
 }
@@ -65,7 +66,7 @@ p { margin: 0; }
 .app { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 100vh; }
 .side {
   position: sticky; top: env(safe-area-inset-top, 0px); align-self: start; z-index: 45;
-  height: calc(100vh - env(safe-area-inset-top, 0px)); overflow: auto;
+  height: calc(100vh - env(safe-area-inset-top, 0px)); overflow: hidden;
   background: var(--card); border-right: 1px solid var(--line);
   padding: 20px 12px 16px; padding-left: max(12px, env(safe-area-inset-left, 0px));
   display: flex; flex-direction: column; gap: 14px;
@@ -73,73 +74,82 @@ p { margin: 0; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; text-decoration: none; color: var(--text); font-size: 19px; font-weight: 700; }
 .cta {
   display: flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none;
-  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card);
+  flex: none; height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--brand); background: var(--card);
   color: var(--brand); font-weight: 700;
 }
-.cta:hover { border-color: var(--brand); }
-.ngroup { display: grid; gap: 2px; }
+.cta:hover { background: var(--brand-tint); }
+.snav { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; margin: 0 -12px; padding: 0 12px; }
+.ngroup { display: grid; gap: 2px; flex: none; }
 .slabel { font-size: 13px; color: var(--muted); padding: 8px 12px 4px; }
 .nav {
   position: relative; display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
   border: none; background: none; text-decoration: none;
-  padding: 8px 12px; border-radius: 10px; color: var(--text);
+  height: 36px; padding: 0 12px; border-radius: 10px; color: var(--text);
 }
+.nav.zero { color: var(--muted); }
 .nav b { margin-left: auto; font-size: 13px; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
 .nav:hover { background: var(--bg); }
 .nav[aria-current="page"] { background: var(--brand-tint); font-weight: 700; }
 .nav[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px; border-radius: 2px; background: var(--brand); }
 .nav .sub { display: block; font-size: 13px; color: var(--muted); font-weight: 400; }
-.nav.rec { display: block; }
+.nav.rec { display: block; height: auto; padding: 6px 12px; }
 .nav.rec span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sfoot { margin-top: auto; display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.sfoot { flex: none; display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
 .sfoot p { font-size: 13px; color: var(--muted); padding: 0 12px; }
+.series { display: flex; flex-wrap: wrap; gap: 0 6px; }
+.series span { white-space: nowrap; }
+.series b { color: var(--text); font-weight: 700; }
 
 .mainwrap { min-width: 0; display: flex; flex-direction: column; }
 .top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); border-bottom: 1px solid var(--line); }
 .inner {
   max-width: 1180px; width: 100%; margin: 0 auto;
-  padding-left: max(24px, env(safe-area-inset-left, 0px));
-  padding-right: max(24px, env(safe-area-inset-right, 0px));
+  padding-left: max(32px, env(safe-area-inset-left, 0px));
+  padding-right: max(32px, env(safe-area-inset-right, 0px));
 }
-.topin { display: flex; align-items: center; gap: 10px; padding-block: 10px; flex-wrap: wrap; }
-.search { flex: 1 1 220px; min-width: 0; position: relative; display: block; }
+.topin { position: relative; display: flex; align-items: center; gap: 10px; min-height: 64px; padding-block: 10px; }
+.search { flex: 1 1 220px; max-width: 640px; min-width: 0; position: relative; display: block; }
 .search .ic { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); }
-.search input { width: 100%; border: 1px solid var(--line); background: var(--field); border-radius: 10px; padding: 9px 12px 9px 38px; outline: none; }
+.search input { width: 100%; height: 44px; border: 1px solid var(--edge); background: var(--field); border-radius: 10px; padding: 0 40px 0 38px; outline: none; }
 .search input:focus { border-color: var(--brand); }
+.search kbd { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+.search input:not(:placeholder-shown) ~ kbd { display: none; }
+.topextra { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .chips { display: flex; gap: 6px; }
 .chip {
-  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 3px 10px; border-radius: 999px;
+  display: inline-flex; align-items: center; gap: 6px; font-size: 13px; line-height: 1; height: 24px; padding: 0 10px; border-radius: 999px;
   border: 1px solid var(--line); background: var(--card); color: var(--muted); text-decoration: none; white-space: nowrap;
 }
-.chip.dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--bright); }
+a.chip, button.chip { height: 28px; }
 a.chip:hover, button.chip:hover { border-color: var(--brand); color: var(--text); }
-.iconbtn { flex: none; width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--card); border-radius: 10px; color: var(--text); }
+.iconbtn { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border: 1px solid var(--line); background: var(--card); border-radius: 10px; color: var(--text); }
 .iconbtn:hover { border-color: var(--brand); }
-.menu { display: none; }
+.menu, .more { display: none; }
 main { padding-block: 24px 72px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; align-content: start; }
 
 /* ---------- controls ---------- */
 .btn {
   display: inline-flex; align-items: center; gap: 6px; text-decoration: none; white-space: nowrap;
   border: 1px solid var(--line); background: var(--card); color: var(--text);
-  border-radius: 10px; padding: 8px 14px; font-weight: 700;
+  border-radius: 10px; height: 40px; padding: 0 14px; font-weight: 700;
 }
 .btn:hover { border-color: var(--brand); }
+.btn.sub, .titlebar .btn { height: 36px; padding: 0 12px; font-size: 13px; }
 .btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
 .btn.primary:hover { background: var(--brand-strong); border-color: var(--brand-strong); }
-.btn.big { font-size: 17px; padding: 13px 22px; }
+.btn.big { height: 48px; font-size: 17px; padding: 0 22px; }
 .btn:disabled { opacity: 0.45; cursor: default; }
-.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--card); }
-.seg > * { border: none; background: none; padding: 8px 12px; color: var(--muted); text-decoration: none; border-left: 1px solid var(--line); white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
+.seg { display: inline-flex; height: 40px; border: 1px solid var(--edge); border-radius: 10px; overflow: hidden; background: var(--card); }
+.seg > * { border: none; background: none; padding: 0 12px; color: var(--muted); text-decoration: none; border-left: 1px solid var(--line); white-space: nowrap; display: inline-flex; gap: 6px; align-items: center; }
 .seg > *:first-child { border-left: none; }
 .seg > [aria-pressed="true"], .seg > [aria-current="true"] { background: var(--brand-tint); color: var(--text); font-weight: 700; }
 .seg > :disabled { opacity: 0.45; cursor: default; }
 .seg b { font-weight: 400; font-variant-numeric: tabular-nums; }
-select, input[type="text"], input[type="number"] { border: 1px solid var(--line); background: var(--field); border-radius: 10px; padding: 8px 10px; }
+select, input[type="text"], input[type="number"] { height: 40px; border: 1px solid var(--edge); background: var(--field); border-radius: 10px; padding: 0 10px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; min-width: 0; }
 .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .spacer { margin-left: auto; }
-.tag { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; border: 1px solid var(--text); color: var(--text); }
+.tag { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; border: 1px solid var(--text); color: var(--text); }
 .tag.review { background: var(--text); color: var(--card); }
 .tag.unknown, .tag.errors { border-style: dashed; }
 .tag.clear { border-color: var(--line); color: var(--muted); font-weight: 400; }
@@ -149,12 +159,12 @@ select, input[type="text"], input[type="number"] { border: 1px solid var(--line)
 .busy div { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 18px 26px; font-weight: 700; }
 
 /* ---------- home ---------- */
-.hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 24px; align-items: center; padding: 22px 24px; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 24px; align-items: center; padding: 24px; }
 .hero h2 { font-size: 24px; margin-top: 8px; }
 .hero .why { color: var(--muted); margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hero .meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 10px; font-size: 13px; color: var(--muted); }
 .hero .wide { grid-column: 1 / -1; min-width: 0; }
-.badge { display: inline-block; font-size: 13px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--brand-tint); color: var(--brand-strong); }
+.badge { display: inline-flex; align-items: center; height: 24px; font-size: 13px; font-weight: 700; padding: 0 10px; border-radius: 999px; background: var(--brand-tint); color: var(--brand-strong); }
 .hnav { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .hnav .iconbtn { width: 30px; height: 30px; }
 .dots { display: flex; gap: 5px; }
@@ -163,14 +173,17 @@ select, input[type="text"], input[type="number"] { border: 1px solid var(--line)
 .hero textarea { min-height: 120px; }
 .titlebar { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 10px; }
 .titlebar h1 { font-size: 24px; }
-.titlebar .cnt { font-size: 17px; color: var(--muted); }
+.titlebar .cnt { font-size: 15px; color: var(--muted); }
 .titlebar .row { margin-left: auto; }
-.stats { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
-.stat { display: inline-flex; align-items: baseline; gap: 6px; text-decoration: none; color: var(--muted); padding: 2px 0; border-bottom: 2px solid transparent; }
-.stat b { font-size: 17px; color: var(--text); font-variant-numeric: tabular-nums; }
+.xwrap { position: relative; }
+.xmore { display: none; }
+.xlist { display: contents; }
+.stats { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 24px; }
+.stat { display: inline-flex; align-items: baseline; gap: 6px; font-size: 13px; text-decoration: none; color: var(--muted); padding: 2px 0; border-bottom: 2px solid transparent; }
+.stat b { font-size: 19px; color: var(--text); font-variant-numeric: tabular-nums; }
 .stat:hover b { color: var(--brand); }
 .stat[aria-current="true"] { border-bottom-color: var(--brand); color: var(--text); }
-.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .cand { display: flex; flex-direction: column; gap: 8px; cursor: pointer; }
 .cand > * { min-width: 0; }
 .cand > .cfoot { margin-top: auto; }      /* cards of one row end on the same line, with or without a note */
@@ -232,7 +245,7 @@ table.keep tr.click:hover td:first-child { background: var(--bg); }
 #sheet.on { transform: none; visibility: visible; transition: transform 0.2s ease; }
 .sh { display: grid; gap: 8px; padding: 16px 20px 14px; padding-top: calc(16px + env(safe-area-inset-top, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); border-bottom: 1px solid var(--line); }
 .sh h2 { font-family: var(--fm); font-size: 19px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.sh .chead .iconbtn { width: 34px; height: 34px; }
+.sh .chead .iconbtn { width: 36px; height: 36px; }
 .sb { flex: 1; overflow: auto; padding: 4px 20px 24px; padding-right: max(20px, env(safe-area-inset-right, 0px)); }
 .sf { display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--line); padding: 10px 20px; padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
 .sf .pos { margin-right: auto; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -261,7 +274,7 @@ button.chip[aria-pressed="true"] { border-color: var(--brand); color: var(--text
 textarea {
   width: 100%; min-height: 240px; resize: vertical; padding: 12px;
   font-family: var(--fm); font-size: 13px; line-height: 1.55;
-  background: var(--field); color: var(--text); border: 1px solid var(--line); border-radius: 10px;
+  background: var(--field); color: var(--text); border: 1px solid var(--edge); border-radius: 10px;
 }
 textarea:focus { outline: none; border-color: var(--brand); }
 textarea.drag { border-style: dashed; border-color: var(--brand); }
@@ -280,7 +293,7 @@ textarea[aria-invalid="true"] { border-color: var(--text); }
 .toggle { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 6px 10px; color: var(--muted); }
 .toggle[aria-pressed="true"] { background: var(--brand-tint); color: var(--text); font-weight: 700; border-color: var(--brand); }
 .toggle:disabled { cursor: default; opacity: 0.7; }
-.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
 .tile { display: grid; gap: 4px; align-content: start; }
 .tile b { font-size: 32px; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .tile span { color: var(--muted); }
@@ -323,7 +336,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
 #sheet.on ~ .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
 @media (max-width: 1024px) {
   .app { grid-template-columns: minmax(0, 1fr); }
-  .side { position: fixed; top: 0; left: 0; bottom: 0; width: min(280px, 86vw); height: auto; transform: translateX(-101%); visibility: hidden; transition: transform 0.2s ease, visibility 0s linear 0.2s; padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
+  .side { position: fixed; top: 0; left: 0; bottom: 0; width: min(280px, 86vw); height: auto; align-self: stretch; transform: translateX(-101%); visibility: hidden; transition: transform 0.2s ease, visibility 0s linear 0.2s; padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
   .side.on { transform: none; visibility: visible; transition: transform 0.2s ease; }
   .menu { display: grid; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -338,10 +351,21 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   .hero .why { white-space: normal; }
   .hero .btn.big { justify-content: center; }
   .titlebar .row { margin-left: 0; width: 100%; }
-  .chips { order: 3; width: 100%; }
   .search { flex: 1 1 120px; }
+  .search kbd { display: none; }
+  .search input { padding-right: 12px; }
+  .menu, .more { width: 44px; height: 44px; }
+  .more { display: grid; }
+  .topextra, .xlist {
+    display: none; position: absolute; z-index: 35; top: calc(100% + 6px); background: var(--card);
+    border: 1px solid var(--line); border-radius: 12px; padding: 12px; flex-direction: column; align-items: flex-start; gap: 10px;
+  }
+  .topextra { right: 16px; margin-left: 0; }
+  .xlist { left: 0; align-items: stretch; min-width: 200px; }
+  .topextra.on, .xlist.on { display: flex; }
+  .xmore { display: inline-flex; }
+  main { padding-top: 20px; }
   .row > .seg { max-width: 100%; overflow-x: auto; }
-  .titlebar .btn { padding: 7px 10px; }
   #f-sort.spacer { margin-left: 0; }
   #sheet { top: auto; height: 92vh; width: 100vw; border-left: none; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; transform: translateY(101%); }
   #sheet.on { transform: none; }
@@ -365,12 +389,16 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
           <span class="sr">검색</span>
           <span id="q-ic"></span>
           <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="서열 이름 · CDR 잔기 · 모티프 이름 검색">
+          <kbd aria-hidden="true">/</kbd>
         </label>
-        <span class="chips">
-          <span class="chip dot" title="분석은 이 브라우저 안에서만 실행 · 서열 전송 없음">로컬 처리</span>
-          <a class="chip" href="#guide" title="CDR 경계는 Kabat 근사 · ANARCI/IMGT 를 대신하지 않음">Kabat 근사</a>
-        </span>
-        <div class="seg" role="group" aria-label="테마" id="theme"></div>
+        <div class="topextra pop" id="topextra">
+          <span class="chips">
+            <span class="chip" id="chip-local" title="분석은 이 브라우저 안에서만 실행 · 서열 전송 없음">로컬 처리</span>
+            <a class="chip" href="#guide" title="CDR 경계는 Kabat 근사 · ANARCI/IMGT 를 대신하지 않음">Kabat 근사</a>
+          </span>
+          <div class="seg" role="group" aria-label="테마" id="theme"></div>
+        </div>
+        <button class="iconbtn more" type="button" id="more" aria-label="더보기" aria-expanded="false" aria-controls="topextra"></button>
       </div>
     </header>
     <main class="inner" id="view" tabindex="-1"></main>
@@ -425,9 +453,17 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     bookmark: '<path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
     arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
     left: '<path d="M15 18l-6-6 6-6"/>',
-    right: '<path d="M9 18l6-6-6-6"/>'
+    right: '<path d="M9 18l6-6-6-6"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
+    download: '<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>',
+    share: '<path d="M12 15V4M8 8l4-4 4 4M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    more: '<path d="M5 12h.01M12 12h.01M19 12h.01"/>'
   };
-  const icon = (name, size) => `<svg class="ic" width="${size || 18}" height="${size || 18}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name]}</svg>`;
+  /* The three tools of the series; the one on screen is not a link. */
+  const SERIES = [["RegRadar", "https://claude.ai/artifact/XxPJJN3vWQfPwv7ArARNta"], ["Deviation 데스크", "https://claude.ai/artifact/VJ8bu7udsNNDWp5wUyrzbt"], ["AbCheck", ""]];
+  const icon = (name, size) => `<svg class="ic" width="${size || 18}" height="${size || 18}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PATHS[name]}</svg>`;
   const LOGO = '<svg class="ic" width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect width="30" height="30" rx="8" fill="var(--brand)"/><path d="M15 24v-9M15 15L9 8.5M15 15l6-6.5" stroke="var(--on-brand)" stroke-width="2.6" stroke-linecap="round" fill="none"/></svg>';
 
   const VIEWS = ["new", "all", "review", "unknown", "clear", "errors", "picked", "compare", "properties", "motifs", "onepage", "rules", "validation", "guide"];
@@ -879,9 +915,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const nPairs = units ? units.filter((u) => u.h).length : 0;
     const count = units ? `항체 ${nPairs}쌍${units.length > nPairs ? ` · 단독 ${units.length - nPairs}건` : ""}` : `${shown.length}건`;
     h += `<div class="titlebar"><h1>${LISTS[view]}</h1><span class="cnt num">${count}</span>
-        <div class="row"><button class="btn" type="button" id="x-tsv">Excel용 복사</button><button class="btn" type="button" id="x-mail">메일용 복사</button>
-          <button class="btn" type="button" id="x-fasta" title="ANARCI · IMGT 에 붙여넣기용">FASTA 복사</button>
-          <button class="btn" type="button" id="x-csv">CSV</button><button class="btn" type="button" id="x-json" title="다시 열면 고른 후보 · 메모 · 기준 · pH 그대로">JSON</button></div></div>
+        <div class="row xwrap"><button class="btn xmore" type="button" id="x-more" aria-expanded="false" aria-controls="x-list">${icon("share")}내보내기</button>
+          <div class="xlist pop" id="x-list"><button class="btn" type="button" id="x-tsv">${icon("copy")}Excel용 복사</button><button class="btn" type="button" id="x-mail">${icon("copy")}메일용 복사</button>
+          <button class="btn" type="button" id="x-fasta" title="ANARCI · IMGT 에 붙여넣기용">${icon("copy")}FASTA 복사</button>
+          <button class="btn" type="button" id="x-csv">${icon("download")}CSV</button><button class="btn" type="button" id="x-json" title="다시 열면 고른 후보 · 메모 · 기준 · pH 그대로">${icon("download")}JSON</button></div></div></div>
       <div class="stats">
         <a class="stat" href="#all"${cur("all")}>후보<b>${t.all}</b></a>
         <a class="stat" href="#review"${cur("review")}>검토 필요<b>${t.review}</b></a>
@@ -1339,7 +1376,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const m = ABUI.motifTable(rows);
     const records = ABUI.hitsTable(rows).length - 1;
     let h = `<div class="titlebar"><h1>모티프 분포</h1><span class="cnt num">${m.evaluated}건</span>
-      <div class="row"><button class="btn" type="button" id="m-tsv"${records ? "" : " disabled"} title="검출된 모티프를 한 줄에 하나씩 · 서열 이름 · 항목 · 위치 · 구간 · 위험도">Excel용 복사 · 모티프 ${records}행</button></div></div>`;
+      <div class="row"><button class="btn" type="button" id="m-tsv"${records ? "" : " disabled"} title="검출된 모티프를 한 줄에 하나씩 · 서열 이름 · 항목 · 위치 · 구간 · 위험도">${icon("copy")}Excel용 복사 · 모티프 ${records}행</button></div></div>`;
     if (!m.evaluated) return h + `<div class="blank"><span>표시할 후보 없음</span></div>`;
     const num = (n, label, region, flag) => n
       ? `<button class="rowlink num" type="button" data-motif="${esc(label)}" data-region="${esc(region)}"${flag ? ' data-flag="1"' : ""} aria-label="${esc(label)}${region ? " " + esc(region) : ""} 후보 ${n}건 보기">${n}</button>`
@@ -1362,8 +1399,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <button class="btn" type="button" id="op-add"${state.rows.some((r) => r.cats[0] === "review" && !state.picked.has(r.index)) ? "" : " disabled"}>검토 필요 ${t.review}건 넣기</button>
         <button class="btn" type="button" id="op-pair"${missing ? "" : " disabled"}>${missing ? `짝 체인 ${missing}건 넣기` : "짝 체인 넣기"}</button>
         <button class="btn" type="button" id="op-clear"${rows.length ? "" : " disabled"}>비우기</button>
-        <button class="btn" type="button" id="op-tsv"${rows.length ? "" : " disabled"}>Excel용 복사</button>
-        <button class="btn primary" type="button" id="op-save"${rows.length ? "" : " disabled"}>HTML 저장</button>
+        <button class="btn" type="button" id="op-tsv"${rows.length ? "" : " disabled"}>${icon("copy")}Excel용 복사</button>
+        <button class="btn primary" type="button" id="op-save"${rows.length ? "" : " disabled"}>${icon("download")}HTML 저장</button>
       </div></div>`;
     if (!rows.length) return h + `<div class="blank"><span>고른 후보 없음 · 카드의 북마크로 고르기</span></div>`;
     return h + `<div class="paper"><div class="op">${ABUI.onePageFragment(rows, meta())}</div></div>`;
@@ -1467,11 +1504,14 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   /* ---------- sidebar ---------- */
   function renderSidebar() {
     const t = ABUI.tally(state.rows, state.picked);
-    const nav = (v, label, n) => `<a class="nav" href="#${v}"${state.view === v ? ' aria-current="page"' : ""}>${label}${n === undefined ? "" : `<b>${n}</b>`}</a>`;
+    const nav = (v, label, n) => `<a class="nav${n === 0 ? " zero" : ""}" href="#${v}"${state.view === v ? ' aria-current="page"' : ""}>${label}${n === undefined ? "" : `<b>${n}</b>`}</a>`;
     const recent = recents().slice(0, 4);
+    const was = $("side").querySelector(".snav");
+    const keep = was ? was.scrollTop : 0;
     $("side").innerHTML = `
       <a class="brand" href="#all">${LOGO}AbCheck</a>
-      <a class="cta" href="#new">+ 새 분석</a>
+      <a class="cta" href="#new">${icon("plus", 18)}새 분석</a>
+      <div class="snav">
       <nav class="ngroup" aria-label="후보"><div class="slabel">후보</div>
         ${nav("all", "후보 전체", t.all)}${nav("review", "검토 필요", t.review)}${nav("unknown", "판정 불가", t.unknown)}${nav("errors", "입력 오류", t.errors)}${nav("picked", "고른 후보", t.picked)}</nav>
       <nav class="ngroup" aria-label="보기"><div class="slabel">보기</div>
@@ -1480,7 +1520,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         ${nav("rules", "선별 규칙", esc(rules().name))}${nav("validation", "검증 기록")}</nav>
       ${recent.length ? `<div class="ngroup"><div class="slabel">최근 분석</div>${recent.map((r, i) =>
         `<button class="nav rec" type="button" data-rec="${i}"><span>${esc(r.source)}</span><span class="sub num">${r.count}건 · ${whenShort(new Date(r.at))}</span></button>`).join("")}</div>` : ""}
-      <div class="sfoot">${nav("guide", "사용법")}<p>개인 프로젝트 · 셀트리온과 무관</p></div>`;
+      </div>
+      <div class="sfoot"><p class="series"><span>시리즈</span>${SERIES.map(([name, url], i) => `<span>${url ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${name}</a>` : `<b>${name}</b>`}${i < SERIES.length - 1 ? " ·" : ""}</span>`).join("")}</p>
+        ${nav("guide", "사용법")}<p>개인 프로젝트 · 셀트리온과 무관</p></div>`;
+    $("side").querySelector(".snav").scrollTop = keep;
   }
   function closeMenu() { $("side").classList.remove("on"); if (!$("sheet").classList.contains("on")) $("scrim").classList.remove("on"); }
   $("side").addEventListener("click", (ev) => {
@@ -1489,6 +1532,25 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (ev.target.closest("a, [data-rec]")) closeMenu();
   });
   $("menu").addEventListener("click", () => { $("side").classList.add("on"); $("scrim").classList.add("on"); });
+  /* Small menus under their button (the top bar's extras and the export list on a phone): a click opens one, a click elsewhere or Esc closes it. */
+  function closePops() {
+    let closed = false;
+    document.querySelectorAll(".pop.on").forEach((m) => {
+      m.classList.remove("on"); closed = true;
+      const b = document.querySelector(`[aria-controls="${m.id}"]`);
+      if (b) b.setAttribute("aria-expanded", "false");
+    });
+    return closed;
+  }
+  function togglePop(btn) {
+    const m = $(btn.getAttribute("aria-controls"));
+    const open = !m.classList.contains("on");
+    closePops();
+    m.classList.toggle("on", open); btn.setAttribute("aria-expanded", String(open));
+  }
+  $("more").addEventListener("click", () => togglePop($("more")));
+  // a button that redraws itself (the theme switch) is no longer in the page when the click arrives here: that is not a click elsewhere
+  document.addEventListener("click", (ev) => { if (ev.target.isConnected && !ev.target.closest("[aria-controls], .pop")) closePops(); });
 
   /* ---------- render + routing ---------- */
   let focusFirst = false;      // set by Enter / ArrowDown in the search field
@@ -1557,6 +1619,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       const again = $("view").querySelector(`[data-ref="${sel.dataset.ref}"]`);
       if (again) again.focus();
     }));
+    on("x-more", "click", () => togglePop($("x-more")));
+    on("x-list", "click", (ev) => { if (ev.target.closest("button")) closePops(); });
     on("x-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name, state.notes, meta().refs), `표 ${state.openList.length}행 복사`));
     on("x-mail", "click", () => copy(ABUI.toMailText(state.rows, meta()), "메일용 글 복사"));
     on("x-fasta", "click", () => { const n = state.openList.filter((r) => r.inputOk).length; copy(ABUI.toFasta(state.openList), `FASTA ${n}건 복사`); });
@@ -1752,6 +1816,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   $("sheet-close").innerHTML = icon("x");
   $("sheet-pick").innerHTML = icon("bookmark");
   $("menu").innerHTML = icon("menu");
+  $("more").innerHTML = icon("more");
+  $("chip-local").insertAdjacentHTML("afterbegin", icon("lock", 14));
   $("q-ic").innerHTML = icon("search", 16);
   $("sheet-close").addEventListener("click", closeSheet);
   $("scrim").addEventListener("click", () => { closeSheet(); closeMenu(); });
@@ -1769,7 +1835,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   $("sheet-copy").addEventListener("click", () => { const r = state.rows[state.open]; if (r) copy(ABUI.toFasta([r]), `${r.id} FASTA 복사`); });
   document.addEventListener("keydown", (ev) => {
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
-    if (ev.key === "Escape") { closeSheet(); closeMenu(); if (document.activeElement === $("q")) $("q").blur(); return; }
+    if (ev.key === "Escape") { if (closePops()) return; closeSheet(); closeMenu(); if (document.activeElement === $("q")) $("q").blur(); return; }
     if (ev.key === "/" && !typing && !ev.ctrlKey && !ev.metaKey) { ev.preventDefault(); $("q").focus(); return; }
     if (ev.key === "Tab" && $("sheet").classList.contains("on")) {
       const els = [...$("sheet").querySelectorAll("button, a[href], input, select")].filter((e) => !e.disabled && e.offsetParent !== null);
