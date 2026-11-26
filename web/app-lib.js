@@ -499,6 +499,31 @@
   }
 
   /**
+   * The comparison references of a list as they are used: {H: place | null, L: place | null}.
+   * A place is kept only when the row there is of that chain and has CDRs to compare with;
+   * anything else becomes null, so a value kept for another list cannot point at the wrong
+   * candidate. `value` is such an object (from storage) or a list of places (from a JSON
+   * result: each goes to the chain of its own row, the first of a chain wins).
+   */
+  function refOfRows(rows, value) {
+    var out = { H: null, L: null };
+    var take = function (chain, i) {
+      var r = Number.isInteger(i) ? rows[i] : null;
+      if (r && r.chain === chain && r.cdrs.length && out[chain] === null) out[chain] = i;
+    };
+    if (Array.isArray(value)) {
+      value.forEach(function (i) {
+        var r = Number.isInteger(i) ? rows[i] : null;
+        if (r && (r.chain === "H" || r.chain === "L")) take(r.chain, i);
+      });
+    } else if (value && typeof value === "object") {
+      take("H", value.H);
+      take("L", value.L);
+    }
+    return out;
+  }
+
+  /**
    * One line that says how a row differs from the reference: "F10Y N56Q"; pieces of another
    * length are named after it ("F10Y · CDR-H3 길이 다름"); "차이 없음" when nothing differs;
    * "길이 다름 · 견주지 않음" when the two cannot be laid over each other. At most `limit`
@@ -777,14 +802,16 @@
   /**
    * The object to save as JSON, with the user's marks. A sequence that is picked or has a note
    * gets a last key "review": {"picked": true | false, "note": "..."}; every other sequence is
-   * the same object as before. Without any mark the object itself comes back, so the file stays
-   * what withRuleResults() gives (with the default rule set: the Python CLI's --json output).
-   * picked: a Set or a list of places in the list; notes: {place: text}.
+   * the same object as before. A comparison reference gets "reference": true in it as well.
+   * Without any mark the object itself comes back, so the file stays what withRuleResults()
+   * gives (with the default rule set: the Python CLI's --json output).
+   * picked: a Set or a list of places in the list; notes: {place: text}; ref: {H, L} places.
    */
-  function withReview(obj, picked, notes) {
+  function withReview(obj, picked, notes, ref) {
     var set = picked instanceof Set ? picked : new Set(picked || []);
     notes = notes || {};
-    var marked = function (i) { return set.has(i) || !!notes[i]; };
+    var refs = ref ? [ref.H, ref.L].filter(function (i) { return Number.isInteger(i); }) : [];
+    var marked = function (i) { return set.has(i) || !!notes[i] || refs.indexOf(i) >= 0; };
     if (!obj.sequences.some(function (_, i) { return marked(i); })) return obj;
     var out = {};
     Object.keys(obj).forEach(function (k) {
@@ -793,6 +820,7 @@
         var copy = {};
         Object.keys(s).forEach(function (key) { copy[key] = s[key]; });
         copy.review = { picked: set.has(i), note: notes[i] || "" };
+        if (refs.indexOf(i) >= 0) copy.review.reference = true;
         return copy;
       });
     });
@@ -802,14 +830,14 @@
   /**
    * What a JSON result says beyond its sequences: the marks withReview() wrote, the pH the
    * analysis was run at and the rule set in use. `count` is how many entries the engine read
-   * from the same text. Returns {picked: [place], notes: {place: text}, ph: number | null,
-   * ruleSet: {name, motifs, where, minRisk, cys} | null, ruleProblem, unread}, or null when the
+   * from the same text. Returns {picked: [place], notes: {place: text}, refs: [place], ph:
+   * number | null, ruleSet: {name, motifs, where, minRisk, cys} | null, ruleProblem, unread}, or null when the
    * text is a bare list of sequences. Marks of an unexpected shape are left out, not repaired.
    * A rule set that cannot be used is described in ruleProblem; text the engine read but a
    * browser's JSON reader refuses (NaN, Infinity) is described in unread. Both are "" otherwise.
    */
   function reviewFromJson(text, count) {
-    var out = { picked: [], notes: {}, ph: null, ruleSet: null, ruleProblem: "", unread: "" };
+    var out = { picked: [], notes: {}, refs: [], ph: null, ruleSet: null, ruleProblem: "", unread: "" };
     var value;
     try { value = JSON.parse(String(text).replace(/^﻿/, "")); }
     catch (e) { out.unread = e.message; return out; }
@@ -822,6 +850,7 @@
       var rv = s.review;
       if (rv && typeof rv === "object" && !Array.isArray(rv)) {
         if (rv.picked === true) out.picked.push(i);
+        if (rv.reference === true) out.refs.push(i);
         if (typeof rv.note === "string" && cleanNote(rv.note)) out.notes[i] = cleanNote(rv.note);
       }
       if (out.ph === null && s.properties && typeof s.properties === "object") {
@@ -847,13 +876,14 @@
    * agree on them. Returns null when no part has a review.
    */
   function joinReviews(parts) {
-    var out = { picked: [], notes: {}, ph: null, ruleSet: null, ruleProblem: "", unread: "" };
+    var out = { picked: [], notes: {}, refs: [], ph: null, ruleSet: null, ruleProblem: "", unread: "" };
     var offset = 0, files = 0;
     parts.forEach(function (p) {
       var rv = p.review;
       if (rv) {
         files += 1;
         rv.picked.forEach(function (i) { out.picked.push(offset + i); });
+        (rv.refs || []).forEach(function (i) { out.refs.push(offset + i); });
         Object.keys(rv.notes).forEach(function (k) { out.notes[offset + Number(k)] = rv.notes[k]; });
         if (rv.unread && !out.unread) out.unread = rv.unread;
         if (parts.length === 1) { out.ph = rv.ph; out.ruleSet = rv.ruleSet; out.ruleProblem = rv.ruleProblem; }
@@ -971,6 +1001,13 @@
     return out;
   }
 
+  /** References read back from storage: {H, L}, each a place in the list or null. Which rows they may be is checked after the analysis (refOfRows). */
+  function cleanRef(value, count) {
+    var place = function (i) { return Number.isInteger(i) && i >= 0 && i < count ? i : null; };
+    var v = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    return { H: place(v.H), L: place(v.L) };
+  }
+
   function cleanRecent(value) {
     if (value === null || value === undefined) return { list: [], dropped: 0 };
     if (!Array.isArray(value)) return { list: [], dropped: 1 };
@@ -987,7 +1024,8 @@
         source: typeof r.source === "string" && r.source ? r.source : "저장된 분석",
         text: typeof r.text === "string" ? r.text : "",
         picked: Array.isArray(r.picked) ? r.picked.filter(function (i) { return Number.isInteger(i) && i >= 0 && i < n; }) : [],
-        notes: cleanNotes(r.notes, n)
+        notes: cleanNotes(r.notes, n),
+        ref: cleanRef(r.ref, n)
       });
     });
     return { list: list, dropped: dropped };
@@ -1326,7 +1364,7 @@
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, similarCdr3: similarCdr3, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
-    variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, refLine: refLine, refNotes: refNotes, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
+    variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, refLine: refLine, refNotes: refNotes, refOfRows: refOfRows, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanNote: cleanNote, withReview: withReview, reviewFromJson: reviewFromJson, joinReviews: joinReviews, sameRules: sameRules, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, hitsTable: hitsTable, toHitsTsv: toHitsTsv, toFasta: toFasta, toMailText: toMailText,

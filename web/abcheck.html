@@ -2929,6 +2929,31 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   }
 
   /**
+   * The comparison references of a list as they are used: {H: place | null, L: place | null}.
+   * A place is kept only when the row there is of that chain and has CDRs to compare with;
+   * anything else becomes null, so a value kept for another list cannot point at the wrong
+   * candidate. `value` is such an object (from storage) or a list of places (from a JSON
+   * result: each goes to the chain of its own row, the first of a chain wins).
+   */
+  function refOfRows(rows, value) {
+    var out = { H: null, L: null };
+    var take = function (chain, i) {
+      var r = Number.isInteger(i) ? rows[i] : null;
+      if (r && r.chain === chain && r.cdrs.length && out[chain] === null) out[chain] = i;
+    };
+    if (Array.isArray(value)) {
+      value.forEach(function (i) {
+        var r = Number.isInteger(i) ? rows[i] : null;
+        if (r && (r.chain === "H" || r.chain === "L")) take(r.chain, i);
+      });
+    } else if (value && typeof value === "object") {
+      take("H", value.H);
+      take("L", value.L);
+    }
+    return out;
+  }
+
+  /**
    * One line that says how a row differs from the reference: "F10Y N56Q"; pieces of another
    * length are named after it ("F10Y · CDR-H3 길이 다름"); "차이 없음" when nothing differs;
    * "길이 다름 · 견주지 않음" when the two cannot be laid over each other. At most `limit`
@@ -3207,14 +3232,16 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   /**
    * The object to save as JSON, with the user's marks. A sequence that is picked or has a note
    * gets a last key "review": {"picked": true | false, "note": "..."}; every other sequence is
-   * the same object as before. Without any mark the object itself comes back, so the file stays
-   * what withRuleResults() gives (with the default rule set: the Python CLI's --json output).
-   * picked: a Set or a list of places in the list; notes: {place: text}.
+   * the same object as before. A comparison reference gets "reference": true in it as well.
+   * Without any mark the object itself comes back, so the file stays what withRuleResults()
+   * gives (with the default rule set: the Python CLI's --json output).
+   * picked: a Set or a list of places in the list; notes: {place: text}; ref: {H, L} places.
    */
-  function withReview(obj, picked, notes) {
+  function withReview(obj, picked, notes, ref) {
     var set = picked instanceof Set ? picked : new Set(picked || []);
     notes = notes || {};
-    var marked = function (i) { return set.has(i) || !!notes[i]; };
+    var refs = ref ? [ref.H, ref.L].filter(function (i) { return Number.isInteger(i); }) : [];
+    var marked = function (i) { return set.has(i) || !!notes[i] || refs.indexOf(i) >= 0; };
     if (!obj.sequences.some(function (_, i) { return marked(i); })) return obj;
     var out = {};
     Object.keys(obj).forEach(function (k) {
@@ -3223,6 +3250,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         var copy = {};
         Object.keys(s).forEach(function (key) { copy[key] = s[key]; });
         copy.review = { picked: set.has(i), note: notes[i] || "" };
+        if (refs.indexOf(i) >= 0) copy.review.reference = true;
         return copy;
       });
     });
@@ -3232,14 +3260,14 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   /**
    * What a JSON result says beyond its sequences: the marks withReview() wrote, the pH the
    * analysis was run at and the rule set in use. `count` is how many entries the engine read
-   * from the same text. Returns {picked: [place], notes: {place: text}, ph: number | null,
-   * ruleSet: {name, motifs, where, minRisk, cys} | null, ruleProblem, unread}, or null when the
+   * from the same text. Returns {picked: [place], notes: {place: text}, refs: [place], ph:
+   * number | null, ruleSet: {name, motifs, where, minRisk, cys} | null, ruleProblem, unread}, or null when the
    * text is a bare list of sequences. Marks of an unexpected shape are left out, not repaired.
    * A rule set that cannot be used is described in ruleProblem; text the engine read but a
    * browser's JSON reader refuses (NaN, Infinity) is described in unread. Both are "" otherwise.
    */
   function reviewFromJson(text, count) {
-    var out = { picked: [], notes: {}, ph: null, ruleSet: null, ruleProblem: "", unread: "" };
+    var out = { picked: [], notes: {}, refs: [], ph: null, ruleSet: null, ruleProblem: "", unread: "" };
     var value;
     try { value = JSON.parse(String(text).replace(/^﻿/, "")); }
     catch (e) { out.unread = e.message; return out; }
@@ -3252,6 +3280,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       var rv = s.review;
       if (rv && typeof rv === "object" && !Array.isArray(rv)) {
         if (rv.picked === true) out.picked.push(i);
+        if (rv.reference === true) out.refs.push(i);
         if (typeof rv.note === "string" && cleanNote(rv.note)) out.notes[i] = cleanNote(rv.note);
       }
       if (out.ph === null && s.properties && typeof s.properties === "object") {
@@ -3277,13 +3306,14 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
    * agree on them. Returns null when no part has a review.
    */
   function joinReviews(parts) {
-    var out = { picked: [], notes: {}, ph: null, ruleSet: null, ruleProblem: "", unread: "" };
+    var out = { picked: [], notes: {}, refs: [], ph: null, ruleSet: null, ruleProblem: "", unread: "" };
     var offset = 0, files = 0;
     parts.forEach(function (p) {
       var rv = p.review;
       if (rv) {
         files += 1;
         rv.picked.forEach(function (i) { out.picked.push(offset + i); });
+        (rv.refs || []).forEach(function (i) { out.refs.push(offset + i); });
         Object.keys(rv.notes).forEach(function (k) { out.notes[offset + Number(k)] = rv.notes[k]; });
         if (rv.unread && !out.unread) out.unread = rv.unread;
         if (parts.length === 1) { out.ph = rv.ph; out.ruleSet = rv.ruleSet; out.ruleProblem = rv.ruleProblem; }
@@ -3401,6 +3431,13 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return out;
   }
 
+  /** References read back from storage: {H, L}, each a place in the list or null. Which rows they may be is checked after the analysis (refOfRows). */
+  function cleanRef(value, count) {
+    var place = function (i) { return Number.isInteger(i) && i >= 0 && i < count ? i : null; };
+    var v = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+    return { H: place(v.H), L: place(v.L) };
+  }
+
   function cleanRecent(value) {
     if (value === null || value === undefined) return { list: [], dropped: 0 };
     if (!Array.isArray(value)) return { list: [], dropped: 1 };
@@ -3417,7 +3454,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         source: typeof r.source === "string" && r.source ? r.source : "저장된 분석",
         text: typeof r.text === "string" ? r.text : "",
         picked: Array.isArray(r.picked) ? r.picked.filter(function (i) { return Number.isInteger(i) && i >= 0 && i < n; }) : [],
-        notes: cleanNotes(r.notes, n)
+        notes: cleanNotes(r.notes, n),
+        ref: cleanRef(r.ref, n)
       });
     });
     return { list: list, dropped: dropped };
@@ -3756,7 +3794,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, similarCdr3: similarCdr3, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
-    variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, refLine: refLine, refNotes: refNotes, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
+    variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, refLine: refLine, refNotes: refNotes, refOfRows: refOfRows, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanNote: cleanNote, withReview: withReview, reviewFromJson: reviewFromJson, joinReviews: joinReviews, sameRules: sameRules, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, hitsTable: hitsTable, toHitsTsv: toHitsTsv, toFasta: toFasta, toMailText: toMailText,
@@ -3954,11 +3992,12 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     state.isExample = !!opts.example; state.recentId = opts.recentId || null;
     state.picked = new Set(opts.picked || []); state.notes = Object.assign({}, opts.notes || {});
     state.limit = PAGE; state.hero = 0; state.error = null; state.rejected = null;
-    state.ref = { H: null, L: null }; state.motif = null; state.fileRules = opts.fileRules || null;
+    state.motif = null; state.fileRules = opts.fileRules || null;
     retriage();
+    state.ref = ABUI.refOfRows(state.rows, opts.ref);      // kept with the analysis; checked against the rows it now has
     if (!opts.example && !opts.recentId) {
       remember(entries, source, ph, opts.text || "");
-      if (state.picked.size || Object.keys(state.notes).length) saveMarks();
+      if (state.picked.size || Object.keys(state.notes).length || state.ref.H !== null || state.ref.L !== null) saveMarks();
     }
     return true;
   }
@@ -3977,7 +4016,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       const t = ABUI.tally(state.rows), notes = Object.keys(state.notes).length;
       if (rv && rv.unread) console.warn("abcheck: marks in the JSON not read:", rv.unread);
       if (rv && rv.ruleProblem) console.warn("abcheck: rule set in the JSON not usable:", rv.ruleProblem);
-      const back = !rv ? "" : (state.picked.size ? ` · 고른 후보 ${state.picked.size}` : "") + (notes ? ` · 메모 ${notes}` : "") +
+      const refs = (state.ref.H !== null) + (state.ref.L !== null);
+      const back = !rv ? "" : (state.picked.size ? ` · 고른 후보 ${state.picked.size}` : "") + (notes ? ` · 메모 ${notes}` : "") + (refs ? ` · 기준 ${refs}` : "") +
         (rv.phUsed ? ` · pH ${rv.ph}` : "") + (rv.unread ? " · 고른 후보 · 메모 못 읽음" : "") + (rv.ruleProblem ? " · 파일의 규칙 못 읽음" : "");
       const msg = `후보 ${t.all}건 분석${t.errors ? ` · 입력 오류 ${t.errors}` : ""}${back}${unkept() ? " · 저장 안 됨" : ""}`;
       if (state.view === "all") render(); else go("all");
@@ -4012,7 +4052,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const isJson = fileName ? /\.json$/i.test(fileName) : ABUI.pastedKind(text) === ".json";
     const rv = isJson ? ABUI.joinReviews([{ count: entries.length, review: ABUI.reviewFromJson(text, entries.length) }]) : null;
     if (rv && rv.ph !== null && rv.ph !== ph) { ph = rv.ph; rv.phUsed = true; }
-    run(() => finish(analyzeEntries(entries, source, ph, Object.assign({ text }, opts || {}, rv ? { picked: rv.picked, notes: rv.notes, fileRules: rv.ruleSet } : {})), rv), entries.length);
+    run(() => finish(analyzeEntries(entries, source, ph, Object.assign({ text }, opts || {}, rv ? { picked: rv.picked, notes: rv.notes, ref: rv.refs, fileRules: rv.ruleSet } : {})), rv), entries.length);
   }
   function decode(buf) {
     const b = new Uint8Array(buf);
@@ -4046,7 +4086,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       if (loaded.length === 1) { state.input = text; state.fileName = loaded[0].name; }
       const rv = ABUI.joinReviews(parts);
       if (rv && rv.ph !== null && rv.ph !== ph) { ph = rv.ph; rv.phUsed = true; }
-      run(() => finish(analyzeEntries(all.entries, all.source, ph, rv ? { text, picked: rv.picked, notes: rv.notes, fileRules: rv.ruleSet } : { text }), rv), all.entries.length);
+      run(() => finish(analyzeEntries(all.entries, all.source, ph, rv ? { text, picked: rv.picked, notes: rv.notes, ref: rv.refs, fileRules: rv.ruleSet } : { text }), rv), all.entries.length);
     }, (e) => { console.error("abcheck: reading the dropped files failed", e); fail("파일을 읽지 못함", "다시 끌어다 놓기"); });
   }
 
@@ -4061,22 +4101,22 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (body.length + text.length > 500000) return;      // too big for browser storage
     const list = recents().filter((r) => JSON.stringify(r.entries) !== body);
     const id = "r" + Date.now();
-    list.unshift({ id, entries, source, ph, text, count: entries.length, at: Date.now(), picked: [], notes: {} });
+    list.unshift({ id, entries, source, ph, text, count: entries.length, at: Date.now(), picked: [], notes: {}, ref: { H: null, L: null } });
     for (let keep = Math.min(6, list.length); keep >= 1; keep--) {
       if (store.set(K.recent, list.slice(0, keep))) { state.recentId = id; return; }
     }
   }
   /** An analysis the user ran that is not in browser storage: it is gone after a reload. */
   const unkept = () => !!state.payload && !state.isExample && !state.recentId;
-  /** The user's marks on the analysis on screen (picks, notes) go into its stored copy. */
+  /** The user's marks on the analysis on screen (picks, notes, comparison references) go into its stored copy. */
   function saveMarks() {
     if (!state.recentId) return;
     const list = recents();
     const r = list.find((x) => x.id === state.recentId);
-    if (r) { r.picked = Array.from(state.picked); r.notes = state.notes; store.set(K.recent, list); }
+    if (r) { r.picked = Array.from(state.picked); r.notes = state.notes; r.ref = state.ref; store.set(K.recent, list); }
   }
   function openRecent(r) {
-    run(() => finish(analyzeEntries(r.entries, r.source, r.ph, { recentId: r.id, picked: r.picked, notes: r.notes, at: r.at })), r.entries.length);
+    run(() => finish(analyzeEntries(r.entries, r.source, r.ph, { recentId: r.id, picked: r.picked, notes: r.notes, ref: r.ref, at: r.at })), r.entries.length);
   }
   const recentText = (r) => r.text || r.entries.map((e) => ">" + e[0] + "\n" + e[1] + "\n").join("");
 
@@ -4241,7 +4281,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     h += `<div class="titlebar"><h1>${LISTS[view]}</h1><span class="cnt num">${count}</span>
         <div class="row"><button class="btn" type="button" id="x-tsv">Excel용 복사</button><button class="btn" type="button" id="x-mail">메일용 복사</button>
           <button class="btn" type="button" id="x-fasta" title="ANARCI · IMGT 에 붙여넣기용">FASTA 복사</button>
-          <button class="btn" type="button" id="x-csv">CSV</button><button class="btn" type="button" id="x-json" title="다시 열면 고른 후보 · 메모 · pH 그대로">JSON</button></div></div>
+          <button class="btn" type="button" id="x-csv">CSV</button><button class="btn" type="button" id="x-json" title="다시 열면 고른 후보 · 메모 · 기준 · pH 그대로">JSON</button></div></div>
       <div class="stats">
         <a class="stat" href="#all"${cur("all")}>후보<b>${t.all}</b></a>
         <a class="stat" href="#review"${cur("review")}>검토 필요<b>${t.review}</b></a>
@@ -4418,7 +4458,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       if (state.recentId) {
         const list = recents().filter((x) => x.id !== keep.recentId);
         const cur = list.find((x) => x.id === state.recentId);
-        if (cur) { cur.picked = picked; cur.notes = notes; }
+        if (cur) { cur.picked = picked; cur.notes = notes; cur.ref = ref; }
         store.set(K.recent, list);
       }
       state.input = recentText({ entries }); state.fileName = "";      // 새 분석 shows the list as it is now
@@ -4441,7 +4481,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       openSheet(r.index);
       if ($("t-subs")) $("t-subs").focus();
       const msg = `${t.name} 추가${unkept() ? " · 저장 안 됨" : ""}`;
-      if (r.chain && r.cdrs.length) toast(msg, "CDR 비교", () => { state.ref[r.chain] = r.index; closeSheet(); go("compare"); });
+      if (r.chain && r.cdrs.length) toast(msg, "CDR 비교", () => { state.ref[r.chain] = r.index; saveMarks(); closeSheet(); go("compare"); });
       else toast(msg);
     });
   }
@@ -4473,6 +4513,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (partner) $("sheet-partner").addEventListener("click", () => openSheet(partner.index));
     on("sheet-ref", "click", () => {
       state.ref[r.chain] = state.ref[r.chain] === index ? null : index;
+      saveMarks();
       const keep = $("view").scrollTop;
       render(); $("view").scrollTop = keep;
       openSheet(index);
@@ -4789,7 +4830,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>모티프 분포</dt><dd>항목과 구간마다 그 모티프가 한 번이라도 있는 후보 수 (모티프 개수가 아니며 순위도 아님). 숫자를 누르면 그 후보만 목록에 표시되고, 목록의 칩을 누르면 해제</dd>
         <dt>치환 시험</dt><dd>후보 상세에서 치환을 적으면 (N56Q, 여러 개는 띄어쓰기) 바뀐 서열을 같은 엔진 · 같은 규칙으로 다시 계산해 원본과 나란히 표시. 번호는 입력한 서열의 순번이며 Kabat 번호가 아님. 원래 잔기가 그 자리와 다르면 고치지 않고 거절. '후보로 추가' 는 변이체를 목록 끝에 넣음</dd>
         <dt>메모</dt><dd>후보 상세 위쪽의 한 줄 (200자). 카드에 보이고 메일용 글의 '고른 후보' · '메모' 단락, 한 장, Excel용 복사 · CSV 의 마지막 열, JSON 에 함께 실림</dd>
-        <dt>이어서 하기</dt><dd>JSON 으로 저장한 파일을 다른 PC 나 다른 사람이 열면 (파일 열기 · 끌어다 놓기 · 붙여넣기) 고른 후보 · 메모 · pH 가 그대로 돌아옴. 기본이 아닌 규칙 세트로 저장한 파일은 알림이나 후보 전체 위쪽의 '파일의 규칙 적용' 을 눌러야 그 규칙으로 바뀜. 파일 여러 개를 함께 열면 고른 후보와 메모만 합치고 pH 와 규칙은 지금 값을 씀</dd>
+        <dt>이어서 하기</dt><dd>JSON 으로 저장한 파일을 다른 PC 나 다른 사람이 열면 (파일 열기 · 끌어다 놓기 · 붙여넣기) 고른 후보 · 메모 · 비교 기준 · pH 가 그대로 돌아옴. 기본이 아닌 규칙 세트로 저장한 파일은 알림이나 후보 전체 위쪽의 '파일의 규칙 적용' 을 눌러야 그 규칙으로 바뀜. 파일 여러 개를 함께 열면 고른 후보와 메모만 합치고 pH 와 규칙은 지금 값을 씀</dd>
         <dt>pH 바꾸기</dt><dd>물성 분포 화면의 pH 칸에 값을 넣고 Enter. net charge 만 다시 계산하고 고른 후보 · 메모 · 비교 기준은 그대로</dd>
         <dt>목록에서 빼기</dt><dd>후보 상세 맨 아래. 뺀 뒤에도 고른 후보와 비교 기준은 같은 후보를 가리키며, 알림의 '되돌리기' 로 복구</dd>
         <dt>비슷한 CDR3</dt><dd>CDR 비교에서 차이 1 · 2 · 3 을 고르면 같은 체인에서 CDR3 길이가 같고 그 수 이하로만 다른 후보를 한 묶음으로 표시. 가장 가까운 후보와 이어 묶으므로 (단일 연결) 묶음 안의 두 후보는 그보다 더 다를 수 있고, 표의 '차이' 는 묶음 첫 후보 대비 잔기 수. 길이가 다른 CDR3 은 묶지 않음 (정렬하지 않음)</dd>
@@ -4810,7 +4851,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>모티프별 표</dt><dd>모티프 분포 화면의 Excel용 복사. 검출된 모티프를 한 줄에 하나씩 (서열 이름 · 체인 · 분류 · 항목 · 모티프 · 시작 · 끝 · 구간 · 위험도 · 기본 위험도). 비결합 Cys 가능성은 구간 '도메인 전체' 로, 검색으로 좁힌 후보만</dd>
         <dt>메일용 복사</dt><dd>건수와 규칙 해당 내용을 글로 복사</dd>
         <dt>FASTA 복사</dt><dd>지금 보이는 목록의 서열. 판정 불가 목록을 ANARCI · IMGT 에 붙여넣을 때</dd>
-        <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준. JSON 은 엔진 원본 출력이고, 기본이 아닌 규칙 세트를 쓰는 중이면 rule_set · rule_result 항목이, 고르거나 메모한 서열에는 review 항목이 더 붙음</dd>
+        <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준. JSON 은 엔진 원본 출력이고, 기본이 아닌 규칙 세트를 쓰는 중이면 rule_set · rule_result 항목이, 고르거나 메모하거나 기준으로 둔 서열에는 review 항목이 더 붙음</dd>
         <dt>한 장</dt><dd>북마크로 고른 후보만 A4 한 장 HTML 로 저장. 브라우저에서 열어 인쇄</dd>
         <dt>짝 체인</dt><dd>이름이 체인 표시만 다른 두 서열 (mAb01_VH · mAb01_VL). 표시로 읽는 것: VH · VL · VK · HC · LC · H · L · heavy · light · IGH · IGK · IGL · 중쇄 · 경쇄, 구분 기호 없이 붙인 mAb01H · mAb01L 포함. 엔진이 한쪽을 VH, 다른 쪽을 VL 로 판정한 정확히 두 서열만 묶음</dd>
         <dt>항체 단위</dt><dd>짝 체인을 한 카드에 묶어 표시. 분류는 체인별로 따로 두고 합치지 않음. 짝이 있는 체인이 절반을 넘으면 처음부터 항체로 열림. 서열 · 항체를 한 번 고르면 그 뒤로는 고른 대로</dd></dl></section>
@@ -4820,7 +4861,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       <section class="card guide"><h2>한계</h2><ul>${p.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}<li><b>${esc(p.no_verdict)}</b></li></ul></section>
       <section class="card guide"><h2>저장 범위</h2><dl>
         <dt>로컬 처리</dt><dd>분석은 이 브라우저 안에서만 실행. 서열은 어디로도 전송되지 않음</dd>
-        <dt>브라우저 저장</dt><dd>최근 분석 6건 · 규칙 세트 · 필터와 테마. 다른 사람에게 보이지 않음. 저장된 분석은 새 분석 화면에서 삭제. 너무 크거나 저장이 막혀 남기지 못한 분석은 '저장 안 됨' 표시</dd></dl></section>`;
+        <dt>브라우저 저장</dt><dd>최근 분석 6건 (고른 후보 · 메모 · 비교 기준 포함) · 규칙 세트 · 필터와 테마. 다른 사람에게 보이지 않음. 저장된 분석은 새 분석 화면에서 삭제. 너무 크거나 저장이 막혀 남기지 못한 분석은 '저장 안 됨' 표시</dd></dl></section>`;
   }
 
   /* ---------- sidebar ---------- */
@@ -4911,6 +4952,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     }));
     view.querySelectorAll("[data-ref]").forEach((sel) => sel.addEventListener("change", () => {
       state.ref[sel.dataset.ref] = sel.value === "" ? null : Number(sel.value);
+      saveMarks();
       render();
       const again = $("view").querySelector(`[data-ref="${sel.dataset.ref}"]`);
       if (again) again.focus();
@@ -4919,7 +4961,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     on("x-mail", "click", () => copy(ABUI.toMailText(state.rows, meta()), "메일용 글 복사"));
     on("x-fasta", "click", () => { const n = state.openList.filter((r) => r.inputOk).length; copy(ABUI.toFasta(state.openList), `FASTA ${n}건 복사`); });
     on("x-csv", "click", () => save(`abcheck-${stamp()}.csv`, ABUI.toCsv(state.openList, rules().name, state.notes, meta().refs), "text/csv"));
-    on("x-json", "click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(ABUI.withReview(ABUI.withRuleResults(state.payload, rules()), state.picked, state.notes)), "application/json"));
+    on("x-json", "click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(ABUI.withReview(ABUI.withRuleResults(state.payload, rules()), state.picked, state.notes, state.ref)), "application/json"));
     const slideCount = () => heroSlides(ABUI.tally(state.rows)).length;
     on("hero-prev", "click", () => { const n = slideCount(); state.hero = (Math.min(state.hero, n - 1) + n - 1) % n; render(); $("hero-prev").focus(); });
     on("hero-next", "click", () => { const n = slideCount(); state.hero = (Math.min(state.hero, n - 1) + 1) % n; render(); $("hero-next").focus(); });
@@ -5183,7 +5225,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const last = recents()[0];
   let started = false;
   if (last) {
-    try { started = analyzeEntries(last.entries, last.source, last.ph, { recentId: last.id, picked: last.picked, notes: last.notes, at: last.at }); }
+    try { started = analyzeEntries(last.entries, last.source, last.ph, { recentId: last.id, picked: last.picked, notes: last.notes, ref: last.ref, at: last.at }); }
     catch (e) { console.error("abcheck: the stored last analysis could not be restored", e); }
   }
   if (!started) {

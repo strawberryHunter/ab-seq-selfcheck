@@ -241,7 +241,7 @@ def test_json_result_carries_the_marks_and_gives_them_back():
     assert hand["picked"] == [1] and list(hand["notes"]) == ["1", "4"]
     assert hand["notes"]["1"].startswith("두 줄 메모 가") and len(hand["notes"]["1"]) == 200 and "\n" not in hand["notes"]["1"]
     assert hand["ruleSet"] is None and "motifs must be a list" in hand["problem"]
-    assert out["cli"] == {"picked": [], "notes": {}, "ph": 7.4, "ruleSet": None, "ruleProblem": "", "unread": ""}
+    assert out["cli"] == {"picked": [], "notes": {}, "refs": [], "ph": 7.4, "ruleSet": None, "ruleProblem": "", "unread": ""}
     assert out["corpus"]["ph"] is None and out["corpus"]["picked"] == []
     assert out["list"] is None                                           # a bare list of sequences has nothing to give back
     assert out["nan"]["unread"] and out["nan"]["picked"] == []
@@ -250,18 +250,54 @@ def test_json_result_carries_the_marks_and_gives_them_back():
 
 
 @needs_node
+def test_the_comparison_reference_is_kept_with_the_analysis():
+    out = _node(r"""
+      const s = Object.fromEntries(entries);
+      const named = [["h1", s["SYN-VH-003"]], ["l1", s["SYN-VL-003"]], ["h2", s["SYN-VH-001"]],
+                     ["noCdr", ABUI.applySubstitutions(s["SYN-VH-003"], [{pos: 36, from: "W", to: "A"}])], ["bad", "ACDEFGHIK"], ["l2", s["SYN-VL-001"]]];
+      const payload = ABCHECK.analyze(named, 7.4), rows = ABUI.buildRows(payload);
+      const R = (v) => ABUI.refOfRows(rows, v);
+      const saved = ABUI.withReview(payload, [], {}, {H: 2, L: 1});
+      const text = ABCHECK.toJSON(saved);
+      const back = ABUI.reviewFromJson(text, named.length);
+      const stored = (ref) => ABUI.cleanRecent([{id: "r", entries: named, ph: 7.4, at: 1764000000000, ref}]).list[0].ref;
+      console.log(JSON.stringify({
+        chains: rows.map(r => r.id + ":" + r.chain + ":" + r.cdrs.length),
+        ok: R({H: 2, L: 1}), none: [R(null), R(undefined), R({}), R("x"), R({H: null, L: null})],
+        // a place of the other chain, a row without CDRs, an input error, a place outside the list: not a reference
+        wrong: [R({H: 1, L: 0}), R({H: 3, L: 4}), R({H: 99, L: -1}), R({H: "2", L: 1.5})],
+        fromPlaces: [R([2, 1]), R([5, 1, 0, 2]), R([3, 4, 99, "x"]), R([])],
+        noRefSameObject: ABUI.withReview(payload, [], {}, {H: null, L: null}) === payload && ABUI.withReview(payload, [], {}) === payload,
+        reviews: saved.sequences.map(q => q.review || null),
+        back: {picked: back.picked, refs: back.refs}, restored: R(back.refs),
+        withPick: ABUI.withReview(payload, [2], {}, {H: 2, L: null}).sequences[2].review,
+        stored: [stored({H: 2, L: 1}), stored(undefined), stored({H: 99, L: "1"}), stored([2, 1]), stored("x")]}));""")
+    assert out["chains"] == ["h1:H:3", "l1:L:3", "h2:H:3", "noCdr:H:0", "bad:null:0", "l2:L:3"]
+    none = {"H": None, "L": None}
+    assert out["ok"] == {"H": 2, "L": 1} and out["none"] == [none] * 5
+    assert out["wrong"] == [none] * 4
+    assert out["fromPlaces"] == [{"H": 2, "L": 1}, {"H": 0, "L": 5}, none, none]      # the first of a chain wins
+    assert out["noRefSameObject"]                                    # no reference: the file as it was
+    assert out["reviews"] == [None, {"picked": False, "note": "", "reference": True}, {"picked": False, "note": "", "reference": True},
+                              None, None, None]
+    assert out["back"] == {"picked": [], "refs": [1, 2]} and out["restored"] == {"H": 2, "L": 1}
+    assert out["withPick"] == {"picked": True, "note": "", "reference": True}
+    assert out["stored"] == [{"H": 2, "L": 1}, none, none, none, none]  # shape only; the rows are checked after the analysis
+
+
+@needs_node
 def test_marks_of_files_opened_together_are_renumbered():
     out = _node(r"""
-      const a = {picked: [0, 2], notes: {1: "가"}, ph: 6.0, ruleSet: {name: "팀"}, ruleProblem: "", unread: ""};
+      const a = {picked: [0, 2], notes: {1: "가"}, refs: [3], ph: 6.0, ruleSet: {name: "팀"}, ruleProblem: "", unread: ""};
       const b = {picked: [1], notes: {0: "나", 3: "다"}, ph: 7.4, ruleSet: null, ruleProblem: "", unread: "Unexpected token"};
       console.log(JSON.stringify({
         one: ABUI.joinReviews([{count: 5, review: a}]),
         three: ABUI.joinReviews([{count: 5, review: a}, {count: 2, review: null}, {count: 4, review: b}]),
         fastaOnly: ABUI.joinReviews([{count: 3, review: null}, {count: 2, review: null}]),
         untouched: JSON.stringify(a.picked) === "[0,2]"}));""")
-    assert out["one"] == {"picked": [0, 2], "notes": {"1": "가"}, "ph": 6.0, "ruleSet": {"name": "팀"}, "ruleProblem": "", "unread": ""}
+    assert out["one"] == {"picked": [0, 2], "notes": {"1": "가"}, "refs": [3], "ph": 6.0, "ruleSet": {"name": "팀"}, "ruleProblem": "", "unread": ""}
     # the second file starts at place 5, the third at place 7; pH and rules of several files are not taken over
-    assert out["three"] == {"picked": [0, 2, 8], "notes": {"1": "가", "7": "나", "10": "다"}, "ph": None, "ruleSet": None,
+    assert out["three"] == {"picked": [0, 2, 8], "notes": {"1": "가", "7": "나", "10": "다"}, "refs": [3], "ph": None, "ruleSet": None,
                             "ruleProblem": "", "unread": "Unexpected token"}
     assert out["fastaOnly"] is None and out["untouched"]
 
@@ -579,7 +615,8 @@ def test_stored_analyses_are_checked_when_read_back():
     assert out["notAList"] == [{"list": [], "dropped": 1}] * 3
     assert out["good"]["dropped"] == 0 and out["good"]["list"][0]["picked"] == [1] and out["good"]["list"][0]["ph"] == 5.5
     assert out["older"]["list"][0] == {"id": "r0", "entries": out["older"]["list"][0]["entries"], "ph": 7.4,
-                                       "at": 1763000000000, "count": 1, "source": "예전 분석", "text": "", "picked": [], "notes": {}}
+                                       "at": 1763000000000, "count": 1, "source": "예전 분석", "text": "", "picked": [], "notes": {},
+                                       "ref": {"H": None, "L": None}}
     assert out["junk"]["dropped"] == 4 and [r["id"] for r in out["junk"]["list"]] == ["r1"]
     # an analysis whose rows, pH or time cannot be trusted is left out, not restored with made-up values
     assert out["rows"] == {"list": [], "dropped": 1}
