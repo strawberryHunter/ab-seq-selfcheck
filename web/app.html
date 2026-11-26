@@ -485,6 +485,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
      plain download link is inert there, so claiming "saved" would be false); as a plain
      file in a browser an ordinary download works. */
   const inViewer = !!(window.claude && typeof window.claude.use === "function");
+  // shown inside another page's frame? (reading window.top can itself be refused there)
+  const framed = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
   const downloadsReady = inViewer
     ? window.claude.use("downloads").catch((e) => { console.warn("abcheck: downloads capability did not load", e); return null; })
     : Promise.resolve(null);
@@ -503,7 +505,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       const a = document.createElement("a");
       a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 5000);
-      toast(filename + " 저장");
+      // An ordinary download. Inside someone else's frame the browser may drop it without telling the
+      // page, so there the toast says what was asked for and offers the content as a copy instead.
+      if (framed) toast(filename + " 내려받기", "내용 복사", () => copy(data, filename + " 내용 복사"));
+      else toast(filename + " 저장");
     });
   }
   /** Read pasted or loaded text. Pasted tables and JSON go through the engine's own readers. */
