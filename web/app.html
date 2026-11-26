@@ -578,7 +578,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const rules = () => state.rules.sets.find((s) => s.id === state.rules.active) || ABUI.DEFAULT_RULESET;
   const saveRules = () => store.set(K.rules, state.rules);
   const retriage = () => { if (state.payload) { state.rows = ABUI.buildRows(state.payload, rules()); state.pairs = ABUI.pairMap(state.rows); } };
-  const meta = () => ({ ruleName: rules().name, when: when(state.at), pairs: state.pairs, picked: state.picked, notes: state.notes });
+  const meta = () => ({ ruleName: rules().name, when: when(state.at), pairs: state.pairs, picked: state.picked, notes: state.notes, refs: ABUI.refNotes(state.rows, state.ref) });
 
   /* ---------- analysis ---------- */
   function setBusy(msg) { $("busy").innerHTML = msg ? `<div class="busy" role="status"><div>${esc(msg)}</div></div>` : ""; }
@@ -1429,7 +1429,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>pH 바꾸기</dt><dd>물성 분포 화면의 pH 칸에 값을 넣고 Enter. net charge 만 다시 계산하고 고른 후보 · 메모 · 비교 기준은 그대로</dd>
         <dt>목록에서 빼기</dt><dd>후보 상세 맨 아래. 뺀 뒤에도 고른 후보와 비교 기준은 같은 후보를 가리키며, 알림의 '되돌리기' 로 복구</dd>
         <dt>비슷한 CDR3</dt><dd>CDR 비교에서 차이 1 · 2 · 3 을 고르면 같은 체인에서 CDR3 길이가 같고 그 수 이하로만 다른 후보를 한 묶음으로 표시. 가장 가까운 후보와 이어 묶으므로 (단일 연결) 묶음 안의 두 후보는 그보다 더 다를 수 있고, 표의 '차이' 는 묶음 첫 후보 대비 잔기 수. 길이가 다른 CDR3 은 묶지 않음 (정렬하지 않음)</dd>
-        <dt>기준 대비 전체 차이</dt><dd>기준은 CDR 비교의 '기준' 또는 후보 상세의 '기준으로' 로 정함. 기준이 있으면 같은 체인의 다른 후보 상세 맨 위에 다른 잔기를 전부 표시 (기준 잔기 · 이 후보의 서열 순번 · 이 후보 잔기, 예 N56Q). 두 서열을 CDR 경계에서 FR1 · CDR1 · FR2 · CDR2 · FR3 · CDR3 · FR4 로 잘라 조각끼리 겹쳐 보며, 길이가 다른 조각은 견주지 않음 (정렬하지 않음). 주석이 신뢰 불가이면 전체 길이가 같을 때만 자리별로 견줌. CDR 비교 표의 'FR 차이' 는 framework 조각의 다른 잔기 수</dd>
+        <dt>기준 대비 전체 차이</dt><dd>기준은 CDR 비교의 '기준' 또는 후보 상세의 '기준으로' 로 정함. 기준이 있으면 같은 체인의 다른 후보 상세 맨 위에 다른 잔기를 전부 표시 (기준 잔기 · 이 후보의 서열 순번 · 이 후보 잔기, 예 N56Q). 두 서열을 CDR 경계에서 FR1 · CDR1 · FR2 · CDR2 · FR3 · CDR3 · FR4 로 잘라 조각끼리 겹쳐 보며, 길이가 다른 조각은 견주지 않음 (정렬하지 않음). 주석이 신뢰 불가이면 전체 길이가 같을 때만 자리별로 견줌. CDR 비교 표의 'FR 차이' 는 framework 조각의 다른 잔기 수. 기준이 있는 동안 한 장 · 메일용 글의 고른 후보 · Excel용 복사 · CSV 에 '기준 대비' 로 함께 실림 (치환은 30개까지 적고 나머지는 개수)</dd>
         <dt>기준 대비 비교</dt><dd>CDR 비교에서 '기준' 후보를 고르면 나머지 후보는 기준과 같은 잔기를 · 으로, 다른 잔기만 글자로 표시. 길이가 다른 CDR 은 겹쳐 볼 수 없어 서열 그대로 두고 '길이 다름' 으로 표시 (정렬하지 않음)</dd>
         <dt>규칙 공유</dt><dd>선별 규칙 화면의 '복사' 가 규칙 세트를 글 한 줄로 복사. 받은 사람은 같은 화면에 붙여넣고 '가져오기'. 이 화면에서 저장한 JSON 결과를 붙여넣어도 그 안의 규칙을 가져옴</dd>
         <dt>번호 섞인 복사</dt><dd>위치 번호 · 끝의 * 가 섞인 서열은 오류 아래 버튼으로 한 번에 지움. 서열 중간의 * 는 지우지 않음</dd>
@@ -1550,10 +1550,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       const again = $("view").querySelector(`[data-ref="${sel.dataset.ref}"]`);
       if (again) again.focus();
     }));
-    on("x-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name, state.notes), `표 ${state.openList.length}행 복사`));
+    on("x-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name, state.notes, meta().refs), `표 ${state.openList.length}행 복사`));
     on("x-mail", "click", () => copy(ABUI.toMailText(state.rows, meta()), "메일용 글 복사"));
     on("x-fasta", "click", () => { const n = state.openList.filter((r) => r.inputOk).length; copy(ABUI.toFasta(state.openList), `FASTA ${n}건 복사`); });
-    on("x-csv", "click", () => save(`abcheck-${stamp()}.csv`, ABUI.toCsv(state.openList, rules().name, state.notes), "text/csv"));
+    on("x-csv", "click", () => save(`abcheck-${stamp()}.csv`, ABUI.toCsv(state.openList, rules().name, state.notes, meta().refs), "text/csv"));
     on("x-json", "click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(ABUI.withReview(ABUI.withRuleResults(state.payload, rules()), state.picked, state.notes)), "application/json"));
     const slideCount = () => heroSlides(ABUI.tally(state.rows)).length;
     on("hero-prev", "click", () => { const n = slideCount(); state.hero = (Math.min(state.hero, n - 1) + n - 1) % n; render(); $("hero-prev").focus(); });
@@ -1581,7 +1581,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     });
     on("op-pair", "click", () => { state.openList.forEach((r) => { const p = state.pairs[r.index]; if (p !== undefined) state.picked.add(p); }); saveMarks(); render(); });
     on("op-clear", "click", () => { state.picked = new Set(); saveMarks(); render(); });
-    on("op-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name, state.notes), `표 ${state.openList.length}행 복사`));
+    on("op-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name, state.notes, meta().refs), `표 ${state.openList.length}행 복사`));
     on("op-save", "click", () => save(`abcheck-onepage-${stamp()}.html`, ABUI.onePageDoc(state.openList, meta()), "text/html"));
     if (state.view === "rules") bindRules();
     const fig = $("fig");

@@ -951,6 +951,59 @@ def test_a_candidate_against_the_reference_piece_by_piece():
 
 
 @needs_node
+def test_differences_from_the_reference_travel_with_the_exports():
+    out = _node(r"""
+      const s = Object.fromEntries(entries);
+      const vh = s["SYN-VH-003"];
+      const sub = (seq, text) => ABUI.applySubstitutions(seq, ABUI.parseSubstitutions(text, seq).subs);
+      const named = [
+        ["parent", vh], ["point", sub(vh, "F10Y N56Q H80R")], ["twin", vh],
+        ["longer3", sub(vh.slice(0, 100) + "A" + vh.slice(100), "F10Y")], ["noAnchorLonger", sub(vh, "W36A") + "A"],
+        ["light", s["SYN-VL-003"]], ["bad", "ACDEFGHIK"], ["<i>", sub(vh, "K100G")]];
+      const rows = ABUI.buildRows(ABCHECK.analyze(named, 7.4));
+      const by = Object.fromEntries(rows.map(r => [r.id, r]));
+      const refs = ABUI.refNotes(rows, {H: by.parent.index, L: null});
+      const meta = {ruleName: "기본", when: "2026-11-26 10:00"};
+      const notes = {[by.point.index]: "발현량 높음"};
+      const picked = new Set([by.parent.index, by.point.index, by.longer3.index]);
+      const plainTsv = ABUI.toTsv(rows, "기본"), tsv = ABUI.toTsv(rows, "기본", notes, refs).split("\n").map(l => l.split("\t"));
+      const csv = ABUI.toCsv(rows, "기본", {}, refs).split("\r\n");
+      const mail = ABUI.toMailText(rows, Object.assign({picked, notes, refs}, meta));
+      const page = ABUI.onePageFragment(rows, Object.assign({notes, refs}, meta));
+      let refused = null; try { ABUI.refLine(by.parent, by.point, 0); } catch (e) { refused = e.message; }
+      console.log(JSON.stringify({
+        lines: Object.fromEntries(Object.keys(refs).map(k => [rows[k].id, refs[k].id + "|" + refs[k].text])),
+        capped: ABUI.refLine(by.parent, by.point, 2), refused,
+        noRef: [ABUI.refNotes(rows, {H: null, L: null}), ABUI.refNotes(rows, null), ABUI.refNotes(rows, {H: 99, L: null}), ABUI.refNotes(rows, {H: by.bad.index, L: null})],
+        lightRef: Object.keys(ABUI.refNotes(rows, {H: null, L: by.light.index})),
+        unchanged: ABUI.toTsv(rows, "기본", {}, {}) === plainTsv && ABUI.toTsv(rows, "기본", undefined, ABUI.refNotes(rows, {H: null, L: null})) === plainTsv,
+        tsvHead: tsv[0].slice(-2), tsvCells: tsv.slice(1).map(l => l.slice(-2).join(" / ")), widths: [...new Set(tsv.map(l => l.length))],
+        csvHead: csv[0].split(",").pop(), csvPoint: csv[2].split(",").pop(),
+        mailTail: mail.slice(mail.indexOf("고른 후보")),
+        pageRows: (page.match(/<tr class="op-note(?: op-noted)?">.*?<\/tr>/g) || []),
+        pagePlain: ABUI.onePageFragment(rows, meta).includes("op-note")}));""")
+    assert out["lines"] == {
+        "point": "parent|F10Y N56Q H80R", "twin": "parent|차이 없음", "longer3": "parent|F10Y · CDR-H3 길이 다름",
+        "noAnchorLonger": "parent|길이 다름 · 견주지 않음", "<i>": "parent|K100G"}       # no line: the reference, the light chain, the input error
+    assert out["capped"] == "F10Y N56Q 외 1" and "limit must be a whole number" in out["refused"]
+    assert out["noRef"] == [{}, {}, {}, {}] and out["lightRef"] == []
+    assert out["unchanged"]                                                   # no reference: the table is what it was
+    assert out["tsvHead"] == ["기준 대비", "메모"] and len(out["widths"]) == 1
+    assert out["tsvCells"] == [" / ", "parent: F10Y N56Q H80R / 발현량 높음", "parent: 차이 없음 / ", "parent: F10Y · CDR-H3 길이 다름 / ",
+                               "parent: 길이 다름 · 견주지 않음 / ", " / ", " / ", "parent: K100G / "]
+    assert out["csvHead"] == "기준 대비" and out["csvPoint"] == "parent: F10Y N56Q H80R"
+    assert out["mailTail"] == (
+        "고른 후보 3\n- parent (VH)\n- point (VH): 발현량 높음\n  기준 parent 대비: F10Y N56Q H80R"
+        "\n- longer3 (VH)\n  기준 parent 대비: F10Y · CDR-H3 길이 다름"
+        "\n\nKabat 근사 · ANARCI/IMGT 아님 · 종합 판정 없음")
+    assert out["pageRows"][0] == '<tr class="op-note op-noted"><td colspan="7"><small>기준 parent 대비</small> <span class="op-subs">F10Y N56Q H80R</span></td></tr>'
+    assert out["pageRows"][1] == '<tr class="op-note"><td colspan="7"><small>메모</small> 발현량 높음</td></tr>'
+    assert out["pageRows"][2] == '<tr class="op-note"><td colspan="7"><small>기준 parent 대비</small> 차이 없음</td></tr>'
+    assert out["pageRows"][3] == '<tr class="op-note"><td colspan="7"><small>기준 parent 대비</small> <span class="op-subs">F10Y</span> · CDR-H3 길이 다름</td></tr>'
+    assert len(out["pageRows"]) == 6 and out["pagePlain"] is False
+
+
+@needs_node
 def test_similar_cdr3_groups_by_length_and_a_few_residues():
     out = _node("""
       const s = Object.fromEntries(entries);

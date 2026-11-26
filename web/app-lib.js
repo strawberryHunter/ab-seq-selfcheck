@@ -499,6 +499,42 @@
   }
 
   /**
+   * One line that says how a row differs from the reference: "F10Y N56Q"; pieces of another
+   * length are named after it ("F10Y · CDR-H3 길이 다름"); "차이 없음" when nothing differs;
+   * "길이 다름 · 견주지 않음" when the two cannot be laid over each other. At most `limit`
+   * substitutions are written out (30 unless given), the rest are counted ("외 12").
+   */
+  function refLine(ref, row, limit) {
+    if (limit === undefined) limit = 30;
+    if (!(Number.isInteger(limit) && limit >= 1)) throw new Error("refLine: limit must be a whole number of substitutions, got " + limit);
+    var d = diffRegions(ref, row);
+    if (d.mode === "none") return "길이 다름 · 견주지 않음";
+    var parts = [];
+    if (d.subs.length) {
+      parts.push(d.subs.slice(0, limit).map(subText).join(" ") + (d.subs.length > limit ? " 외 " + (d.subs.length - limit) : ""));
+    }
+    d.regions.forEach(function (g) { if (!g.comparable) parts.push(g.name + " 길이 다름"); });
+    return parts.length ? parts.join(" · ") : "차이 없음";
+  }
+
+  /**
+   * The line of refLine() for every row that has a reference: {place in the list: {id, text}}.
+   * rows: the whole list; ref: {H: place | null, L: place | null}. A row is written against the
+   * reference of its own chain; the reference itself, rows without a chain and input errors
+   * have no line.
+   */
+  function refNotes(rows, ref) {
+    var out = {};
+    rows.forEach(function (r) {
+      if (!r.inputOk || !r.chain || !ref) return;
+      var base = rows[ref[r.chain]];
+      if (!base || base.index === r.index || !base.inputOk || base.chain !== r.chain) return;
+      out[r.index] = { id: base.id, text: refLine(base, r) };
+    });
+    return out;
+  }
+
+  /**
    * The hits of a variant against the hits of its parent. A hit is the same hit when it has the
    * same label at the same place (substitutions keep every place where it was).
    * - removed: in the parent only; added: in the variant only;
@@ -1102,27 +1138,38 @@
     });
   }
 
-  /** Head and records of the table exports. A last column 메모 is added only when a listed row has a note. */
-  function tableWithNotes(rows, ruleName, notes) {
-    var recs = tableRecords(rows, ruleName);
-    if (!notes || !rows.some(function (r) { return notes[r.index]; })) return [TABLE_HEAD].concat(recs);
-    return [TABLE_HEAD.concat(["메모"])].concat(recs.map(function (rec, i) { return rec.concat([notes[rows[i].index] || ""]); }));
+  /**
+   * Head and records of the table exports. Two columns are added at the end only when a listed
+   * row has something to put there: 기준 대비 (refs, as refNotes() gives them: "reference: N56Q")
+   * and 메모 (notes). Without either, the table is what it always was.
+   */
+  function tableWithNotes(rows, ruleName, notes, refs) {
+    var recs = tableRecords(rows, ruleName), head = TABLE_HEAD;
+    if (refs && rows.some(function (r) { return refs[r.index]; })) {
+      head = head.concat(["기준 대비"]);
+      recs = recs.map(function (rec, i) { var x = refs[rows[i].index]; return rec.concat([x ? x.id + ": " + x.text : ""]); });
+    }
+    if (notes && rows.some(function (r) { return notes[r.index]; })) {
+      head = head.concat(["메모"]);
+      recs = recs.map(function (rec, i) { return rec.concat([notes[rows[i].index] || ""]); });
+    }
+    return [head].concat(recs);
   }
 
   /** CSV for Excel: UTF-8 with BOM (so Korean opens correctly), CRLF, RFC 4180 quoting. */
-  function toCsv(rows, ruleName, notes) {
+  function toCsv(rows, ruleName, notes, refs) {
     var q = function (v) {
       var s = String(v);
       return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     };
-    var lines = tableWithNotes(rows, ruleName, notes).map(function (rec) { return rec.map(q).join(","); });
+    var lines = tableWithNotes(rows, ruleName, notes, refs).map(function (rec) { return rec.map(q).join(","); });
     return "﻿" + lines.join("\r\n") + "\r\n";
   }
 
   /** Tab-separated text for pasting into Excel or Sheets. */
-  function toTsv(rows, ruleName, notes) {
+  function toTsv(rows, ruleName, notes, refs) {
     var clean = function (v) { return String(v).replace(/[\t\r\n]+/g, " "); };
-    return tableWithNotes(rows, ruleName, notes).map(function (rec) { return rec.map(clean).join("\t"); }).join("\n");
+    return tableWithNotes(rows, ruleName, notes, refs).map(function (rec) { return rec.map(clean).join("\t"); }).join("\n");
   }
 
   /** Sequences as FASTA text (valid inputs only), 60 residues per line. */
@@ -1157,12 +1204,15 @@
     });
     section("입력 오류", rows.filter(function (r) { return r.cats[0] === "errors"; }), function (r) { return firstSentence(r.errors[0] || ""); });
     // what the user marked: the picks (with their notes), then notes on candidates that were not picked
-    var notes = meta.notes || {}, picked = meta.picked || { has: function () { return false; } };
+    var notes = meta.notes || {}, picked = meta.picked || { has: function () { return false; } }, refs = meta.refs || {};
     var marks = function (title, list) {
       if (!list.length) return;
       if (meta.pairs) list = withPartnersAdjacent(list, meta.pairs);
       out.push("", title + " " + list.length);
-      list.forEach(function (r) { out.push("- " + r.id + (r.chain ? " (" + chainName(r) + ")" : "") + (notes[r.index] ? ": " + notes[r.index] : "")); });
+      list.forEach(function (r) {
+        out.push("- " + r.id + (r.chain ? " (" + chainName(r) + ")" : "") + (notes[r.index] ? ": " + notes[r.index] : ""));
+        if (refs[r.index]) out.push("  기준 " + refs[r.index].id + " 대비: " + refs[r.index].text);
+      });
     };
     marks("고른 후보", rows.filter(function (r) { return picked.has(r.index); }));
     marks("메모", rows.filter(function (r) { return notes[r.index] && !picked.has(r.index); }));
@@ -1206,10 +1256,14 @@
       }).join("");
       var hits = r.reasons.length ? r.reasons.map(esc).join("<br>") : "-";
       var anno = !r.inputOk ? "입력 오류" : !r.cdrs.length ? "CDR 주석 실패" : r.confident ? "신뢰 가능" : "신뢰 불가";
-      var note = meta.notes && meta.notes[r.index];
-      return "<tr" + (note ? " class=\"op-noted\"" : "") + "><td class=\"op-id\"><b>" + esc(r.id) + "</b><small>" + esc(chainName(r) || "-") + " · " + (r.length || "-") +
+      var note = meta.notes && meta.notes[r.index], rf = meta.refs && meta.refs[r.index];
+      return "<tr" + (note || rf ? " class=\"op-noted\"" : "") + "><td class=\"op-id\"><b>" + esc(r.id) + "</b><small>" + esc(chainName(r) || "-") + " · " + (r.length || "-") +
         " aa</small></td>" + cdrCells + "<td>" + hits + "</td><td>" + anno + "</td><td class=\"op-num\">" +
         (r.pI === null ? "-" : r.pI.toFixed(2)) + "<br>" + (r.gravy === null ? "-" : r.gravy.toFixed(3)) + "</td></tr>" +
+        (rf ? "<tr class=\"op-note" + (note ? " op-noted" : "") + "\"><td colspan=\"7\"><small>기준 " + esc(rf.id) + " 대비</small> " +
+          // substitutions in the sequence font, words in the text font
+          rf.text.split(" · ").map(function (part) { return /^[A-Z][0-9]+[A-Z]/.test(part) ? "<span class=\"op-subs\">" + esc(part) + "</span>" : esc(part); }).join(" · ") +
+          "</td></tr>" : "") +
         (note ? "<tr class=\"op-note\"><td colspan=\"7\"><small>메모</small> " + esc(note) + "</td></tr>" : "");
     }).join("");
     return head + "<table class=\"op-table\"><thead><tr><th>서열</th><th>CDR1</th><th>CDR2</th><th>CDR3</th><th>규칙 해당</th>" +
@@ -1229,6 +1283,7 @@
     ".op-id small,.op-seq small{display:block;color:#5A6469;font-size:13px;font-family:inherit}" +
     ".op-seq{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;word-break:break-all}" +
     ".op-seq u{text-decoration:underline 2px;text-underline-offset:3px}" +
+    ".op-subs{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}" +
     ".op-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}" +
     ".op-foot{margin-top:10px;color:#5A6469}" +
     "tr{break-inside:avoid}";
@@ -1246,7 +1301,7 @@
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, similarCdr3: similarCdr3, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
-    variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
+    variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, refLine: refLine, refNotes: refNotes, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanNote: cleanNote, withReview: withReview, reviewFromJson: reviewFromJson, joinReviews: joinReviews, sameRules: sameRules, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
