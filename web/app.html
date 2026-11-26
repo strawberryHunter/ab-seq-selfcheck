@@ -428,7 +428,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   };
   const K = { recent: "abcheck.recent.v2", theme: "abcheck.theme.v2", ui: "abcheck.ui.v1", rules: "abcheck.rules.v1" };
 
-  const ui = Object.assign({ chain: "all", conf: "all", sort: "input", unit: "seq", view: "all" }, store.get(K.ui, {}));
+  const ui = Object.assign({ chain: "all", conf: "all", sort: "input", unitChoice: null, view: "all" }, store.get(K.ui, {}));
+  // the unit the user picked, if any. Up to v15 "seq" was stored without a click, "ab" only after one.
+  if (ui.unitChoice !== "seq" && ui.unitChoice !== "ab") ui.unitChoice = ui.unit === "ab" ? "ab" : null;
+  const unitNow = () => ui.unitChoice || ABUI.preferredUnit(state.rows, state.pairs);
   const state = {
     payload: null, rows: [], source: "", ph: 7.4, at: null, isExample: false, recentId: null,
     view: "all", query: "", limit: PAGE, tableLimit: 200, hero: 0, picked: new Set(),
@@ -436,7 +439,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     rules: { active: "default", sets: [] }, pairs: {},
     open: null, openList: [], opener: null
   };
-  const saveUi = () => store.set(K.ui, { chain: ui.chain, conf: ui.conf, sort: ui.sort, unit: ui.unit, view: state.view });
+  const saveUi = () => store.set(K.ui, { chain: ui.chain, conf: ui.conf, sort: ui.sort, unitChoice: ui.unitChoice, view: state.view });
 
   /* ---------- toast, clipboard, files ---------- */
   let toastTimer = 0;
@@ -761,7 +764,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const t = ABUI.tally(state.rows, state.picked);
     if (!state.payload) return hero(t) + `<div class="blank"><span>분석한 후보 없음</span></div>`;
     const hasPairs = Object.keys(state.pairs).length > 0;
-    const abMode = hasPairs && ui.unit === "ab";       // an antibody has both chains: the chain filter does not apply
+    const unit = unitNow();
+    const abMode = hasPairs && unit === "ab";          // an antibody has both chains: the chain filter does not apply
     const shown = ABUI.sortRows(ABUI.filterRows(state.rows, { view, chain: abMode ? "all" : ui.chain, conf: ui.conf, query: state.query, picked: state.picked }), ui.sort);
     const cur = (v) => (view === v ? ' aria-current="true"' : "");
     const opt = (list, val) => list.map(([k, l]) => `<option value="${k}"${val === k ? " selected" : ""}>${l}</option>`).join("");
@@ -789,7 +793,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
           ${[["all", "전체", t.all], ["review", "검토 필요", t.review], ["unknown", "판정 불가", t.unknown], ["clear", "기준 해당 없음", t.clear]].map(([k, l, n]) =>
             `<a href="#${k}"${cur(k)}>${l} <b>${n}</b></a>`).join("")}
         </div>
-        ${hasPairs ? `<div class="seg" role="group" aria-label="단위">${[["seq", "서열"], ["ab", "항체"]].map(([k, l]) => `<button type="button" data-unit="${k}" aria-pressed="${ui.unit === k}">${l}</button>`).join("")}</div>` : ""}
+        ${hasPairs ? `<div class="seg" role="group" aria-label="단위">${[["seq", "서열"], ["ab", "항체"]].map(([k, l]) => `<button type="button" data-unit="${k}" aria-pressed="${unit === k}">${l}</button>`).join("")}</div>` : ""}
         ${sortSelect("spacer")}
       </div>`;
     if (!shown.length) {
@@ -1106,7 +1110,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준. JSON 은 엔진 원본 출력이고, 기본이 아닌 규칙 세트를 쓰는 중이면 rule_set · rule_result 항목이 더 붙음</dd>
         <dt>한 장</dt><dd>북마크로 고른 후보만 A4 한 장 HTML 로 저장. 브라우저에서 열어 인쇄</dd>
         <dt>짝 체인</dt><dd>이름이 체인 표시(VH · VL · HC · LC · heavy · light)만 다른 두 서열. 한 장에 함께 넣고 나란히 표시</dd>
-        <dt>항체 단위</dt><dd>목록의 '항체' 를 누르면 짝 체인을 한 카드에 묶어 표시. 분류는 체인별로 따로 두고 합치지 않음</dd></dl></section>
+        <dt>항체 단위</dt><dd>짝 체인을 한 카드에 묶어 표시. 분류는 체인별로 따로 두고 합치지 않음. 짝이 있는 체인이 절반을 넘으면 처음부터 항체로 열림. 서열 · 항체를 한 번 고르면 그 뒤로는 고른 대로</dd></dl></section>
       <section class="card guide"><h2>단축키</h2><dl>
         <dt><kbd>/</kbd></dt><dd>검색</dd><dt><kbd>Enter</kbd> <kbd>↓</kbd></dt><dd>검색 칸에서 첫 결과로</dd><dt><kbd>Esc</kbd></dt><dd>상세 · 메뉴 닫기</dd>
         <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>상세에서 이전 · 다음 후보</dd><dt><kbd>Ctrl</kbd> <kbd>Enter</kbd></dt><dd>분석</dd></dl></section>
@@ -1175,7 +1179,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     view.querySelectorAll("button[data-open]").forEach((b) => b.addEventListener("click", () => openSheet(Number(b.dataset.open), b)));
     view.querySelectorAll("[data-pick]").forEach((b) => b.addEventListener("click", () => togglePick(Number(b.dataset.pick))));
     view.querySelectorAll("[data-pick-pair]").forEach((b) => b.addEventListener("click", () => { const [h, l] = b.dataset.pickPair.split(",").map(Number); togglePair(h, l); }));
-    view.querySelectorAll("[data-unit]").forEach((b) => b.addEventListener("click", () => { ui.unit = b.dataset.unit; saveUi(); render(); }));
+    view.querySelectorAll("[data-unit]").forEach((b) => b.addEventListener("click", () => { ui.unitChoice = b.dataset.unit; saveUi(); render(); }));
     view.querySelectorAll("[data-chain]").forEach((b) => b.addEventListener("click", () => { ui.chain = b.dataset.chain; saveUi(); render(); }));
     // home
     on("f-chain", "change", (e) => { ui.chain = e.target.value; saveUi(); render(); });

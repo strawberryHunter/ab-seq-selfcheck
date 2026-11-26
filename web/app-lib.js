@@ -464,6 +464,15 @@
     return m ? m[1] : null;
   }
 
+  /**
+   * The list unit to start with while the user has not picked one: "ab" (one card per antibody)
+   * when more than half of the chains the engine identified have a partner, else "seq".
+   */
+  function preferredUnit(rows, pairs) {
+    var chains = rows.filter(function (r) { return r.chain === "H" || r.chain === "L"; }).length;
+    return chains > 0 && Object.keys(pairs).length * 2 > chains ? "ab" : "seq";
+  }
+
   /** Partner chains by name: {index: partnerIndex} for names that differ only in the chain
       token and whose chains the engine called H and L. Ambiguous groups are left unpaired. */
   function pairMap(rows) {
@@ -685,7 +694,7 @@
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
-    combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits,
+    combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };

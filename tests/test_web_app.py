@@ -369,6 +369,25 @@ def test_partner_chains_are_found_by_name():
 
 
 @needs_node
+def test_list_starts_in_the_antibody_view_when_most_chains_are_paired():
+    out = _node("""
+      const s = Object.fromEntries(entries);
+      const unit = (named) => { const rows = ABUI.buildRows(ABCHECK.analyze(named, 7.4)); return ABUI.preferredUnit(rows, ABUI.pairMap(rows)); };
+      const vh = s["SYN-VH-001"], vl = s["SYN-VL-001"];
+      console.log(JSON.stringify({
+        allPaired: unit([["a_VH", vh], ["a_VL", vl]]),
+        mostPaired: unit([["a_VH", vh], ["a_VL", vl], ["b_VH", vh], ["b_VL", vl], ["solo", vh]]),
+        exactlyHalf: unit([["a_VH", vh], ["a_VL", vl], ["x", vh], ["y", vl]]),
+        fewPaired: unit([["a_VH", vh], ["a_VL", vl], ["x", vh], ["y", vh], ["z", vl]]),
+        nonePaired: unit([["x", vh], ["y", vl]]),
+        // a rejected entry has no chain and does not count against the pairs
+        withRejected: unit([["a_VH", vh], ["a_VL", vl], ["bad", "ACDEF"], ["bad2", "ACDEF"], ["bad3", "ACDEF"]]),
+        empty: ABUI.preferredUnit([], {})}));""")
+    assert out == {"allPaired": "ab", "mostPaired": "ab", "exactlyHalf": "seq", "fewPaired": "seq", "nonePaired": "seq",
+                   "withRejected": "ab", "empty": "seq"}
+
+
+@needs_node
 def test_antibody_units_keep_both_chains_and_their_own_results():
     out = _node("""
       const s = Object.fromEntries(entries);
