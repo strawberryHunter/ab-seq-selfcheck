@@ -289,6 +289,7 @@ textarea[aria-invalid="true"] { border-color: var(--text); }
 .guide ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
 kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); border-radius: 6px; padding: 0 5px; background: var(--card); }
 
+.only-narrow { display: none; }
 .toast {
   position: fixed; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translate(-50%, 12px); z-index: 90;
   background: var(--text); color: var(--card); border-radius: 10px; padding: 10px 16px; font-weight: 700;
@@ -311,6 +312,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 768px) {
+  .only-narrow { display: block; }
+  .wide-only { display: none; }
   .inner { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   .grid { grid-template-columns: minmax(0, 1fr); }
   .hero { grid-template-columns: minmax(0, 1fr); padding: 18px; }
@@ -900,9 +903,9 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function recentRows() {
     const list = store.get(K.recent, []);
     if (!list.length) return "";
-    return `<section class="card"><div class="scroll"><table><thead><tr><th>최근 입력</th><th class="num">서열</th><th class="num">시각</th><th></th></tr></thead><tbody>` +
-      list.map((r, i) => `<tr><td>${esc(r.source)}</td><td class="num">${r.count}</td><td class="nw num">${whenShort(new Date(r.at))}</td>
-        <td class="num"><button class="btn" type="button" data-load="${i}">불러오기</button></td></tr>`).join("") +
+    return `<section class="card"><div class="scroll"><table><thead><tr><th>최근 입력</th><th class="num wide-only">서열</th><th class="num wide-only">시각</th><th></th></tr></thead><tbody>` +
+      list.map((r, i) => `<tr><td>${esc(r.source)}<span class="s13 muted only-narrow">${r.count}건 · ${whenShort(new Date(r.at))}</span></td><td class="num wide-only">${r.count}</td><td class="nw num wide-only">${whenShort(new Date(r.at))}</td>
+        <td class="num nw"><button class="btn" type="button" data-load="${i}">불러오기</button> <button class="btn" type="button" data-forget="${i}" aria-label="${esc(r.source)} 삭제">삭제</button></td></tr>`).join("") +
       `</tbody></table></div></section>`;
   }
   function viewNew() {
@@ -1109,7 +1112,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       <section class="card guide"><h2>한계</h2><ul>${p.limitations.map((l) => `<li>${esc(l)}</li>`).join("")}<li><b>${esc(p.no_verdict)}</b></li></ul></section>
       <section class="card guide"><h2>저장 범위</h2><dl>
         <dt>로컬 처리</dt><dd>분석은 이 브라우저 안에서만 실행. 서열은 어디로도 전송되지 않음</dd>
-        <dt>브라우저 저장</dt><dd>최근 분석 6건 · 규칙 세트 · 필터와 테마. 다른 사람에게 보이지 않음</dd></dl></section>`;
+        <dt>브라우저 저장</dt><dd>최근 분석 6건 · 규칙 세트 · 필터와 테마. 다른 사람에게 보이지 않음. 저장된 분석은 새 분석 화면에서 삭제</dd></dl></section>`;
   }
 
   /* ---------- sidebar ---------- */
@@ -1251,6 +1254,23 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       if (!r) return;
       state.input = recentText(r); state.fileName = ""; state.error = null; state.rejected = null; state.ph = r.ph;
       render(); $("input").focus();
+    }));
+    // sequences of an analysis stay in this browser until removed here (or pushed out by six newer ones)
+    $("view").querySelectorAll("[data-forget]").forEach((b) => b.addEventListener("click", () => {
+      const list = store.get(K.recent, []), at = Number(b.dataset.forget), r = list[at];
+      if (!r) return;
+      list.splice(at, 1);
+      store.set(K.recent, list);
+      const wasOpen = state.recentId === r.id;
+      if (wasOpen) state.recentId = null;
+      render();
+      toast(`${r.source} 삭제`, "되돌리기", () => {
+        const now = store.get(K.recent, []);
+        now.splice(Math.min(at, now.length), 0, r);
+        store.set(K.recent, now.slice(0, 6));
+        if (wasOpen) state.recentId = r.id;
+        render();
+      });
     }));
     detect();
   }
