@@ -282,6 +282,22 @@
   }
 
   /** Identical CDR sequences shared by two or more candidates: [{name, seq, ids}]. */
+  /**
+   * One CDR written against a reference CDR: "·" where the residue is the same, the residue
+   * itself where it differs ("··Q·············"). Two CDRs of different length cannot be laid
+   * over each other without an alignment, and this tool makes none: then comparable is false
+   * and text is the sequence as it is. Returns {comparable, text, count}.
+   */
+  function diffCdr(ref, other) {
+    if (!other) return { comparable: false, text: "", count: null };
+    if (!ref || ref.seq.length !== other.seq.length) return { comparable: false, text: other.seq, count: null };
+    var text = "", count = 0;
+    for (var i = 0; i < other.seq.length; i++) {
+      if (other.seq[i] === ref.seq[i]) text += "·"; else { text += other.seq[i]; count += 1; }
+    }
+    return { comparable: true, text: text, count: count };
+  }
+
   function sharedCdrs(rows) {
     var groups = {}, order = [];
     rows.forEach(function (r) {
@@ -747,7 +763,9 @@
   }
 
   /** CDR residues with liability positions underlined (positions are 1-based in the domain). */
-  function markedCdr(cdr, hits) {
+  function markedCdr(cdr, hits, display) {
+    var shown = display === undefined ? cdr.seq : String(display);
+    if (shown.length !== cdr.seq.length) throw new Error("markedCdr: display text must be as long as the CDR (" + cdr.name + ")");
     var marks = new Array(cdr.seq.length).fill(null);
     (hits || []).forEach(function (x) {
       for (var p = Math.max(x.start, cdr.start); p <= Math.min(x.end, cdr.end); p++) {
@@ -763,7 +781,7 @@
     };
     for (var k = 0; k < cdr.seq.length; k++) {
       if (marks[k] !== cur) { flush(); cur = marks[k]; }
-      buf += cdr.seq[k];
+      buf += shown[k];
     }
     flush();
     return out;
@@ -816,7 +834,7 @@
     VALIDATION: VALIDATION, TABLE_HEAD: TABLE_HEAD, ONE_PAGE_CSS: ONE_PAGE_CSS,
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
-    filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
+    filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, diffCdr: diffCdr, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,

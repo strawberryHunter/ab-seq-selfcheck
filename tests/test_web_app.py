@@ -560,6 +560,32 @@ def test_antibody_units_keep_both_chains_and_their_own_results():
 
 
 @needs_node
+def test_cdr_written_against_a_reference():
+    out = _node("""
+      const ref = {name: "CDR-H2", start: 50, end: 65, length: 16, seq: "LSTAARNGGQQQGFDL"};
+      const fixed = Object.assign({}, ref, {seq: "LSTAARQGGQQQGFDL"});
+      const longer = {name: "CDR-H2", start: 50, end: 66, length: 17, seq: "LSTAARNGGQQQGFDLA"};
+      const hit = {start: 56, end: 57, label: "deamidation (NG)", risk: "높음"};
+      const bad = (() => { try { ABUI.markedCdr(ref, [], "short"); return null; } catch (e) { return e.message; } })();
+      console.log(JSON.stringify({
+        same: ABUI.diffCdr(ref, ref), fixed: ABUI.diffCdr(ref, fixed), longer: ABUI.diffCdr(ref, longer),
+        noRef: ABUI.diffCdr(null, fixed), noOther: ABUI.diffCdr(ref, undefined),
+        // the variant that still carries NG keeps its underline on the dots; the fixed one has none
+        dotsWithMotif: ABUI.markedCdr(ref, [hit], ABUI.diffCdr(ref, ref).text),
+        fixedShown: ABUI.markedCdr(fixed, [], ABUI.diffCdr(ref, fixed).text),
+        plain: ABUI.markedCdr(ref, [hit]), bad}));""")
+    assert out["same"] == {"comparable": True, "text": "·" * 16, "count": 0}
+    assert out["fixed"] == {"comparable": True, "text": "······Q·········", "count": 1}
+    assert out["longer"] == {"comparable": False, "text": "LSTAARNGGQQQGFDLA", "count": None}     # no alignment is made
+    assert out["noRef"] == {"comparable": False, "text": "LSTAARQGGQQQGFDL", "count": None}
+    assert out["noOther"] == {"comparable": False, "text": "", "count": None}
+    assert out["dotsWithMotif"].startswith("······<u ") and out["dotsWithMotif"].endswith(">··</u>········")
+    assert out["fixedShown"] == "······Q·········"
+    assert "LSTAAR<u " in out["plain"] and ">NG</u>" in out["plain"]            # unchanged without a display text
+    assert out["bad"] and "as long as the CDR" in out["bad"]
+
+
+@needs_node
 def test_shared_cdrs_finds_identical_cdrs():
     out = _node("""
       const rows = ABUI.buildRows(ABCHECK.analyze([["a", entries[0][1]], ["b", entries[0][1]], ["c", entries[2][1]]], 7.4));

@@ -209,6 +209,8 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 td.nw { white-space: nowrap; }
 tr.click { cursor: pointer; }
 tr.click:hover td { background: var(--bg); }
+table.keep th:first-child, table.keep td:first-child { position: sticky; left: 0; z-index: 1; background: var(--card); }
+table.keep tr.click:hover td:first-child { background: var(--bg); }
 .seqcell { font-family: var(--fm); white-space: nowrap; }
 .seqcell small { font-family: var(--ff); font-size: 13px; color: var(--muted); margin-left: 6px; }
 .rowlink { border: none; background: none; padding: 0; font-family: var(--fm); font-weight: 700; white-space: nowrap; }
@@ -437,7 +439,8 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     view: "all", query: "", limit: PAGE, tableLimit: 200, hero: 0, picked: new Set(),
     input: "", fileName: "", error: null, rejected: null,
     rules: { active: "default", sets: [] }, pairs: {},
-    open: null, openList: [], opener: null
+    open: null, openList: [], opener: null,
+    ref: { H: null, L: null }      // CDR comparison: the candidate each chain's table is written against
   };
   const saveUi = () => store.set(K.ui, { chain: ui.chain, conf: ui.conf, sort: ui.sort, unitChoice: ui.unitChoice, view: state.view });
 
@@ -570,6 +573,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     state.isExample = !!opts.example; state.recentId = opts.recentId || null;
     state.picked = new Set(opts.picked || []);
     state.limit = PAGE; state.hero = 0; state.error = null; state.rejected = null;
+    state.ref = { H: null, L: null };
     retriage();
     if (!opts.example && !opts.recentId) remember(entries, source, ph, opts.text || "");
     return true;
@@ -667,7 +671,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   /* ---------- shared pieces ---------- */
   const tag = (r) => r.inputOk ? `<span class="tag ${r.cats[0]}">${esc(r.status)}</span>` : `<span class="tag errors">입력 오류</span>`;
   const chainText = (r) => r.chain === "H" ? "VH" : r.chain === "L" ? "VL" : "–";
-  const marked = (c, hits) => ABUI.markedCdr(c, hits).replace(/<u /g, '<u class="m" ');
+  const marked = (c, hits, display) => ABUI.markedCdr(c, hits, display).replace(/<u /g, '<u class="m" ');
   const seqObj = (r) => state.payload.sequences[r.index];
   const first = (s) => { const i = s.indexOf(". "); return i > 0 ? s.slice(0, i + 1) : s; };
   const confText = (r) => !r.inputOk ? "입력 오류" : !r.cdrs.length ? "CDR 주석 실패" : r.confident ? "신뢰 가능" : "신뢰 불가";
@@ -1000,11 +1004,27 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         `</tbody></table></div></section>`;
     }
     [["H", "VH", ["CDR-H1", "CDR-H2", "CDR-H3"]], ["L", "VL", ["CDR-L1", "CDR-L2", "CDR-L3"]]].forEach(([chain, title, names]) => {
-      const group = rows.filter((r) => r.chain === chain);
+      let group = rows.filter((r) => r.chain === chain);
       if (!group.length) return;
-      h += `<section class="card"><div class="scroll"><table><thead><tr><th>${title} ${group.length}</th><th>분류</th>${names.map((n) => `<th>${n}</th>`).join("")}</tr></thead><tbody>` +
+      // a reference candidate: its row comes first, the others show "·" where they equal it
+      const ref = state.rows[state.ref[chain]] && state.rows[state.ref[chain]].chain === chain && state.rows[state.ref[chain]].cdrs.length ? state.rows[state.ref[chain]] : null;
+      if (ref) group = [ref].concat(group.filter((r) => r.index !== ref.index));
+      const all = state.rows.filter((r) => r.chain === chain && r.cdrs.length);
+      const pick = `<label class="field">기준<select data-ref="${chain}"><option value="">없음</option>${all.slice(0, 500).map((r) => `<option value="${r.index}"${ref && ref.index === r.index ? " selected" : ""}>${esc(r.id)}</option>`).join("")}</select></label>`;
+      const cell = (r, n) => {
+        const c = r.cdrs.find((x) => x.name === n);
+        if (!c) return `<td class="seqcell">-</td>`;
+        const d = ref && r !== ref ? ABUI.diffCdr(ref.cdrs.find((x) => x.name === n), c) : null;
+        return `<td class="seqcell">${marked(c, r.hits, d && d.comparable ? d.text : undefined)}<small>${c.length}</small></td>`;
+      };
+      const delta = (r) => {
+        if (r === ref) return `<span class="chip">기준</span>`;
+        const ds = names.map((n) => ABUI.diffCdr(ref.cdrs.find((x) => x.name === n), r.cdrs.find((x) => x.name === n)));
+        return ds.some((d) => !d.comparable) ? "길이 다름" : String(ds.reduce((a, d) => a + d.count, 0));
+      };
+      h += `<section class="card"><div class="row" style="margin-bottom:8px">${pick}</div><div class="scroll"><table class="keep"><thead><tr><th>${title} ${group.length}</th><th>분류</th>${ref ? `<th class="num">차이</th>` : ""}${names.map((n) => `<th>${n}</th>`).join("")}</tr></thead><tbody>` +
         group.slice(0, state.tableLimit).map((r) => `<tr class="click" data-i="${r.index}"><td class="nw"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button></td><td>${tag(r)}</td>` +
-          names.map((n) => { const c = r.cdrs.find((x) => x.name === n); return `<td class="seqcell">${c ? marked(c, r.hits) + `<small>${c.length}</small>` : "-"}</td>`; }).join("") + `</tr>`).join("") +
+          (ref ? `<td class="num nw">${delta(r)}</td>` : "") + names.map((n) => cell(r, n)).join("") + `</tr>`).join("") +
         `</tbody></table></div></section>`;
       if (group.length > state.tableLimit) more = Math.max(more, group.length - state.tableLimit);
     });
@@ -1060,7 +1080,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       </div>`;
     if (!rows.length) return h + `<div class="blank"><span>표시할 후보 없음</span></div>`;
     h += `<section class="card"><div class="figure" id="fig"><div class="tip" id="tip" hidden></div></div></section>
-      <section class="card"><div class="scroll"><table><thead><tr><th>서열</th><th>체인</th><th class="num">길이</th><th class="num">pI</th><th class="num">GRAVY</th><th class="num">net charge · pH ${esc(state.ph)}</th><th class="num">CDR3 pI</th></tr></thead><tbody>` +
+      <section class="card"><div class="scroll"><table class="keep"><thead><tr><th>서열</th><th>체인</th><th class="num">길이</th><th class="num">pI</th><th class="num">GRAVY</th><th class="num">net charge · pH ${esc(state.ph)}</th><th class="num">CDR3 pI</th></tr></thead><tbody>` +
       rows.slice(0, 300).map((r) => {
         const c3 = r.cdr3 ? (seqObj(r).properties || {})[r.cdr3.name] : null;
         return `<tr class="click" data-i="${r.index}"><td class="nw"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button></td><td>${chainText(r)}</td><td class="num">${r.length}</td>
@@ -1144,6 +1164,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       <section class="card guide"><h2>입력</h2><dl>
         <dt>붙여넣기</dt><dd>서열 하나 · FASTA 여러 개 · 엑셀 표(이름, 서열 두 열)</dd>
         <dt>파일</dt><dd>FASTA · CSV · TSV · JSON 여러 개를 한 번에 끌어다 놓기. .xlsx 는 'CSV UTF-8' 로 저장 후 열기</dd>
+        <dt>기준 대비 비교</dt><dd>CDR 비교에서 '기준' 후보를 고르면 나머지 후보는 기준과 같은 잔기를 · 으로, 다른 잔기만 글자로 표시. 길이가 다른 CDR 은 겹쳐 볼 수 없어 서열 그대로 두고 '길이 다름' 으로 표시 (정렬하지 않음)</dd>
         <dt>규칙 공유</dt><dd>선별 규칙 화면의 '복사' 가 규칙 세트를 글 한 줄로 복사. 받은 사람은 같은 화면에 붙여넣고 '가져오기'. 이 화면에서 저장한 JSON 결과를 붙여넣어도 그 안의 규칙을 가져옴</dd>
         <dt>번호 섞인 복사</dt><dd>위치 번호 · 끝의 * 가 섞인 서열은 오류 아래 버튼으로 한 번에 지움. 서열 중간의 * 는 지우지 않음</dd>
         <dt>자동 정리</dt><dd>공백 · 줄바꿈 · 소문자 · 정렬 갭(. -)</dd>
@@ -1239,6 +1260,12 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     on("f-reset", "click", () => { ui.chain = "all"; ui.conf = "all"; state.query = ""; $("q").value = ""; saveUi(); render(); });
     on("more", "click", () => { state.limit += PAGE; render(); });
     on("more-rows", "click", () => { state.tableLimit += 200; render(); });
+    view.querySelectorAll("[data-ref]").forEach((sel) => sel.addEventListener("change", () => {
+      state.ref[sel.dataset.ref] = sel.value === "" ? null : Number(sel.value);
+      render();
+      const again = $("view").querySelector(`[data-ref="${sel.dataset.ref}"]`);
+      if (again) again.focus();
+    }));
     on("x-tsv", "click", () => copy(ABUI.toTsv(state.openList, rules().name), `표 ${state.openList.length}행 복사`));
     on("x-mail", "click", () => copy(ABUI.toMailText(state.rows, meta()), "메일용 글 복사"));
     on("x-fasta", "click", () => { const n = state.openList.filter((r) => r.inputOk).length; copy(ABUI.toFasta(state.openList), `FASTA ${n}건 복사`); });
