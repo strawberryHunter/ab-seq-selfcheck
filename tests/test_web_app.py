@@ -170,6 +170,26 @@ def test_custom_rule_sets_change_only_what_they_say():
 
 
 @needs_node
+def test_another_ph_changes_net_charge_and_nothing_else():
+    """The pH field on 물성 분포 re-runs the list and keeps picks and notes: nothing they rest on may move."""
+    out = _node(EDGE + r"""
+      const strip = (v) => JSON.stringify(v, (k, x) => (k === "net_charge" || k === "pH" || k === "charge" || k === "generated") ? undefined : x);
+      const a = ABCHECK.analyze(all, 7.4), b = ABCHECK.analyze(all, 5.5);
+      const ra = ABUI.buildRows(a), rb = ABUI.buildRows(b);
+      console.log(JSON.stringify({
+        count: all.length,
+        payloadSame: strip(a) === strip(b),
+        rowsSame: strip(ra) === strip(rb),
+        phs: [...new Set(rb.filter(r => r.pH !== null).map(r => r.pH))],
+        chargeMoved: ra.filter((r, i) => r.charge !== null && r.charge !== rb[i].charge).length,
+        withCharge: ra.filter(r => r.charge !== null).length,
+        lowerPhMorePositive: ra.every((r, i) => r.charge === null || rb[i].charge >= r.charge)}));""")
+    assert out["payloadSame"] and out["rowsSame"]              # classification, CDRs, motifs, pI, GRAVY: unchanged
+    assert out["phs"] == [5.5]
+    assert out["chargeMoved"] == out["withCharge"] > 0 and out["lowerPhMorePositive"]
+
+
+@needs_node
 def test_json_result_carries_the_marks_and_gives_them_back():
     out = _node(r"""
       const payload = ABCHECK.analyze(entries, 6.0);

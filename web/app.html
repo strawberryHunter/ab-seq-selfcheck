@@ -1030,6 +1030,14 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       done();
     }, entries.length);
   }
+  /** The list on screen at another pH. Only net charge depends on it; picks, notes and references stay. */
+  function setPh(v) {
+    state.ph = v;
+    relist(state.entries, state.source, Array.from(state.picked), state.ref, state.notes, () => {
+      toast(`pH ${v} 로 다시 계산${unkept() ? " · 저장 안 됨" : ""}`);
+      const f = $("p-ph"); if (f) f.focus();
+    });
+  }
   /** Put a variant on the list, at its end. */
   function addVariant(r, t) {
     const source = / \+ 변이체$/.test(state.source) ? state.source : state.source + " + 변이체";
@@ -1255,6 +1263,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       <div class="row">
         <div class="seg" role="group" aria-label="체인">${[["all", "전체"], ["H", "VH " + t.H], ["L", "VL " + t.L]].map(([k, l]) => `<button type="button" data-chain="${k}" aria-pressed="${ui.chain === k}">${l}</button>`).join("")}</div>
         ${sortSelect("")}
+        <label class="field">pH<input id="p-ph" type="number" inputmode="decimal" step="0.1" min="0" max="14" value="${esc(state.ph)}" title="net charge 다시 계산 · 고른 후보와 메모 유지"></label>
         <span class="key spacer"><svg width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="var(--vh)"/></svg>VH</span>
         <span class="key"><svg width="12" height="12" aria-hidden="true"><rect x="1" y="1" width="10" height="10" rx="1.5" fill="var(--vl)"/></svg>VL</span>
         <span class="chip">판정선 없음</span>
@@ -1332,9 +1341,9 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <div class="frow"><span>지금 결과</span><div class="stats">
           <a class="stat" href="#review">검토 필요<b>${t.review}</b></a><a class="stat" href="#unknown">판정 불가<b>${t.unknown}</b></a><a class="stat" href="#clear">기준 해당 없음<b>${t.clear}</b></a></div></div>
       </section>
-      <section class="card"><div class="scroll"><table><thead><tr><th>모티프</th><th>항목</th><th>기본</th><th>CDR 안</th><th>framework</th></tr></thead><tbody>` +
-      ABUI.MOTIFS.map((x) => `<tr><td class="seqcell">${esc(x.pattern)}</td><td>${esc(x.label)}</td><td>${x.base}</td><td>${shift(x.base, 1)}</td><td>${shift(x.base, -1)}</td></tr>`).join("") +
-      `<tr><td class="seqcell">Cys 홀수</td><td>비결합 Cys 가능성</td><td>-</td><td>높음</td><td>중간</td></tr></tbody></table></div></section>`;
+      <section class="card"><div class="scroll"><table><thead><tr><th class="wide-only">모티프</th><th>항목</th><th>기본</th><th>CDR 안</th><th>framework</th></tr></thead><tbody>` +
+      ABUI.MOTIFS.map((x) => `<tr><td class="seqcell wide-only">${esc(x.pattern)}</td><td>${esc(x.label)}<span class="mono s13 muted only-narrow">${esc(x.pattern)}</span></td><td>${x.base}</td><td>${shift(x.base, 1)}</td><td>${shift(x.base, -1)}</td></tr>`).join("") +
+      `<tr><td class="seqcell wide-only">Cys 홀수</td><td>비결합 Cys 가능성<span class="mono s13 muted only-narrow">Cys 홀수</span></td><td>-</td><td>높음</td><td>중간</td></tr></tbody></table></div></section>`;
   }
 
   function viewValidation() {
@@ -1367,6 +1376,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>치환 시험</dt><dd>후보 상세에서 치환을 적으면 (N56Q, 여러 개는 띄어쓰기) 바뀐 서열을 같은 엔진 · 같은 규칙으로 다시 계산해 원본과 나란히 표시. 번호는 입력한 서열의 순번이며 Kabat 번호가 아님. 원래 잔기가 그 자리와 다르면 고치지 않고 거절. '후보로 추가' 는 변이체를 목록 끝에 넣음</dd>
         <dt>메모</dt><dd>후보 상세 위쪽의 한 줄 (200자). 카드에 보이고 메일용 글의 '고른 후보' · '메모' 단락, 한 장, Excel용 복사 · CSV 의 마지막 열, JSON 에 함께 실림</dd>
         <dt>이어서 하기</dt><dd>JSON 으로 저장한 파일을 다른 PC 나 다른 사람이 열면 (파일 열기 · 끌어다 놓기 · 붙여넣기) 고른 후보 · 메모 · pH 가 그대로 돌아옴. 기본이 아닌 규칙 세트로 저장한 파일은 알림이나 후보 전체 위쪽의 '파일의 규칙 적용' 을 눌러야 그 규칙으로 바뀜. 파일 여러 개를 함께 열면 고른 후보와 메모만 합치고 pH 와 규칙은 지금 값을 씀</dd>
+        <dt>pH 바꾸기</dt><dd>물성 분포 화면의 pH 칸에 값을 넣고 Enter. net charge 만 다시 계산하고 고른 후보 · 메모 · 비교 기준은 그대로</dd>
         <dt>목록에서 빼기</dt><dd>후보 상세 맨 아래. 뺀 뒤에도 고른 후보와 비교 기준은 같은 후보를 가리키며, 알림의 '되돌리기' 로 복구</dd>
         <dt>비슷한 CDR3</dt><dd>CDR 비교에서 차이 1 · 2 · 3 을 고르면 같은 체인에서 CDR3 길이가 같고 그 수 이하로만 다른 후보를 한 묶음으로 표시. 가장 가까운 후보와 이어 묶으므로 (단일 연결) 묶음 안의 두 후보는 그보다 더 다를 수 있고, 표의 '차이' 는 묶음 첫 후보 대비 잔기 수. 길이가 다른 CDR3 은 묶지 않음 (정렬하지 않음)</dd>
         <dt>기준 대비 비교</dt><dd>CDR 비교에서 '기준' 후보를 고르면 나머지 후보는 기준과 같은 잔기를 · 으로, 다른 잔기만 글자로 표시. 길이가 다른 CDR 은 겹쳐 볼 수 없어 서열 그대로 두고 '길이 다름' 으로 표시 (정렬하지 않음)</dd>
@@ -1462,6 +1472,11 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     on("f-chain", "change", (e) => { ui.chain = e.target.value; saveUi(); render(); });
     on("f-conf", "change", (e) => { ui.conf = e.target.value; saveUi(); render(); });
     on("f-sort", "change", (e) => { ui.sort = e.target.value; saveUi(); render(); });
+    on("p-ph", "change", (e) => {
+      const v = parseFloat(e.target.value);
+      if (!(v >= 0 && v <= 14)) { e.target.value = state.ph; return toast("pH 는 0–14 사이 숫자"); }
+      if (v !== state.ph) setPh(v);
+    });
     on("f-reset", "click", () => { ui.chain = "all"; ui.conf = "all"; state.query = ""; state.motif = null; $("q").value = ""; saveUi(); render(); });
     on("f-motif", "click", () => { state.motif = null; state.limit = PAGE; render(); });
     // a number of 모티프 분포: exactly those candidates on the list (the chain and 주석 filters would hide some of them)
