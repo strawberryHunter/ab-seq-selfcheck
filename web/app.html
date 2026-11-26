@@ -241,6 +241,10 @@ table.keep tr.click:hover td:first-child { background: var(--bg); }
 .ruler .l { font-family: var(--ff); }
 .ruler .c { background: var(--cdr); font-weight: 700; }
 .why2 { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+#t-subs { flex: 1 1 140px; min-width: 0; max-width: 260px; text-transform: uppercase; }
+#t-out { display: grid; gap: 8px; min-width: 0; }
+#t-out h4 { margin: 4px 0 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+#t-out .tname { overflow-wrap: anywhere; }
 
 /* ---------- other screens ---------- */
 textarea {
@@ -435,7 +439,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const ui = ABUI.cleanUi(store.get(K.ui, null), VIEWS);
   const unitNow = () => ui.unitChoice || ABUI.preferredUnit(state.rows, state.pairs);
   const state = {
-    payload: null, rows: [], source: "", ph: 7.4, at: null, isExample: false, recentId: null,
+    payload: null, rows: [], entries: [], source: "", ph: 7.4, at: null, isExample: false, recentId: null,
     view: "all", query: "", limit: PAGE, tableLimit: 200, hero: 0, picked: new Set(),
     input: "", fileName: "", error: null, rejected: null,
     rules: { active: "default", sets: [] }, pairs: {},
@@ -568,7 +572,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function analyzeEntries(entries, source, ph, opts) {
     const payload = ABCHECK.analyze(entries, ph);
     if (payload.sequences.every((s) => !s.input_ok)) { state.rejected = payload; return false; }
-    state.payload = payload; state.source = source; state.ph = ph;
+    state.payload = payload; state.entries = entries; state.source = source; state.ph = ph;
     state.at = opts.at ? new Date(opts.at) : new Date();
     state.isExample = !!opts.example; state.recentId = opts.recentId || null;
     state.picked = new Set(opts.picked || []);
@@ -885,6 +889,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       : `<p class="muted">검출된 모티프 없음</p>`;
     L.warnings.forEach((w) => { h += `<p class="s13 muted">${esc(w)}</p>`; });
     h += `</div>`;
+    h += trialBlock(s);
     if (P.length) {
       h += `<div class="blk"><h3>물성 · pH ${esc(P[0].pH)}</h3><div class="scroll"><table><thead><tr><th>구간</th><th class="num">길이</th><th class="num">pI</th><th class="num">GRAVY</th><th class="num">net charge</th></tr></thead><tbody>` +
         P.map((x) => `<tr><td class="nw">${esc(x.label)}</td><td class="num">${x.length}</td><td class="num">${fmt(x.pI, 2)}</td><td class="num">${fmt(x.GRAVY, 3)}</td><td class="num">${signed(x.net_charge)}</td></tr>`).join("") +
@@ -892,6 +897,96 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     }
     return h;
   }
+  /* ---------- substitution trial (in the drawer) ---------- */
+  /** One input; the residues of the detected motifs are shortcuts that start a substitution. */
+  function trialBlock(s) {
+    const places = new Set();
+    s.liabilities.hits.forEach((x) => { for (let p = x.start; p <= x.end; p++) places.add(p); });
+    const chips = [...places].sort((a, b) => a - b).map((p) => s.sequence[p - 1] + p);
+    return `<div class="blk" id="trial"><h3>치환 시험 · 서열 순번 (Kabat 번호 아님)</h3>
+      <div class="row"><label class="field" for="t-subs">치환</label><input id="t-subs" class="mono" type="text" placeholder="N56Q" autocomplete="off" autocapitalize="characters" spellcheck="false"
+        title="원래 잔기 · 서열 순번 (1-based, Kabat 번호 아님) · 바꿀 잔기. 여러 개는 띄어쓰기"></div>
+      ${chips.length ? `<div class="row" role="group" aria-label="모티프 잔기">${chips.map((c) => `<button class="chip mono" type="button" data-res="${c}">${c}</button>`).join("")}</div>` : ""}
+      <div id="t-out" aria-live="polite"></div></div>`;
+  }
+  /** What the typed substitutions change: the same engine and rule set on the changed sequence. */
+  function trialOf(r, text) {
+    const s = seqObj(r);
+    const got = ABUI.parseSubstitutions(text, s.sequence);
+    if (got.errors.length || !got.subs.length) return { errors: got.errors, subs: null };
+    const seq = ABUI.applySubstitutions(s.sequence, got.subs);
+    const base = ABUI.variantName(r.id, got.subs);
+    let name = base;
+    for (let n = 2; state.rows.some((x) => x.id === name); n++) name = base + "-" + n;
+    const v = ABUI.buildRows(ABCHECK.analyze([[name, seq]], state.ph), rules())[0];
+    return { errors: [], subs: got.subs, name, seq, v, diff: ABUI.diffHits(r.hits, v.hits), same: state.rows.find((x) => x.inputOk && x.sequence === seq) || null };
+  }
+  function trialHtml(r, t) {
+    if (t.errors.length) return `<p class="err">${esc(t.errors[0])}</p>`;
+    if (!t.subs) return "";
+    const v = t.v, d = t.diff;
+    const at = (x) => x.start === x.end ? x.start : x.start + "-" + x.end;
+    const hit = (x) => `<b>${esc(x.risk)}</b> ${esc(x.label)} <span class="mono">${esc(x.match)}</span> · ${at(x)} · ${esc(x.region)}`;
+    const list = (title, items, html) => `<h4>${title} ${items.length}</h4>` + (items.length ? `<ul>${items.map((x) => `<li>${html(x)}</li>`).join("")}</ul>` : "");
+    // a value the substitution changed is written in bold (the tags already differ by themselves)
+    const line = (label, a, b, cls) => `<tr><td class="nw">${label}</td><td class="${cls}">${a}</td><td class="${cls}">${String(a) !== String(b) && !/^</.test(b) ? `<b>${b}</b>` : b}</td></tr>`;
+    const flags = (x) => x.flags.length ? x.flags.map((f) => esc(f.label)).join(", ") : "없음";
+    return `<div class="scroll"><table><thead><tr><th>${t.subs.map((x) => `<span class="mono">${x.from}${x.pos}${x.to}</span> ${esc(ABUI.regionAt(r, x.pos))}`).join(" · ")}</th><th>원본</th><th>변이체</th></tr></thead><tbody>` +
+      line("분류", tag(r), tag(v), "nw") + line("CDR 주석", confText(r), confText(v), "nw") + line("모티프", r.hits.length, v.hits.length, "num") +
+      (r.flags.length || v.flags.length ? line("도메인 전체", flags(r), flags(v), "") : "") +
+      line("pI", fmt(r.pI, 2), fmt(v.pI, 2), "num") + line("GRAVY", fmt(r.gravy, 3), fmt(v.gravy, 3), "num") + line("net charge", signed(r.charge), signed(v.charge), "num") +
+      `</tbody></table></div>` +
+      list("사라진 모티프", d.removed, hit) + list("새로 생긴 모티프", d.added, hit) +
+      (d.moved.length ? list("구간 · 위험도가 바뀐 모티프", d.moved, (m) => `${esc(m.before.label)} · ${at(m.after)} · ${esc(m.before.region)} <b>${esc(m.before.risk)}</b> → ${esc(m.after.region)} <b>${esc(m.after.risk)}</b>`) : "") +
+      (v.note ? `<p class="s13 muted">${esc(v.note)}</p>` : "") +
+      `<div class="row">${t.same
+        ? `<button class="btn" type="button" id="t-same">같은 서열 있음 · ${esc(t.same.id)}</button>`
+        : `<button class="btn primary" type="button" id="t-add">후보로 추가</button><span class="s13 muted mono tname">${esc(t.name)}</span>`}</div>`;
+  }
+  function bindTrial(r) {
+    const input = $("t-subs");
+    if (!input) return;
+    let t = { errors: [], subs: null };
+    const show = () => {
+      t = trialOf(r, input.value);
+      $("t-out").innerHTML = trialHtml(r, t);
+      on("t-add", "click", () => addVariant(r, t));
+      on("t-same", "click", () => openSheet(t.same.index));
+    };
+    input.addEventListener("input", show);
+    input.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && t.subs && !t.same) { ev.preventDefault(); addVariant(r, t); } });
+    $("trial").querySelectorAll("[data-res]").forEach((b) => b.addEventListener("click", () => {
+      // a shortcut starts a new substitution after the finished ones; an unfinished one is replaced
+      const done = input.value.trim().split(/\s+/).filter((x) => /^[A-Za-z][0-9]+[A-Za-z]$/.test(x));
+      input.value = done.concat([b.dataset.res]).join(" ");
+      input.focus();
+      show();
+    }));
+  }
+  /** Put a variant on the list: the analysis runs again with one more entry; picks, reference and the stored copy follow. */
+  function addVariant(r, t) {
+    const entries = state.entries.concat([[t.name, t.seq]]);
+    const keep = { picked: Array.from(state.picked), ref: state.ref, limit: state.limit, hero: state.hero, recentId: state.recentId };
+    const source = / \+ 변이체$/.test(state.source) ? state.source : state.source + " + 변이체";
+    run(() => {
+      if (!analyzeEntries(entries, source, state.ph, { picked: keep.picked })) throw new Error("addVariant: the list with " + t.name + " was rejected");
+      state.ref = keep.ref; state.limit = keep.limit; state.hero = keep.hero;
+      if (state.recentId) {                       // the stored copy of the list before this variant is replaced, not kept beside it
+        const list = recents().filter((x) => x.id !== keep.recentId);
+        const cur = list.find((x) => x.id === state.recentId);
+        if (cur) cur.picked = keep.picked;
+        store.set(K.recent, list);
+      }
+      state.input = recentText({ entries }); state.fileName = "";      // 새 분석 shows the list as it is now
+      render();
+      openSheet(r.index);
+      if ($("t-subs")) $("t-subs").focus();
+      const msg = `${t.name} 추가${unkept() ? " · 저장 안 됨" : ""}`;
+      if (r.chain && r.cdrs.length) toast(msg, "CDR 비교", () => { state.ref[r.chain] = r.index; closeSheet(); go("compare"); });
+      else toast(msg);
+    }, entries.length);
+  }
+
   function openSheet(index, opener) {
     const r = state.rows[index];
     if (!r) return;
@@ -909,6 +1004,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     $("sheet-pick").setAttribute("aria-pressed", String(state.picked.has(index)));
     $("sheet-body").innerHTML = sheetBody(r);
     $("sheet-body").scrollTop = 0;
+    bindTrial(r);
     $("sheet-pos").textContent = pos >= 0 ? `${pos + 1} / ${list.length}` : "";
     $("sheet-prev").disabled = pos <= 0;
     $("sheet-next").disabled = pos < 0 || pos >= list.length - 1;
@@ -1164,6 +1260,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       <section class="card guide"><h2>입력</h2><dl>
         <dt>붙여넣기</dt><dd>서열 하나 · FASTA 여러 개 · 엑셀 표(이름, 서열 두 열)</dd>
         <dt>파일</dt><dd>FASTA · CSV · TSV · JSON 여러 개를 한 번에 끌어다 놓기. .xlsx 는 'CSV UTF-8' 로 저장 후 열기</dd>
+        <dt>치환 시험</dt><dd>후보 상세에서 치환을 적으면 (N56Q, 여러 개는 띄어쓰기) 바뀐 서열을 같은 엔진 · 같은 규칙으로 다시 계산해 원본과 나란히 표시. 번호는 입력한 서열의 순번이며 Kabat 번호가 아님. 원래 잔기가 그 자리와 다르면 고치지 않고 거절. '후보로 추가' 는 변이체를 목록 끝에 넣음</dd>
         <dt>기준 대비 비교</dt><dd>CDR 비교에서 '기준' 후보를 고르면 나머지 후보는 기준과 같은 잔기를 · 으로, 다른 잔기만 글자로 표시. 길이가 다른 CDR 은 겹쳐 볼 수 없어 서열 그대로 두고 '길이 다름' 으로 표시 (정렬하지 않음)</dd>
         <dt>규칙 공유</dt><dd>선별 규칙 화면의 '복사' 가 규칙 세트를 글 한 줄로 복사. 받은 사람은 같은 화면에 붙여넣고 '가져오기'. 이 화면에서 저장한 JSON 결과를 붙여넣어도 그 안의 규칙을 가져옴</dd>
         <dt>번호 섞인 복사</dt><dd>위치 번호 · 끝의 * 가 섞인 서열은 오류 아래 버튼으로 한 번에 지움. 서열 중간의 * 는 지우지 않음</dd>

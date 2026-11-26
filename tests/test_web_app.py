@@ -586,6 +586,74 @@ def test_cdr_written_against_a_reference():
 
 
 @needs_node
+def test_substitutions_are_checked_against_the_sequence():
+    out = _node("""
+      const seq = Object.fromEntries(entries)["SYN-VH-003"];      // N56 G57 in CDR-H2, W36 and C22 are anchors
+      const p = (t) => ABUI.parseSubstitutions(t, seq);
+      const two = p("g57a, n56q");
+      const refused = (() => { try { ABUI.applySubstitutions(seq, [{pos: 56, from: "G", to: "A"}]); return null; } catch (e) { return e.message; } })();
+      const made = ABUI.applySubstitutions(seq, two.subs);
+      console.log(JSON.stringify({
+        at: seq.slice(54, 58), len: seq.length, one: p("N56Q"), two, separators: p("N56Q/G57A + W36F").subs.length,
+        made: made.slice(54, 58), sameElsewhere: made.slice(0, 55) + made.slice(57) === seq.slice(0, 55) + seq.slice(57),
+        name: ABUI.variantName("mAb03_VH", two.subs), refused,
+        errors: ["N56", "56Q", "N57Q", "N560Q", "N56N", "N56X", "N56Q N56S", "N56Q G57", ""].map(t => p(t).errors),
+        partlyGood: p("N56Q A58G").subs}));""")
+    assert out["at"] == "RNGG"
+    assert out["one"] == {"subs": [{"pos": 56, "from": "N", "to": "Q"}], "errors": []}
+    # any case, any order: sorted by place
+    assert out["two"] == {"subs": [{"pos": 56, "from": "N", "to": "Q"}, {"pos": 57, "from": "G", "to": "A"}], "errors": []}
+    assert out["separators"] == 3
+    assert out["made"] == "RQAG" and out["sameElsewhere"] is True
+    assert out["name"] == "mAb03_VH_N56Q_G57A"
+    assert "place 56 holds N, not G" in out["refused"]
+    e = out["errors"]
+    assert e[0] == ["N56 뒤에 바꿀 잔기 한 글자 필요"]
+    assert e[1] == ["56Q: 치환 표기 아님 (예 N56Q)"]
+    assert e[2] == ["N57Q: 57번은 G"]                        # an off-by-one is refused, not corrected
+    assert e[3] == [f"N560Q: 서열은 1–{out['len']}번"]
+    assert e[4] == ["N56N: 같은 잔기"]
+    assert e[5] == ["N56X: X 는 표준 아미노산 아님"]
+    assert e[6] == ["N56S: 56번을 두 번 적음"]
+    assert e[7] == ["G57 뒤에 바꿀 잔기 한 글자 필요"]
+    assert e[8] == []
+    assert out["partlyGood"] == [{"pos": 56, "from": "N", "to": "Q"}]
+
+
+@needs_node
+def test_variant_hits_against_the_parent():
+    out = _node("""
+      const seq = Object.fromEntries(entries)["SYN-VH-003"];
+      const row = (name, s) => ABUI.buildRows(ABCHECK.analyze([[name, s]], 7.4))[0];
+      const parent = row("p", seq);
+      const variant = (text) => { const v = row("v", ABUI.applySubstitutions(seq, ABUI.parseSubstitutions(text, seq).subs)); return [v, ABUI.diffHits(parent.hits, v.hits)]; };
+      const show = (h) => h.label + " " + h.start + "-" + h.end + " " + h.region + " " + h.risk;
+      const brief = ([v, d]) => ({status: v.status, confident: v.confident, removed: d.removed.map(show), added: d.added.map(show),
+        moved: d.moved.map(m => show(m.before) + " -> " + show(m.after)), kept: d.kept, total: v.hits.length});
+      console.log(JSON.stringify({
+        parent: {status: parent.status, hits: parent.hits.length, k100: seq[99], w36: seq[35]},
+        fixed: brief(variant("N56Q")), made: brief(variant("K100G")), anchor: brief(variant("W36A")),
+        regions: [31, 36, 56, 100, 120].map(p => ABUI.regionAt(parent, p)), noCdrs: ABUI.regionAt(variant("W36A")[0], 56),
+        same: ABUI.diffHits(parent.hits, parent.hits)}));""")
+    assert out["parent"] == {"status": "검토 필요", "hits": 3, "k100": "K", "w36": "W"}
+    # the substitution that removes the motif: one hit gone, nothing new, the classification follows
+    assert out["fixed"] == {"status": "기준 해당 없음", "confident": True, "removed": ["deamidation (NG) 56-57 CDR-H2 높음"],
+                            "added": [], "moved": [], "kept": 2, "total": 2}
+    # a substitution that makes a new NG next to N99: reported as added
+    assert out["made"]["added"] == ["deamidation (NG) 99-100 CDR-H3 높음"] and out["made"]["removed"] == []
+    assert out["made"]["kept"] == 3
+    # an anchor residue replaced: the Trp hit is gone and whatever the annotation now says is reported, not hidden
+    anchor = out["anchor"]
+    assert "산화 (Trp) 36-36 framework 낮음" in anchor["removed"]
+    assert anchor["status"] == "판정 불가" and anchor["confident"] is False and out["noCdrs"] == "구간 미확정"
+    assert anchor["moved"] == ["deamidation (NG) 56-57 CDR-H2 높음 -> deamidation (NG) 56-57 구간 미확정 높음",
+                               "산화 (Trp) 108-108 framework 낮음 -> 산화 (Trp) 108-108 구간 미확정 낮음"]
+    assert anchor["kept"] + len(anchor["moved"]) + len(anchor["added"]) == anchor["total"]
+    assert out["regions"] == ["CDR-H1", "framework", "CDR-H2", "CDR-H3", "framework"]
+    assert out["same"] == {"removed": [], "added": [], "moved": [], "kept": 3}
+
+
+@needs_node
 def test_shared_cdrs_finds_identical_cdrs():
     out = _node("""
       const rows = ABUI.buildRows(ABCHECK.analyze([["a", entries[0][1]], ["b", entries[0][1]], ["c", entries[2][1]]], 7.4));

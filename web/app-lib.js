@@ -281,7 +281,6 @@
     return out;
   }
 
-  /** Identical CDR sequences shared by two or more candidates: [{name, seq, ids}]. */
   /**
    * One CDR written against a reference CDR: "·" where the residue is the same, the residue
    * itself where it differs ("··Q·············"). Two CDRs of different length cannot be laid
@@ -298,6 +297,89 @@
     return { comparable: true, text: text, count: count };
   }
 
+  /* ---------- substitution trial ---------- */
+  var AA20 = "ACDEFGHIKLMNPQRSTVWY";
+
+  /**
+   * Substitutions written the way people write them ("N56Q"; several separated by spaces, commas,
+   * "/" or "+"), checked against the sequence. The number is the 1-based place in the sequence as
+   * entered, the same numbers as the CDR table (not a Kabat number). The original residue is
+   * required and must be the one found there: a typo or an off-by-one is refused, never corrected.
+   * Returns {subs: [{pos, from, to}] sorted by place, errors: [one line each]}.
+   */
+  function parseSubstitutions(text, sequence) {
+    var subs = [], errors = [], seen = {};
+    String(text || "").split(/[\s,;\/+]+/).filter(Boolean).forEach(function (raw) {
+      var tok = raw.toUpperCase();
+      var m = /^([A-Z])([0-9]+)([A-Z])$/.exec(tok);
+      if (!m) {
+        errors.push(/^[A-Z][0-9]+$/.test(tok) ? tok + " 뒤에 바꿀 잔기 한 글자 필요" : tok + ": 치환 표기 아님 (예 N56Q)");
+        return;
+      }
+      var from = m[1], pos = Number(m[2]), to = m[3];
+      if (pos < 1 || pos > sequence.length) { errors.push(tok + ": 서열은 1–" + sequence.length + "번"); return; }
+      if (sequence[pos - 1] !== from) { errors.push(tok + ": " + pos + "번은 " + sequence[pos - 1]); return; }
+      if (AA20.indexOf(to) < 0) { errors.push(tok + ": " + to + " 는 표준 아미노산 아님"); return; }
+      if (to === from) { errors.push(tok + ": 같은 잔기"); return; }
+      if (seen[pos]) { errors.push(tok + ": " + pos + "번을 두 번 적음"); return; }
+      seen[pos] = true;
+      subs.push({ pos: pos, from: from, to: to });
+    });
+    subs.sort(function (a, b) { return a.pos - b.pos; });
+    return { subs: subs, errors: errors };
+  }
+
+  /** The sequence with the substitutions made. Refuses one whose original residue is not there. */
+  function applySubstitutions(sequence, subs) {
+    var chars = String(sequence).split("");
+    subs.forEach(function (s) {
+      if (chars[s.pos - 1] !== s.from) {
+        throw new Error("applySubstitutions: place " + s.pos + " holds " + chars[s.pos - 1] + ", not " + s.from);
+      }
+      chars[s.pos - 1] = s.to;
+    });
+    return chars.join("");
+  }
+
+  var subText = function (s) { return s.from + s.pos + s.to; };
+  /** Name of a variant: the parent's name and its substitutions ("mAb03_VH_N56Q_K100G"). */
+  function variantName(id, subs) { return id + "_" + subs.map(subText).join("_"); }
+
+  /** Where a place lies in a row's own annotation, in the engine's words. */
+  function regionAt(row, pos) {
+    if (!row.cdrs.length) return "구간 미확정";
+    for (var i = 0; i < row.cdrs.length; i++) {
+      if (row.cdrs[i].start <= pos && pos <= row.cdrs[i].end) return row.cdrs[i].name;
+    }
+    return "framework";
+  }
+
+  /**
+   * The hits of a variant against the hits of its parent. A hit is the same hit when it has the
+   * same label at the same place (substitutions keep every place where it was).
+   * - removed: in the parent only; added: in the variant only;
+   * - moved: in both, but its region or risk differs (the substitution changed the annotation);
+   * - kept: how many are in both, unchanged.
+   */
+  function diffHits(before, after) {
+    var key = function (h) { return h.label + "|" + h.start + "|" + h.end; };
+    var b = {}, a = {};
+    before.forEach(function (h) { b[key(h)] = h; });
+    after.forEach(function (h) { a[key(h)] = h; });
+    var moved = [];
+    after.forEach(function (h) {
+      var was = b[key(h)];
+      if (was && (was.region !== h.region || was.risk !== h.risk)) moved.push({ before: was, after: h });
+    });
+    return {
+      removed: before.filter(function (h) { return !a[key(h)]; }),
+      added: after.filter(function (h) { return !b[key(h)]; }),
+      moved: moved,
+      kept: after.filter(function (h) { return b[key(h)]; }).length - moved.length
+    };
+  }
+
+  /** Identical CDR sequences shared by two or more candidates: [{name, seq, ids}]. */
   function sharedCdrs(rows) {
     var groups = {}, order = [];
     rows.forEach(function (r) {
@@ -834,7 +916,8 @@
     VALIDATION: VALIDATION, TABLE_HEAD: TABLE_HEAD, ONE_PAGE_CSS: ONE_PAGE_CSS,
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
-    filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, diffCdr: diffCdr, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
+    filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
+    variantName: variantName, regionAt: regionAt, diffHits: diffHits, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
