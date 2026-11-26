@@ -668,6 +668,95 @@
   }
 
   /**
+   * The object to save as JSON, with the user's marks. A sequence that is picked or has a note
+   * gets a last key "review": {"picked": true | false, "note": "..."}; every other sequence is
+   * the same object as before. Without any mark the object itself comes back, so the file stays
+   * what withRuleResults() gives (with the default rule set: the Python CLI's --json output).
+   * picked: a Set or a list of places in the list; notes: {place: text}.
+   */
+  function withReview(obj, picked, notes) {
+    var set = picked instanceof Set ? picked : new Set(picked || []);
+    notes = notes || {};
+    var marked = function (i) { return set.has(i) || !!notes[i]; };
+    if (!obj.sequences.some(function (_, i) { return marked(i); })) return obj;
+    var out = {};
+    Object.keys(obj).forEach(function (k) {
+      out[k] = k !== "sequences" ? obj[k] : obj.sequences.map(function (s, i) {
+        if (!marked(i)) return s;
+        var copy = {};
+        Object.keys(s).forEach(function (key) { copy[key] = s[key]; });
+        copy.review = { picked: set.has(i), note: notes[i] || "" };
+        return copy;
+      });
+    });
+    return out;
+  }
+
+  /**
+   * What a JSON result says beyond its sequences: the marks withReview() wrote, the pH the
+   * analysis was run at and the rule set in use. `count` is how many entries the engine read
+   * from the same text. Returns {picked: [place], notes: {place: text}, ph: number | null,
+   * ruleSet: {name, motifs, where, minRisk, cys} | null, ruleProblem, unread}, or null when the
+   * text is a bare list of sequences. Marks of an unexpected shape are left out, not repaired.
+   * A rule set that cannot be used is described in ruleProblem; text the engine read but a
+   * browser's JSON reader refuses (NaN, Infinity) is described in unread. Both are "" otherwise.
+   */
+  function reviewFromJson(text, count) {
+    var out = { picked: [], notes: {}, ph: null, ruleSet: null, ruleProblem: "", unread: "" };
+    var value;
+    try { value = JSON.parse(String(text).replace(/^﻿/, "")); }
+    catch (e) { out.unread = e.message; return out; }
+    if (!value || typeof value !== "object" || Array.isArray(value) || !Array.isArray(value.sequences)) return null;
+    if (value.sequences.length !== count) {
+      throw new Error("reviewFromJson: " + value.sequences.length + " sequences in the text, " + count + " entries read from it");
+    }
+    value.sequences.forEach(function (s, i) {
+      if (!s || typeof s !== "object") return;
+      var rv = s.review;
+      if (rv && typeof rv === "object" && !Array.isArray(rv)) {
+        if (rv.picked === true) out.picked.push(i);
+        if (typeof rv.note === "string" && cleanNote(rv.note)) out.notes[i] = cleanNote(rv.note);
+      }
+      if (out.ph === null && s.properties && typeof s.properties === "object") {
+        Object.keys(s.properties).some(function (k) {
+          var p = s.properties[k];
+          if (!p || typeof p.pH !== "number" || !(p.pH >= 0 && p.pH <= 14)) return false;
+          out.ph = p.pH;
+          return true;
+        });
+      }
+    });
+    if (value.rule_set !== undefined) {
+      try { out.ruleSet = ruleSetFromText(JSON.stringify({ rule_set: value.rule_set })); }
+      catch (e) { out.ruleProblem = e.message; }
+    }
+    return out;
+  }
+
+  /**
+   * The marks of files opened together, renumbered for the joined list. parts: [{count, review}]
+   * in list order, review as reviewFromJson() gave it (null for a file without results). The pH
+   * and the rule set are taken over only when a single file was opened: several files need not
+   * agree on them. Returns null when no part has a review.
+   */
+  function joinReviews(parts) {
+    var out = { picked: [], notes: {}, ph: null, ruleSet: null, ruleProblem: "", unread: "" };
+    var offset = 0, files = 0;
+    parts.forEach(function (p) {
+      var rv = p.review;
+      if (rv) {
+        files += 1;
+        rv.picked.forEach(function (i) { out.picked.push(offset + i); });
+        Object.keys(rv.notes).forEach(function (k) { out.notes[offset + Number(k)] = rv.notes[k]; });
+        if (rv.unread && !out.unread) out.unread = rv.unread;
+        if (parts.length === 1) { out.ph = rv.ph; out.ruleSet = rv.ruleSet; out.ruleProblem = rv.ruleProblem; }
+      }
+      offset += p.count;
+    });
+    return files ? out : null;
+  }
+
+  /**
    * Position numbers and a closing stop mark that come along when a sequence is copied from a
    * database page or a PDF ("   61 gkglewvsai ..." or a final "*"). Returns {text, digits, stops}:
    * the text without digits on sequence lines and without a "*" that ends a record, and how
@@ -743,6 +832,12 @@
       minRisk: value.minRisk !== undefined ? value.minRisk : value.min_risk, cys: value.cys
     });
     return { name: rs.name, motifs: rs.motifs, where: rs.where, minRisk: rs.minRisk, cys: rs.cys };
+  }
+
+  /** True when two rule sets select the same sequences: same motifs, place, risk floor and Cys rule. Names may differ. */
+  function sameRules(a, b) {
+    var x = normalizeRuleSet(a), y = normalizeRuleSet(b);
+    return x.motifs.join("|") === y.motifs.join("|") && x.where === y.where && x.minRisk === y.minRisk && x.cys === y.cys;
   }
 
   // ---- values read back from browser storage ------------------------------------------
@@ -1082,7 +1177,7 @@
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, similarCdr3: similarCdr3, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
     variantName: variantName, regionAt: regionAt, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
-    cleanNote: cleanNote, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
+    cleanNote: cleanNote, withReview: withReview, reviewFromJson: reviewFromJson, joinReviews: joinReviews, sameRules: sameRules, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };

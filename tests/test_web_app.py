@@ -170,6 +170,83 @@ def test_custom_rule_sets_change_only_what_they_say():
 
 
 @needs_node
+def test_json_result_carries_the_marks_and_gives_them_back():
+    out = _node(r"""
+      const payload = ABCHECK.analyze(entries, 6.0);
+      const before = ABCHECK.toJSON(payload);
+      const team = {id: "team", name: "팀 규칙", motifs: ["NG", "D[STD]", "W"], where: "cdr", minRisk: "중간", cys: "off"};
+      const ruled = ABUI.withRuleResults(payload, team);
+      const marked = ABUI.withReview(ruled, new Set([0, 2]), {2: "발현량 높음", 4: "재확인"});
+      const text = ABCHECK.toJSON(marked);
+      const reread = ABCHECK.readInput(text, "result.json")[0];
+      const back = ABUI.reviewFromJson(text, reread.length);
+      // a file edited by hand: marks of another shape are left out, a note becomes one line of 200
+      const edited = JSON.parse(text);
+      edited.sequences[0].review = {picked: "yes", note: 5};
+      edited.sequences[1].review = {picked: true, note: " 두 줄\n메모 " + "가".repeat(300)};
+      edited.sequences[2].review = "picked";
+      edited.rule_set = {name: "깨진 규칙", motifs: ["XX"], where: "cdr", min_risk: "중간", cys: "off"};
+      const hand = ABUI.reviewFromJson(JSON.stringify(edited), reread.length);
+      let mismatch = null; try { ABUI.reviewFromJson(text, reread.length + 1); } catch (e) { mismatch = e.message; }
+      console.log(JSON.stringify({
+        noMarksSameObject: ABUI.withReview(payload, new Set(), {}) === payload && ABUI.withReview(payload, [], undefined) === payload,
+        payloadUntouched: ABCHECK.toJSON(payload) === before && payload.sequences.every(s => !("review" in s)),
+        withReview: marked.sequences.map((s, i) => "review" in s ? i : -1).filter(i => i >= 0),
+        lastKey: Object.keys(marked.sequences[2]).pop(),
+        reviews: [0, 2, 4].map(i => marked.sequences[i].review),
+        unmarkedIsTheSameObject: marked.sequences[1] === ruled.sequences[1],
+        engineKeysKept: Object.keys(payload.sequences[2]).every(k => marked.sequences[2][k] === ruled.sequences[2][k]),
+        listAsPicked: JSON.stringify(ABUI.withReview(payload, [0, 2], {})) === JSON.stringify(ABUI.withReview(payload, new Set([0, 2]), {})),
+        rereadSame: JSON.stringify(reread) === JSON.stringify(entries),
+        back, sameRules: ABUI.sameRules(back.ruleSet, team), defaultRules: ABUI.sameRules(back.ruleSet, ABUI.DEFAULT_RULESET),
+        renamedIsSame: ABUI.sameRules(Object.assign({}, team, {name: "다른 이름", motifs: ["W", "NG", "D[STD]"]}), team),
+        hand: {picked: hand.picked, notes: hand.notes, ruleSet: hand.ruleSet, problem: hand.ruleProblem},
+        cli: ABUI.reviewFromJson(ABCHECK.toJSON(ABCHECK.analyze(entries, 7.4)), entries.length),
+        corpus: ABUI.reviewFromJson(JSON.stringify({sequences: entries.map(e => ({id: e[0], sequence: e[1]}))}), entries.length),
+        list: ABUI.reviewFromJson(JSON.stringify(entries.map(e => e[1])), entries.length),
+        nan: ABUI.reviewFromJson('{"sequences": [], "x": NaN}', 0), mismatch,
+        bom: ABUI.reviewFromJson("﻿" + text, reread.length).picked}));""")
+    assert out["noMarksSameObject"] and out["payloadUntouched"]          # without marks: the file as it was before
+    assert out["withReview"] == [0, 2, 4] and out["lastKey"] == "review"
+    assert out["reviews"] == [{"picked": True, "note": ""}, {"picked": True, "note": "발현량 높음"},
+                              {"picked": False, "note": "재확인"}]
+    assert out["unmarkedIsTheSameObject"] and out["engineKeysKept"] and out["listAsPicked"]
+    assert out["rereadSame"]                                             # the engine's reader takes the file as before
+    back = out["back"]
+    assert back["picked"] == [0, 2] and back["notes"] == {"2": "발현량 높음", "4": "재확인"}
+    assert back["ph"] == 6.0 and back["ruleProblem"] == "" and back["unread"] == ""
+    assert back["ruleSet"] == {"name": "팀 규칙", "motifs": ["NG", "D[STD]", "W"], "where": "cdr", "minRisk": "중간", "cys": "off"}
+    assert out["sameRules"] and not out["defaultRules"] and out["renamedIsSame"]
+    hand = out["hand"]
+    assert hand["picked"] == [1] and list(hand["notes"]) == ["1", "4"]
+    assert hand["notes"]["1"].startswith("두 줄 메모 가") and len(hand["notes"]["1"]) == 200 and "\n" not in hand["notes"]["1"]
+    assert hand["ruleSet"] is None and "motifs must be a list" in hand["problem"]
+    assert out["cli"] == {"picked": [], "notes": {}, "ph": 7.4, "ruleSet": None, "ruleProblem": "", "unread": ""}
+    assert out["corpus"]["ph"] is None and out["corpus"]["picked"] == []
+    assert out["list"] is None                                           # a bare list of sequences has nothing to give back
+    assert out["nan"]["unread"] and out["nan"]["picked"] == []
+    assert "entries read" in out["mismatch"]
+    assert out["bom"] == [0, 2]
+
+
+@needs_node
+def test_marks_of_files_opened_together_are_renumbered():
+    out = _node(r"""
+      const a = {picked: [0, 2], notes: {1: "가"}, ph: 6.0, ruleSet: {name: "팀"}, ruleProblem: "", unread: ""};
+      const b = {picked: [1], notes: {0: "나", 3: "다"}, ph: 7.4, ruleSet: null, ruleProblem: "", unread: "Unexpected token"};
+      console.log(JSON.stringify({
+        one: ABUI.joinReviews([{count: 5, review: a}]),
+        three: ABUI.joinReviews([{count: 5, review: a}, {count: 2, review: null}, {count: 4, review: b}]),
+        fastaOnly: ABUI.joinReviews([{count: 3, review: null}, {count: 2, review: null}]),
+        untouched: JSON.stringify(a.picked) === "[0,2]"}));""")
+    assert out["one"] == {"picked": [0, 2], "notes": {"1": "가"}, "ph": 6.0, "ruleSet": {"name": "팀"}, "ruleProblem": "", "unread": ""}
+    # the second file starts at place 5, the third at place 7; pH and rules of several files are not taken over
+    assert out["three"] == {"picked": [0, 2, 8], "notes": {"1": "가", "7": "나", "10": "다"}, "ph": None, "ruleSet": None,
+                            "ruleProblem": "", "unread": "Unexpected token"}
+    assert out["fastaOnly"] is None and out["untouched"]
+
+
+@needs_node
 def test_json_export_carries_the_active_rule_set():
     out = _node("""
       const payload = ABCHECK.analyze(entries, 7.4);
