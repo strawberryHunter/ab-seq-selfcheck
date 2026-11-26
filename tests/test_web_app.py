@@ -782,6 +782,32 @@ def test_variant_hits_against_the_parent():
 
 
 @needs_node
+def test_similar_cdr3_groups_by_length_and_a_few_residues():
+    out = _node("""
+      const s = Object.fromEntries(entries);
+      const vh = s["SYN-VH-003"], vl = s["SYN-VL-003"];           // CDR-H3 YNKQQQFYLK (98-107), CDR-L3 LRANGEGAD (89-97)
+      const sub = (seq, text) => ABUI.applySubstitutions(seq, ABUI.parseSubstitutions(text, seq).subs);
+      const named = [
+        ["A", vh], ["other", s["SYN-VH-001"]], ["B", sub(vh, "K100G")], ["C", sub(vh, "K100G Q101E")], ["D", sub(vh, "K100G Q101E Q102E Q103E")],
+        ["same", sub(vh, "N56Q")],                                 // CDR-H2 changed, CDR-H3 identical to A
+        ["longer", vh.slice(0, 107) + "A" + vh.slice(107)],
+        ["La", vl], ["Lb", sub(vl, "A91S")], ["bad", "ACDEFGHIK"]];
+      const rows = ABUI.buildRows(ABCHECK.analyze(named, 7.4));
+      const show = (k) => ABUI.similarCdr3(rows, k).map(g => [g.name, g.length, g.members.map(m => m.row.id + ":" + m.diff).join(" ")]);
+      const refused = [-1, 1.5, "2", undefined].map(k => { try { ABUI.similarCdr3(rows, k); return null; } catch (e) { return e.message; } });
+      console.log(JSON.stringify({cdr3: rows.filter(r => r.cdr3).map(r => r.id + "=" + r.cdr3.seq), k0: show(0), k1: show(1), k2: show(2), k3: show(3), none: ABUI.similarCdr3([], 2), refused}));""")
+    assert "A=YNKQQQFYLK" in out["cdr3"] and "D=YNGEEEFYLK" in out["cdr3"] and "Lb=LRSNGEGAD" in out["cdr3"]
+    assert out["k0"] == [["CDR-H3", 10, "A:0 same:0"]]                                  # identical only
+    # one residue: A-B, B-C link into one group although A and C differ in two (each member shows its own count)
+    assert out["k1"] == [["CDR-H3", 10, "A:0 B:1 C:2 same:0"], ["CDR-L3", 9, "La:0 Lb:1"]]
+    assert out["k2"] == [["CDR-H3", 10, "A:0 B:1 C:2 D:4 same:0"], ["CDR-L3", 9, "La:0 Lb:1"]]    # D joins through C (2 apart), 4 from A
+    assert out["k3"] == out["k2"]
+    assert all("longer" not in g[2] and "other" not in g[2] for g in out["k3"])        # another length is never grouped; no alignment
+    assert out["none"] == []
+    assert all(m and "whole number of residues" in m for m in out["refused"])
+
+
+@needs_node
 def test_shared_cdrs_finds_identical_cdrs():
     out = _node("""
       const rows = ABUI.buildRows(ABCHECK.analyze([["a", entries[0][1]], ["b", entries[0][1]], ["c", entries[2][1]]], 7.4));

@@ -452,6 +452,58 @@
     };
   }
 
+  /**
+   * Candidates whose CDR3 are alike: same chain, same CDR3 length, and at most maxDiff residues
+   * different from at least one other member of the group. No alignment is made, so CDR3 of
+   * different lengths are never put together. Linking is by the nearest member (single linkage):
+   * two members of one group can differ by more than maxDiff when a third lies between them, which
+   * is why every member carries its own count against the first one.
+   * Returns [{name, length, members: [{row, diff}]}]: members in list order, groups in the order
+   * of their first member, groups of one left out.
+   */
+  function similarCdr3(rows, maxDiff) {
+    if (!(Number.isInteger(maxDiff) && maxDiff >= 0)) throw new Error("similarCdr3: maxDiff must be a whole number of residues, got " + maxDiff);
+    var buckets = {}, order = [];
+    rows.forEach(function (r) {
+      if (!r.cdr3 || !r.chain) return;
+      var key = r.chain + "|" + r.cdr3.seq.length;
+      if (!buckets[key]) { buckets[key] = []; order.push(key); }
+      buckets[key].push(r);
+    });
+    var within = function (a, b) {
+      var n = 0;
+      for (var i = 0; i < a.length; i++) if (a[i] !== b[i] && ++n > maxDiff) return false;
+      return true;
+    };
+    var groups = [];
+    order.forEach(function (key) {
+      var list = buckets[key], parent = list.map(function (_, i) { return i; });
+      var find = function (i) { while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; } return i; };
+      for (var i = 0; i < list.length; i++) {
+        for (var j = i + 1; j < list.length; j++) {
+          if (find(i) !== find(j) && within(list[i].cdr3.seq, list[j].cdr3.seq)) parent[find(j)] = find(i);
+        }
+      }
+      var byRoot = {}, roots = [];
+      list.forEach(function (r, i) {
+        var root = find(i);
+        if (!byRoot[root]) { byRoot[root] = []; roots.push(root); }
+        byRoot[root].push(r);
+      });
+      roots.forEach(function (root) {
+        var members = byRoot[root];
+        if (members.length < 2) return;
+        var first = members[0].cdr3;
+        groups.push({
+          name: first.name, length: first.seq.length,
+          members: members.map(function (r) { return { row: r, diff: diffCdr(first, r.cdr3).count }; })
+        });
+      });
+    });
+    groups.sort(function (a, b) { return a.members[0].row.index - b.members[0].row.index; });
+    return groups;
+  }
+
   /** Identical CDR sequences shared by two or more candidates: [{name, seq, ids}]. */
   function sharedCdrs(rows) {
     var groups = {}, order = [];
@@ -1027,7 +1079,7 @@
     VALIDATION: VALIDATION, TABLE_HEAD: TABLE_HEAD, ONE_PAGE_CSS: ONE_PAGE_CSS,
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
-    filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
+    filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, similarCdr3: similarCdr3, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
     variantName: variantName, regionAt: regionAt, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanNote: cleanNote, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
