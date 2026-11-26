@@ -64,10 +64,10 @@ def test_example_uses_only_synthetic_sequences():
 
 def test_app_screens_are_all_present():
     html = APP.read_text(encoding="utf-8")
-    for view in ["new", "all", "review", "unknown", "errors", "picked", "compare", "properties",
+    for view in ["new", "all", "review", "unknown", "errors", "picked", "compare", "properties", "motifs",
                  "onepage", "rules", "validation", "guide"]:
         assert f'"{view}"' in html, view
-    for label in ["+ 새 분석", "검토 필요", "판정 불가", "CDR 비교", "물성 분포", "선별 규칙", "검증 기록", "사용법",
+    for label in ["+ 새 분석", "검토 필요", "판정 불가", "CDR 비교", "물성 분포", "모티프 분포", "선별 규칙", "검증 기록", "사용법",
                   "개인 프로젝트 · 셀트리온과 무관"]:
         assert label in html, label
 
@@ -583,6 +583,54 @@ def test_cdr_written_against_a_reference():
     assert out["fixedShown"] == "······Q·········"
     assert "LSTAAR<u " in out["plain"] and ">NG</u>" in out["plain"]            # unchanged without a display text
     assert out["bad"] and "as long as the CDR" in out["bad"]
+
+
+@needs_node
+def test_motif_table_counts_candidates_like_the_python_engine():
+    """Every cell of 모티프 분포 is recounted here with the Python package, and each cell's list filter returns that many."""
+    from collections import Counter
+
+    from abcheck.annotate import annotate
+    from abcheck.liabilities import find_liabilities
+
+    corpus = json.loads((ROOT / "data" / "synthetic" / "sequences.json").read_text(encoding="utf-8"))["sequences"]
+    cells, totals, flags = Counter(), Counter(), Counter()
+    for rec in corpus:
+        rep = find_liabilities(annotate(rec["sequence"]))
+        for key in {(h.label, h.region) for h in rep.hits}:
+            cells[key] += 1
+        for label in {h.label for h in rep.hits}:
+            totals[label] += 1
+        for label in {f["label"] if isinstance(f, dict) else f.label for f in rep.domain_flags}:
+            flags[label] += 1
+
+    out = _node("""
+      const rows = ABUI.buildRows(ABCHECK.analyze(entries.concat([["bad", "ACDEFGHIK"]]), 7.4));
+      const t = ABUI.motifTable(rows);
+      const n = (motif) => ABUI.filterRows(rows, {view: "all", motif}).length;
+      // two NG in one candidate (CDR-H2 and CDR-H3): one candidate in each cell, one in the total
+      const s = Object.fromEntries(entries)["SYN-VH-003"];
+      const twice = ABUI.motifTable(ABUI.buildRows(ABCHECK.analyze([["v", s.slice(0, 99) + "G" + s.slice(100)]], 7.4))).rows.find(r => r.label === "deamidation (NG)");
+      console.log(JSON.stringify({
+        evaluated: t.evaluated, regions: t.regions, labels: t.rows.map(r => r.label), table: t.rows, flags: t.flags,
+        listed: t.rows.flatMap(r => Object.keys(r.cells).map(reg => [r.label, reg, n({label: r.label, region: reg})])),
+        listedTotals: t.rows.map(r => [r.label, n({label: r.label, region: null})]),
+        listedFlags: t.flags.map(f => [f.label, n({label: f.label, region: null, flag: true})]),
+        twice, motifOrder: ABUI.MOTIFS.map(m => m.label), empty: ABUI.motifTable([])}));""")
+    assert out["evaluated"] == len(corpus)                          # the input error is not counted
+    assert out["labels"] == out["motifOrder"]                       # every motif of the table, found or not
+    order = ["CDR-H1", "CDR-H2", "CDR-H3", "CDR-L1", "CDR-L2", "CDR-L3", "framework", "구간 미확정"]
+    assert out["regions"] == [r for r in order if any(k[1] == r for k in cells)]
+    got = {(row["label"], reg): n for row in out["table"] for reg, n in row["cells"].items()}
+    assert got == dict(cells)
+    assert {row["label"]: row["total"] for row in out["table"] if row["total"]} == dict(totals)
+    assert {f["label"]: f["total"] for f in out["flags"]} == dict(flags) and flags      # the corpus has an unpaired Cys case
+    # the list filter of a cell holds exactly as many candidates as the cell says
+    assert {(label, reg): n for label, reg, n in out["listed"]} == dict(cells)
+    assert {label: n for label, n in out["listedTotals"] if n} == dict(totals)
+    assert {label: n for label, n in out["listedFlags"]} == dict(flags)
+    assert out["twice"] == {"label": "deamidation (NG)", "cells": {"CDR-H2": 1, "CDR-H3": 1}, "total": 1}
+    assert out["empty"]["evaluated"] == 0 and out["empty"]["regions"] == [] and out["empty"]["flags"] == []
 
 
 @needs_node

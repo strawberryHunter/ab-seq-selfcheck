@@ -242,7 +242,7 @@
       query: a name, a motif name, residues in a CDR (2+ letters) or in the sequence (3+). */
   function filterRows(rows, opts) {
     var view = opts.view || "all", chain = opts.chain || "all", conf = opts.conf || "all";
-    var picked = opts.picked;
+    var picked = opts.picked, motif = opts.motif || null;
     var q = String(opts.query || "").trim();
     var qName = q.toLowerCase();
     var letters = /^[A-Za-z]+$/.test(q) ? q.toUpperCase() : null;
@@ -252,6 +252,10 @@
       if (chain !== "all" && r.chain !== chain) return false;
       if (conf === "yes" && !(r.inputOk && r.confident)) return false;
       if (conf === "no" && !(r.inputOk && !r.confident)) return false;
+      if (motif) {
+        if (motif.flag) { if (!r.flags.some(function (f) { return f.label === motif.label; })) return false; }
+        else if (!r.hits.some(function (h) { return h.label === motif.label && (!motif.region || h.region === motif.region); })) return false;
+      }
       if (!q) return true;
       if (r.id.toLowerCase().indexOf(qName) >= 0) return true;
       if (r.hits.some(function (h) { return h.label.toLowerCase().indexOf(qName) >= 0; })) return true;
@@ -295,6 +299,49 @@
       if (other.seq[i] === ref.seq[i]) text += "·"; else { text += other.seq[i]; count += 1; }
     }
     return { comparable: true, text: text, count: count };
+  }
+
+  /* ---------- motifs over the panel ---------- */
+  var REGION_ORDER = ["CDR-H1", "CDR-H2", "CDR-H3", "CDR-L1", "CDR-L2", "CDR-L3", "framework", "구간 미확정"];
+
+  /**
+   * How the detected motifs spread over the panel. For each motif (the engine's table order, every
+   * motif listed even when nothing was found) the number of candidates with at least one such hit
+   * in each region, and in any region. It counts candidates, not hits: two NG in one CDR-H2 count
+   * once. Nobody is ranked by it. Regions are the engine's own names; only those that occur are
+   * columns. Returns {evaluated, regions, rows: [{label, cells: {region: n}, total}],
+   * flags: [{label, total}]} -- flags are the whole-domain ones (unpaired Cys).
+   */
+  function motifTable(rows) {
+    var ok = rows.filter(function (r) { return r.inputOk; });
+    var order = MOTIFS.map(function (m) { return m.label; });
+    var by = {}, regionSeen = {}, flagCount = {}, flagOrder = [];
+    order.forEach(function (label) { by[label] = { label: label, cells: {}, total: 0 }; });
+    ok.forEach(function (r) {
+      var mine = {};
+      r.hits.forEach(function (h) { (mine[h.label] = mine[h.label] || {})[h.region] = true; });
+      Object.keys(mine).forEach(function (label) {
+        if (!by[label]) { by[label] = { label: label, cells: {}, total: 0 }; order.push(label); }
+        by[label].total += 1;
+        Object.keys(mine[label]).forEach(function (region) {
+          by[label].cells[region] = (by[label].cells[region] || 0) + 1;
+          regionSeen[region] = true;
+        });
+      });
+      var flagged = {};
+      r.flags.forEach(function (f) { flagged[f.label] = true; });
+      Object.keys(flagged).forEach(function (label) {
+        if (!(label in flagCount)) { flagCount[label] = 0; flagOrder.push(label); }
+        flagCount[label] += 1;
+      });
+    });
+    return {
+      evaluated: ok.length,
+      regions: REGION_ORDER.filter(function (x) { return regionSeen[x]; })
+        .concat(Object.keys(regionSeen).filter(function (x) { return REGION_ORDER.indexOf(x) < 0; })),
+      rows: order.map(function (label) { return by[label]; }),
+      flags: flagOrder.map(function (label) { return { label: label, total: flagCount[label] }; })
+    };
   }
 
   /* ---------- substitution trial ---------- */
@@ -917,7 +964,7 @@
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
-    variantName: variantName, regionAt: regionAt, diffHits: diffHits, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
+    variantName: variantName, regionAt: regionAt, diffHits: diffHits, motifTable: motifTable, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
