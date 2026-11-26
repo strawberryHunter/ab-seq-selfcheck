@@ -301,6 +301,28 @@
     return { comparable: true, text: text, count: count };
   }
 
+  /**
+   * The list without one entry. Picks and comparison references are kept by place in the list, so
+   * they are renumbered to stay on the same candidates; those of the removed entry are dropped.
+   * Returns {entries, picked, ref}.
+   */
+  function withoutEntry(entries, index, picked, ref) {
+    if (!(Number.isInteger(index) && index >= 0 && index < entries.length)) {
+      throw new Error("withoutEntry: no entry " + index + " in a list of " + entries.length);
+    }
+    var shift = function (i) { return i > index ? i - 1 : i; };
+    var newRef = {};
+    Object.keys(ref || {}).forEach(function (k) {
+      var v = ref[k];
+      newRef[k] = v === null || v === undefined || v === index ? null : shift(v);
+    });
+    return {
+      entries: entries.slice(0, index).concat(entries.slice(index + 1)),
+      picked: (picked || []).filter(function (i) { return i !== index; }).map(shift),
+      ref: newRef
+    };
+  }
+
   /* ---------- motifs over the panel ---------- */
   var REGION_ORDER = ["CDR-H1", "CDR-H2", "CDR-H3", "CDR-L1", "CDR-L2", "CDR-L3", "framework", "구간 미확정"];
 
@@ -964,7 +986,7 @@
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
-    variantName: variantName, regionAt: regionAt, diffHits: diffHits, motifTable: motifTable, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
+    variantName: variantName, regionAt: regionAt, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,

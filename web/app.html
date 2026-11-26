@@ -967,28 +967,48 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       show();
     }));
   }
-  /** Put a variant on the list: the analysis runs again with one more entry; picks, reference and the stored copy follow. */
-  function addVariant(r, t) {
-    const entries = state.entries.concat([[t.name, t.seq]]);
-    const keep = { picked: Array.from(state.picked), ref: state.ref, motif: state.motif, limit: state.limit, hero: state.hero, recentId: state.recentId };
-    const source = / \+ 변이체$/.test(state.source) ? state.source : state.source + " + 변이체";
+  /**
+   * The list was changed by hand (a variant added, an entry taken out): the analysis runs again on
+   * the new entries, and what the user had set follows -- picks and references as given, the motif
+   * filter, the page of the list. The stored copy of the old list is replaced, not kept beside it.
+   */
+  function relist(entries, source, picked, ref, done) {
+    const keep = { motif: state.motif, limit: state.limit, hero: state.hero, recentId: state.recentId };
     run(() => {
-      if (!analyzeEntries(entries, source, state.ph, { picked: keep.picked })) throw new Error("addVariant: the list with " + t.name + " was rejected");
-      state.ref = keep.ref; state.motif = keep.motif; state.limit = keep.limit; state.hero = keep.hero;
-      if (state.recentId) {                       // the stored copy of the list before this variant is replaced, not kept beside it
+      if (!analyzeEntries(entries, source, state.ph, { picked })) throw new Error("relist: the changed list of " + entries.length + " was rejected");
+      state.ref = ref; state.motif = keep.motif; state.limit = keep.limit; state.hero = keep.hero;
+      if (state.recentId) {
         const list = recents().filter((x) => x.id !== keep.recentId);
         const cur = list.find((x) => x.id === state.recentId);
-        if (cur) cur.picked = keep.picked;
+        if (cur) cur.picked = picked;
         store.set(K.recent, list);
       }
       state.input = recentText({ entries }); state.fileName = "";      // 새 분석 shows the list as it is now
       render();
+      done();
+    }, entries.length);
+  }
+  /** Put a variant on the list, at its end. */
+  function addVariant(r, t) {
+    const source = / \+ 변이체$/.test(state.source) ? state.source : state.source + " + 변이체";
+    relist(state.entries.concat([[t.name, t.seq]]), source, Array.from(state.picked), state.ref, () => {
       openSheet(r.index);
       if ($("t-subs")) $("t-subs").focus();
       const msg = `${t.name} 추가${unkept() ? " · 저장 안 됨" : ""}`;
       if (r.chain && r.cdrs.length) toast(msg, "CDR 비교", () => { state.ref[r.chain] = r.index; closeSheet(); go("compare"); });
       else toast(msg);
-    }, entries.length);
+    });
+  }
+  /** Take one entry out of the list; the toast puts the list back as it was. */
+  function dropEntry(index) {
+    const r = state.rows[index];
+    if (!r || state.entries.length !== state.rows.length) throw new Error("dropEntry: entry " + index + " of " + state.entries.length + " entries, " + state.rows.length + " rows");
+    const before = { entries: state.entries, source: state.source, picked: Array.from(state.picked), ref: state.ref };
+    const next = ABUI.withoutEntry(before.entries, index, before.picked, before.ref);
+    closeSheet();
+    relist(next.entries, before.source, next.picked, next.ref, () => {
+      toast(`${r.id} 뺌${unkept() ? " · 저장 안 됨" : ""}`, "되돌리기", () => relist(before.entries, before.source, before.picked, before.ref, () => toast(`${r.id} 되돌림`)));
+    });
   }
 
   function openSheet(index, opener) {
@@ -1006,9 +1026,12 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (partner) $("sheet-partner").addEventListener("click", () => openSheet(partner.index));
     $("sheet-pick").hidden = !r.inputOk;
     $("sheet-pick").setAttribute("aria-pressed", String(state.picked.has(index)));
-    $("sheet-body").innerHTML = sheetBody(r);
+    const last = r.inputOk && state.rows.filter((x) => x.inputOk).length === 1;      // a list needs one sequence that can be analysed
+    $("sheet-body").innerHTML = sheetBody(r) +
+      `<div class="blk"><div class="row"><button class="btn" type="button" id="sheet-drop"${last ? ' disabled title="분석할 수 있는 마지막 서열"' : ""}>목록에서 빼기</button></div></div>`;
     $("sheet-body").scrollTop = 0;
     bindTrial(r);
+    on("sheet-drop", "click", () => dropEntry(index));
     $("sheet-pos").textContent = pos >= 0 ? `${pos + 1} / ${list.length}` : "";
     $("sheet-prev").disabled = pos <= 0;
     $("sheet-next").disabled = pos < 0 || pos >= list.length - 1;
@@ -1284,6 +1307,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>파일</dt><dd>FASTA · CSV · TSV · JSON 여러 개를 한 번에 끌어다 놓기. .xlsx 는 'CSV UTF-8' 로 저장 후 열기</dd>
         <dt>모티프 분포</dt><dd>항목과 구간마다 그 모티프가 한 번이라도 있는 후보 수 (모티프 개수가 아니며 순위도 아님). 숫자를 누르면 그 후보만 목록에 표시되고, 목록의 칩을 누르면 해제</dd>
         <dt>치환 시험</dt><dd>후보 상세에서 치환을 적으면 (N56Q, 여러 개는 띄어쓰기) 바뀐 서열을 같은 엔진 · 같은 규칙으로 다시 계산해 원본과 나란히 표시. 번호는 입력한 서열의 순번이며 Kabat 번호가 아님. 원래 잔기가 그 자리와 다르면 고치지 않고 거절. '후보로 추가' 는 변이체를 목록 끝에 넣음</dd>
+        <dt>목록에서 빼기</dt><dd>후보 상세 맨 아래. 뺀 뒤에도 고른 후보와 비교 기준은 같은 후보를 가리키며, 알림의 '되돌리기' 로 복구</dd>
         <dt>기준 대비 비교</dt><dd>CDR 비교에서 '기준' 후보를 고르면 나머지 후보는 기준과 같은 잔기를 · 으로, 다른 잔기만 글자로 표시. 길이가 다른 CDR 은 겹쳐 볼 수 없어 서열 그대로 두고 '길이 다름' 으로 표시 (정렬하지 않음)</dd>
         <dt>규칙 공유</dt><dd>선별 규칙 화면의 '복사' 가 규칙 세트를 글 한 줄로 복사. 받은 사람은 같은 화면에 붙여넣고 '가져오기'. 이 화면에서 저장한 JSON 결과를 붙여넣어도 그 안의 규칙을 가져옴</dd>
         <dt>번호 섞인 복사</dt><dd>위치 번호 · 끝의 * 가 섞인 서열은 오류 아래 버튼으로 한 번에 지움. 서열 중간의 * 는 지우지 않음</dd>

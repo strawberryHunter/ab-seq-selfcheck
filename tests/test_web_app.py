@@ -634,6 +634,27 @@ def test_motif_table_counts_candidates_like_the_python_engine():
 
 
 @needs_node
+def test_taking_an_entry_out_keeps_picks_and_references_on_the_same_candidates():
+    out = _node("""
+      const list = [["a", "AAA"], ["b", "CCC"], ["c", "DDD"], ["d", "EEE"], ["e", "FFF"]];
+      const names = (x) => ({entries: x.entries.map(e => e[0]), picked: x.picked.map(i => x.entries[i][0]), ref: Object.fromEntries(Object.entries(x.ref).map(([k, v]) => [k, v === null ? null : x.entries[v][0]]))});
+      const refused = [-1, 5, 1.5, "1"].map(i => { try { ABUI.withoutEntry(list, i, [], {}); return null; } catch (e) { return e.message; } });
+      const untouched = JSON.stringify(list);
+      console.log(JSON.stringify({
+        middle: names(ABUI.withoutEntry(list, 1, [0, 1, 3, 4], {H: 3, L: 0})),
+        ofPickedRef: names(ABUI.withoutEntry(list, 3, [3], {H: 3, L: null})),
+        first: names(ABUI.withoutEntry(list, 0, [4], {H: 1, L: 4})),
+        last: names(ABUI.withoutEntry(list, 4, [0, 4], {H: 4, L: 2})),
+        bare: ABUI.withoutEntry(list, 2).picked, inputUnchanged: JSON.stringify(list) === untouched, refused}));""")
+    assert out["middle"] == {"entries": ["a", "c", "d", "e"], "picked": ["a", "d", "e"], "ref": {"H": "d", "L": "a"}}
+    assert out["ofPickedRef"] == {"entries": ["a", "b", "c", "e"], "picked": [], "ref": {"H": None, "L": None}}
+    assert out["first"] == {"entries": ["b", "c", "d", "e"], "picked": ["e"], "ref": {"H": "b", "L": "e"}}
+    assert out["last"] == {"entries": ["a", "b", "c", "d"], "picked": ["a"], "ref": {"H": None, "L": "c"}}
+    assert out["bare"] == [] and out["inputUnchanged"] is True
+    assert all(m and "withoutEntry: no entry" in m for m in out["refused"])
+
+
+@needs_node
 def test_substitutions_are_checked_against_the_sequence():
     out = _node("""
       const seq = Object.fromEntries(entries)["SYN-VH-003"];      // N56 G57 in CDR-H2, W36 and C22 are anchors
