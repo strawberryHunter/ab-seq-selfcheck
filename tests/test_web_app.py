@@ -879,6 +879,78 @@ def test_variant_hits_against_the_parent():
 
 
 @needs_node
+def test_a_sequence_is_cut_at_its_cdrs():
+    out = _node(EDGE + r"""
+      const rows = ABUI.buildRows(ABCHECK.analyze(all, 7.4));
+      const cut = rows.map(r => ABUI.regionsOf(r));
+      const ok = rows.filter((r, i) => cut[i]);
+      console.log(JSON.stringify({
+        cutRows: ok.length, confidentWithThree: rows.filter(r => r.inputOk && r.confident && r.cdrs.length === 3).length,
+        notCut: rows.filter((r, i) => !cut[i]).map(r => [r.inputOk, r.confident, r.cdrs.length]),
+        names: [...new Set(ok.map(r => ABUI.regionsOf(r).map(p => p.name).join(" ")))],
+        joined: ok.every(r => ABUI.regionsOf(r).map(p => p.seq).join("") === r.sequence),
+        contiguous: ok.every(r => { const ps = ABUI.regionsOf(r); return ps[0].start === 1 && ps[6].end === r.sequence.length && ps.every((p, i) => i === 0 || p.start === ps[i - 1].end + 1); }),
+        cdrPiecesAreTheEngines: ok.every(r => r.cdrs.every(c => ABUI.regionsOf(r).some(p => p.name === c.name && p.start === c.start && p.end === c.end && p.seq === c.seq))),
+        first: ABUI.regionsOf(rows.find(r => r.id === "SYN-VH-003")).map(p => p.name + ":" + p.start + "-" + p.end)}));""")
+    assert out["cutRows"] == out["confidentWithThree"] > 10
+    assert all(not (ok and conf and n == 3) for ok, conf, n in out["notCut"])      # the rest: input error, not confident, or no CDRs
+    assert sorted(out["names"]) == ["FR1 CDR-H1 FR2 CDR-H2 FR3 CDR-H3 FR4", "FR1 CDR-L1 FR2 CDR-L2 FR3 CDR-L3 FR4"]
+    assert out["joined"] and out["contiguous"] and out["cdrPiecesAreTheEngines"]
+    assert out["first"] == ["FR1:1-30", "CDR-H1:31-35", "FR2:36-49", "CDR-H2:50-65", "FR3:66-97", "CDR-H3:98-107", "FR4:108-118"]
+
+
+@needs_node
+def test_a_candidate_against_the_reference_piece_by_piece():
+    out = _node(r"""
+      const s = Object.fromEntries(entries);
+      const vh = s["SYN-VH-003"];                                  // FR1 1-30, CDR-H1 31-35, CDR-H2 50-65, CDR-H3 98-107, 118 aa
+      const sub = (seq, text) => ABUI.applySubstitutions(seq, ABUI.parseSubstitutions(text, seq).subs);
+      const typed = "F10Y N56Q H80R K100G S115T";
+      const named = [
+        ["ref", vh], ["same", vh], ["point", sub(vh, typed)],
+        ["longer3", sub(vh.slice(0, 100) + "A" + vh.slice(100), "F10Y N56Q")],      // CDR-H3 one residue longer
+        ["shortFr1", sub(vh.slice(1), "N55Q")],                      // FR1 one residue shorter: every later place moves by one
+        ["noAnchor", sub(vh, "W36A N56Q")],                          // annotation fails, same length
+        ["noAnchorLonger", sub(vh, "W36A") + "A"], ["light", s["SYN-VL-003"]], ["bad", "ACDEFGHIK"]];
+      const rows = ABUI.buildRows(ABCHECK.analyze(named, 7.4));
+      const r = Object.fromEntries(rows.map(x => [x.id, x]));
+      const show = (d) => ({mode: d.mode, count: d.count, samePlaces: d.samePlaces,
+        subs: d.subs.map(x => x.from + x.pos + x.to + "@" + x.region).join(" "),
+        regions: d.regions.map(g => g.name + ":" + (g.comparable ? g.count : g.refLength + "!=" + g.length)).join(" ")});
+      console.log(JSON.stringify({
+        conf: rows.map(x => x.id + ":" + x.confident + ":" + x.cdrs.length),
+        same: show(ABUI.diffRegions(r.ref, r.same)), point: show(ABUI.diffRegions(r.ref, r.point)),
+        back: show(ABUI.diffRegions(r.point, r.ref)),
+        longer3: show(ABUI.diffRegions(r.ref, r.longer3)), shortFr1: show(ABUI.diffRegions(r.ref, r.shortFr1)),
+        noAnchor: show(ABUI.diffRegions(r.ref, r.noAnchor)), noAnchorLonger: show(ABUI.diffRegions(r.ref, r.noAnchorLonger)),
+        bad: show(ABUI.diffRegions(r.ref, r.bad)), nothing: show(ABUI.diffRegions(null, r.ref)),
+        // what was typed is what is found
+        typedBack: ABUI.diffRegions(r.ref, r.point).subs.map(x => x.from + x.pos + x.to).join(" ") === typed,
+        // the row is the reference with these substitutions, wherever places correspond
+        rebuilds: ["point", "noAnchor"].every(id => { const d = ABUI.diffRegions(r.ref, r[id]); return d.samePlaces && ABUI.applySubstitutions(r.ref.sequence, d.subs) === r[id].sequence; })}));""")
+    assert out["conf"][:5] == ["ref:true:3", "same:true:3", "point:true:3", "longer3:true:3", "shortFr1:true:3"]
+    assert out["conf"][5] == "noAnchor:false:0"
+    assert out["same"] == {"mode": "regions", "count": 0, "samePlaces": True, "subs": "",
+                           "regions": "FR1:0 CDR-H1:0 FR2:0 CDR-H2:0 FR3:0 CDR-H3:0 FR4:0"}
+    assert out["point"] == {"mode": "regions", "count": 5, "samePlaces": True,
+                            "subs": "F10Y@FR1 N56Q@CDR-H2 H80R@FR3 K100G@CDR-H3 S115T@FR4",
+                            "regions": "FR1:1 CDR-H1:0 FR2:0 CDR-H2:1 FR3:1 CDR-H3:1 FR4:1"}
+    assert out["back"]["subs"] == "Y10F@FR1 Q56N@CDR-H2 R80H@FR3 G100K@CDR-H3 T115S@FR4"
+    # a longer CDR-H3 is left out, the pieces around it are still compared; places after it no longer correspond
+    assert out["longer3"] == {"mode": "regions", "count": 2, "samePlaces": False, "subs": "F10Y@FR1 N56Q@CDR-H2",
+                              "regions": "FR1:1 CDR-H1:0 FR2:0 CDR-H2:1 FR3:0 CDR-H3:10!=11 FR4:0"}
+    # a shorter FR1 is left out; N56Q of the reference is at place 55 of this candidate
+    assert out["shortFr1"] == {"mode": "regions", "count": 1, "samePlaces": False, "subs": "N55Q@CDR-H2",
+                               "regions": "FR1:30!=29 CDR-H1:0 FR2:0 CDR-H2:1 FR3:0 CDR-H3:0 FR4:0"}
+    # no CDR borders on one side: same length, so place by place, regions in the engine's words for that row
+    assert out["noAnchor"] == {"mode": "whole", "count": 2, "samePlaces": True, "subs": "W36A@구간 미확정 N56Q@구간 미확정",
+                               "regions": "전체 서열:2"}
+    none = {"mode": "none", "count": None, "samePlaces": False, "subs": "", "regions": ""}
+    assert out["noAnchorLonger"] == none and out["bad"] == none and out["nothing"] == none
+    assert out["typedBack"] and out["rebuilds"]
+
+
+@needs_node
 def test_similar_cdr3_groups_by_length_and_a_few_residues():
     out = _node("""
       const s = Object.fromEntries(entries);

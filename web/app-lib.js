@@ -427,6 +427,77 @@
     return "framework";
   }
 
+  var FR_NAMES = ["FR1", "FR2", "FR3", "FR4"];
+
+  /**
+   * A sequence cut at its three CDRs: FR1, CDR1, FR2, CDR2, FR3, CDR3, FR4 as [{name, start, end,
+   * seq}] (1-based, inclusive; an empty piece has end = start - 1). null when the row has no
+   * three CDRs or its annotation is not confident: then the borders are not known well enough to
+   * lay two sequences over each other piece by piece.
+   */
+  function regionsOf(row) {
+    if (!row || !row.inputOk || !row.confident || row.cdrs.length !== 3) return null;
+    var cdrs = row.cdrs.slice().sort(function (a, b) { return a.start - b.start; });
+    var out = [], at = 1, seq = row.sequence;
+    var piece = function (name, start, end) { out.push({ name: name, start: start, end: end, seq: seq.slice(start - 1, end) }); };
+    for (var i = 0; i < 3; i++) {
+      if (cdrs[i].start < at) throw new Error("regionsOf: the CDRs of " + row.id + " overlap at " + cdrs[i].start);
+      piece(FR_NAMES[i], at, cdrs[i].start - 1);
+      piece(cdrs[i].name, cdrs[i].start, cdrs[i].end);
+      at = cdrs[i].end + 1;
+    }
+    piece(FR_NAMES[3], at, seq.length);
+    return out;
+  }
+
+  /**
+   * Every residue in which `row` differs from the reference `ref`. No alignment is made.
+   * - mode "regions": both are cut at their CDRs and laid piece over piece. A piece of another
+   *   length is not compared (comparable false); the other pieces still are.
+   * - mode "whole": one side has no usable CDR borders but both have the same length, so they
+   *   are compared place by place.
+   * - mode "none": neither is possible.
+   * Returns {mode, regions: [{name, comparable, refLength, length, count}], subs: [{pos, from,
+   * to, region}], count, samePlaces}. pos is the place in `row` (1-based), from the reference's
+   * residue, to the row's; count is the number of subs (null in mode "none"). samePlaces says
+   * that every place in `row` is the same place in `ref` (no piece differs in length), which is
+   * what comparing hits by place needs.
+   */
+  function diffRegions(ref, row) {
+    var out = { mode: "none", regions: [], subs: [], count: null, samePlaces: false };
+    if (!ref || !row || !ref.inputOk || !row.inputOk) return out;
+    var a = regionsOf(ref), b = regionsOf(row), pairs;
+    if (a && b) {
+      out.mode = "regions";
+      pairs = a.map(function (x, i) { return [x, b[i]]; });
+    } else if (ref.sequence.length === row.sequence.length) {
+      out.mode = "whole";
+      pairs = [[{ name: "전체 서열", start: 1, seq: ref.sequence }, { name: "전체 서열", start: 1, seq: row.sequence }]];
+    } else {
+      return out;
+    }
+    out.count = 0;
+    out.samePlaces = true;
+    pairs.forEach(function (p) {
+      var x = p[0], y = p[1];
+      var reg = { name: y.name, comparable: x.seq.length === y.seq.length, refLength: x.seq.length, length: y.seq.length, count: null };
+      if (reg.comparable) {
+        reg.count = 0;
+        for (var i = 0; i < y.seq.length; i++) {
+          if (x.seq[i] === y.seq[i]) continue;
+          var pos = y.start + i;
+          out.subs.push({ pos: pos, from: x.seq[i], to: y.seq[i], region: out.mode === "regions" ? y.name : regionAt(row, pos) });
+          reg.count += 1;
+        }
+        out.count += reg.count;
+      } else {
+        out.samePlaces = false;
+      }
+      out.regions.push(reg);
+    });
+    return out;
+  }
+
   /**
    * The hits of a variant against the hits of its parent. A hit is the same hit when it has the
    * same label at the same place (substitutions keep every place where it was).
@@ -1175,7 +1246,7 @@
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, similarCdr3: similarCdr3, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
-    variantName: variantName, regionAt: regionAt, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
+    variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanNote: cleanNote, withReview: withReview, reviewFromJson: reviewFromJson, joinReviews: joinReviews, sameRules: sameRules, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,

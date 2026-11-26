@@ -252,7 +252,10 @@ td.mlabel { white-space: nowrap; }
 @media (max-width: 768px) { td.mlabel { white-space: normal; min-width: 128px; max-width: 150px; } }
 #t-subs { flex: 1 1 140px; min-width: 0; max-width: 260px; text-transform: uppercase; }
 #t-out { display: grid; gap: 8px; min-width: 0; }
-#t-out h4 { margin: 4px 0 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+#t-out h4, #refblk h4 { margin: 4px 0 0; font-size: 13px; font-weight: 700; color: var(--muted); }
+td.subs { word-spacing: 6px; line-height: 1.7; }
+#refblk td.nw { width: 1%; }
+button.chip[aria-pressed="true"] { border-color: var(--brand); color: var(--text); background: var(--brand-tint); font-weight: 700; }
 #t-out .tname { overflow-wrap: anywhere; }
 
 /* ---------- other screens ---------- */
@@ -2854,6 +2857,77 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return "framework";
   }
 
+  var FR_NAMES = ["FR1", "FR2", "FR3", "FR4"];
+
+  /**
+   * A sequence cut at its three CDRs: FR1, CDR1, FR2, CDR2, FR3, CDR3, FR4 as [{name, start, end,
+   * seq}] (1-based, inclusive; an empty piece has end = start - 1). null when the row has no
+   * three CDRs or its annotation is not confident: then the borders are not known well enough to
+   * lay two sequences over each other piece by piece.
+   */
+  function regionsOf(row) {
+    if (!row || !row.inputOk || !row.confident || row.cdrs.length !== 3) return null;
+    var cdrs = row.cdrs.slice().sort(function (a, b) { return a.start - b.start; });
+    var out = [], at = 1, seq = row.sequence;
+    var piece = function (name, start, end) { out.push({ name: name, start: start, end: end, seq: seq.slice(start - 1, end) }); };
+    for (var i = 0; i < 3; i++) {
+      if (cdrs[i].start < at) throw new Error("regionsOf: the CDRs of " + row.id + " overlap at " + cdrs[i].start);
+      piece(FR_NAMES[i], at, cdrs[i].start - 1);
+      piece(cdrs[i].name, cdrs[i].start, cdrs[i].end);
+      at = cdrs[i].end + 1;
+    }
+    piece(FR_NAMES[3], at, seq.length);
+    return out;
+  }
+
+  /**
+   * Every residue in which `row` differs from the reference `ref`. No alignment is made.
+   * - mode "regions": both are cut at their CDRs and laid piece over piece. A piece of another
+   *   length is not compared (comparable false); the other pieces still are.
+   * - mode "whole": one side has no usable CDR borders but both have the same length, so they
+   *   are compared place by place.
+   * - mode "none": neither is possible.
+   * Returns {mode, regions: [{name, comparable, refLength, length, count}], subs: [{pos, from,
+   * to, region}], count, samePlaces}. pos is the place in `row` (1-based), from the reference's
+   * residue, to the row's; count is the number of subs (null in mode "none"). samePlaces says
+   * that every place in `row` is the same place in `ref` (no piece differs in length), which is
+   * what comparing hits by place needs.
+   */
+  function diffRegions(ref, row) {
+    var out = { mode: "none", regions: [], subs: [], count: null, samePlaces: false };
+    if (!ref || !row || !ref.inputOk || !row.inputOk) return out;
+    var a = regionsOf(ref), b = regionsOf(row), pairs;
+    if (a && b) {
+      out.mode = "regions";
+      pairs = a.map(function (x, i) { return [x, b[i]]; });
+    } else if (ref.sequence.length === row.sequence.length) {
+      out.mode = "whole";
+      pairs = [[{ name: "전체 서열", start: 1, seq: ref.sequence }, { name: "전체 서열", start: 1, seq: row.sequence }]];
+    } else {
+      return out;
+    }
+    out.count = 0;
+    out.samePlaces = true;
+    pairs.forEach(function (p) {
+      var x = p[0], y = p[1];
+      var reg = { name: y.name, comparable: x.seq.length === y.seq.length, refLength: x.seq.length, length: y.seq.length, count: null };
+      if (reg.comparable) {
+        reg.count = 0;
+        for (var i = 0; i < y.seq.length; i++) {
+          if (x.seq[i] === y.seq[i]) continue;
+          var pos = y.start + i;
+          out.subs.push({ pos: pos, from: x.seq[i], to: y.seq[i], region: out.mode === "regions" ? y.name : regionAt(row, pos) });
+          reg.count += 1;
+        }
+        out.count += reg.count;
+      } else {
+        out.samePlaces = false;
+      }
+      out.regions.push(reg);
+    });
+    return out;
+  }
+
   /**
    * The hits of a variant against the hits of its parent. A hit is the same hit when it has the
    * same label at the same place (substitutions keep every place where it was).
@@ -3602,7 +3676,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     esc: esc, countText: countText, normalizeRuleSet: normalizeRuleSet, describeRuleSet: describeRuleSet,
     applyRules: applyRules, withRuleResults: withRuleResults, categories: categories, buildRows: buildRows, tally: tally,
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, similarCdr3: similarCdr3, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
-    variantName: variantName, regionAt: regionAt, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
+    variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanNote: cleanNote, withReview: withReview, reviewFromJson: reviewFromJson, joinReviews: joinReviews, sameRules: sameRules, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, toFasta: toFasta, toMailText: toMailText,
@@ -4124,7 +4198,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const s = seqObj(r);
     if (!s.input_ok) return `<div class="blk"><h3>고칠 것</h3><ul>${s.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul></div>`;
     const a = s.annotation, L = s.liabilities, P = Object.values(s.properties || {});
-    let h = "";
+    let h = refBlock(r);
     if (r.reasons.length || r.note) h += `<div class="blk"><h3>${r.reasons.length ? "규칙 해당 · " + esc(rules().name) : "분류 근거"}</h3><ul>${r.reasons.map((x) => `<li>${esc(x)}</li>`).join("")}${r.note ? `<li>${esc(r.note)}</li>` : ""}</ul></div>`;
     const memos = [...a.reasons.map((x) => ["신뢰 불가 사유", x]), ...a.warnings.map((x) => ["주의", x]), ...s.warnings.map((x) => ["참고", x])];
     if (memos.length) h += `<div class="blk"><h3>주석 메모</h3><ul>${memos.map(([k, x]) => `<li><b>${k}</b> · ${esc(x)}</li>`).join("")}</ul></div>`;
@@ -4154,6 +4228,30 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     }
     return h;
   }
+  /* ---------- against the reference (in the drawer) ---------- */
+  /** The reference candidate of a row's chain, when one is set and it is another candidate. */
+  function refOf(r) {
+    const ref = r.chain ? state.rows[state.ref[r.chain]] : null;
+    return ref && ref.index !== r.index && ref.chain === r.chain && ref.inputOk ? ref : null;
+  }
+  /** The open candidate against the reference: every residue that differs, piece by piece, and what that changes. */
+  function refBlock(r) {
+    const ref = refOf(r);
+    if (!ref || !r.inputOk) return "";
+    const d = ABUI.diffRegions(ref, r);
+    const head = `<h3>기준 대비 · ${esc(ref.id)}${d.mode === "none" ? "" : " · 이 후보의 서열 순번"}</h3>`;
+    if (d.mode === "none") return `<div class="blk" id="refblk">${head}<p class="muted">겹쳐 볼 수 없음 · 길이 다름 (기준 ${ref.length} aa · 이 후보 ${r.length} aa) · 정렬하지 않음</p></div>`;
+    const names = [...new Set(d.subs.map((x) => x.region))];
+    const unlike = d.regions.filter((g) => !g.comparable);
+    return `<div class="blk" id="refblk">${head}
+      <p><b>차이 ${d.count}</b>${unlike.length ? ` <span class="muted">· 길이가 다른 구간 ${unlike.length} 제외</span>` : ""}${d.mode === "whole" ? ` <span class="muted">· CDR 경계 없이 자리별로 견줌</span>` : ""}</p>` +
+      (names.length || unlike.length ? `<div class="scroll"><table><tbody>` +
+        names.map((n) => { const subs = d.subs.filter((x) => x.region === n); return `<tr><td class="nw">${esc(n)}</td><td class="num nw">${subs.length}</td><td class="mono subs">${subs.slice(0, 20).map((x) => x.from + x.pos + x.to).join(" ")}${subs.length > 20 ? ` <span class="muted">외 ${subs.length - 20}</span>` : ""}</td></tr>`; }).join("") +
+        unlike.map((g) => `<tr><td class="nw">${esc(g.name)}</td><td class="num nw">-</td><td class="muted">길이 다름 · 기준 ${g.refLength} aa · 이 후보 ${g.length} aa</td></tr>`).join("") +
+        `</tbody></table></div>` : "") +
+      versusHtml(ref, r, d.samePlaces ? ABUI.diffHits(ref.hits, r.hits) : null, "", "기준", "이 후보") + `</div>`;
+  }
+
   /* ---------- substitution trial (in the drawer) ---------- */
   /** One input; the residues of the detected motifs are shortcuts that start a substitution. */
   function trialBlock(s) {
@@ -4178,23 +4276,30 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const v = ABUI.buildRows(ABCHECK.analyze([[name, seq]], state.ph), rules())[0];
     return { errors: [], subs: got.subs, name, seq, v, diff: ABUI.diffHits(r.hits, v.hits), same: state.rows.find((x) => x.inputOk && x.sequence === seq) || null };
   }
-  function trialHtml(r, t) {
-    if (t.errors.length) return `<p class="err">${esc(t.errors[0])}</p>`;
-    if (!t.subs) return "";
-    const v = t.v, d = t.diff;
+  /**
+   * Two analysed sequences side by side: what the rules and the engine say about each (a value
+   * that differs is bold on the right), then the motifs that differ. d is ABUI.diffHits(a.hits,
+   * b.hits), or null when the places of the two do not correspond (then only the table).
+   */
+  function versusHtml(a, b, d, first, headA, headB) {
     const at = (x) => x.start === x.end ? x.start : x.start + "-" + x.end;
     const hit = (x) => `<b>${esc(x.risk)}</b> ${esc(x.label)} <span class="mono">${esc(x.match)}</span> · ${at(x)} · ${esc(x.region)}`;
     const list = (title, items, html) => `<h4>${title} ${items.length}</h4>` + (items.length ? `<ul>${items.map((x) => `<li>${html(x)}</li>`).join("")}</ul>` : "");
-    // a value the substitution changed is written in bold (the tags already differ by themselves)
-    const line = (label, a, b, cls) => `<tr><td class="nw">${label}</td><td class="${cls}">${a}</td><td class="${cls}">${String(a) !== String(b) && !/^</.test(b) ? `<b>${b}</b>` : b}</td></tr>`;
+    const line = (label, x, y, cls) => `<tr><td class="nw">${label}</td><td class="${cls}">${x}</td><td class="${cls}">${String(x) !== String(y) && !/^</.test(y) ? `<b>${y}</b>` : y}</td></tr>`;
     const flags = (x) => x.flags.length ? x.flags.map((f) => esc(f.label)).join(", ") : "없음";
-    return `<div class="scroll"><table><thead><tr><th>${t.subs.map((x) => `<span class="mono">${x.from}${x.pos}${x.to}</span> ${esc(ABUI.regionAt(r, x.pos))}`).join(" · ")}</th><th>원본</th><th>변이체</th></tr></thead><tbody>` +
-      line("분류", tag(r), tag(v), "nw") + line("CDR 주석", confText(r), confText(v), "nw") + line("모티프", r.hits.length, v.hits.length, "num") +
-      (r.flags.length || v.flags.length ? line("도메인 전체", flags(r), flags(v), "") : "") +
-      line("pI", fmt(r.pI, 2), fmt(v.pI, 2), "num") + line("GRAVY", fmt(r.gravy, 3), fmt(v.gravy, 3), "num") + line("net charge", signed(r.charge), signed(v.charge), "num") +
+    return `<div class="scroll"><table><thead><tr><th>${first}</th><th>${headA}</th><th>${headB}</th></tr></thead><tbody>` +
+      line("분류", tag(a), tag(b), "nw") + line("CDR 주석", confText(a), confText(b), "nw") + line("모티프", a.hits.length, b.hits.length, "num") +
+      (a.flags.length || b.flags.length ? line("도메인 전체", flags(a), flags(b), "") : "") +
+      line("pI", fmt(a.pI, 2), fmt(b.pI, 2), "num") + line("GRAVY", fmt(a.gravy, 3), fmt(b.gravy, 3), "num") + line("net charge", signed(a.charge), signed(b.charge), "num") +
       `</tbody></table></div>` +
-      list("사라진 모티프", d.removed, hit) + list("새로 생긴 모티프", d.added, hit) +
-      (d.moved.length ? list("구간 · 위험도가 바뀐 모티프", d.moved, (m) => `${esc(m.before.label)} · ${at(m.after)} · ${esc(m.before.region)} <b>${esc(m.before.risk)}</b> → ${esc(m.after.region)} <b>${esc(m.after.risk)}</b>`) : "") +
+      (d ? list("사라진 모티프", d.removed, hit) + list("새로 생긴 모티프", d.added, hit) +
+        (d.moved.length ? list("구간 · 위험도가 바뀐 모티프", d.moved, (m) => `${esc(m.before.label)} · ${at(m.after)} · ${esc(m.before.region)} <b>${esc(m.before.risk)}</b> → ${esc(m.after.region)} <b>${esc(m.after.risk)}</b>`) : "") : "");
+  }
+  function trialHtml(r, t) {
+    if (t.errors.length) return `<p class="err">${esc(t.errors[0])}</p>`;
+    if (!t.subs) return "";
+    const v = t.v;
+    return versusHtml(r, v, t.diff, t.subs.map((x) => `<span class="mono">${x.from}${x.pos}${x.to}</span> ${esc(ABUI.regionAt(r, x.pos))}`).join(" · "), "원본", "변이체") +
       (v.note ? `<p class="s13 muted">${esc(v.note)}</p>` : "") +
       `<div class="row">${t.same
         ? `<button class="btn" type="button" id="t-same">같은 서열 있음 · ${esc(t.same.id)}</button>`
@@ -4283,8 +4388,16 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     $("sheet-title").textContent = r.id;
     const partner = state.rows[state.pairs[index]];
     $("sheet-sub").innerHTML = `${tag(r)}<span class="s13 muted">${r.inputOk ? `${confText(r)} · ${r.length} aa` : "분석 안 함"}</span>` +
-      (partner ? `<button class="chip" type="button" id="sheet-partner">짝 ${esc(partner.id)}</button>` : "");
+      (partner ? `<button class="chip" type="button" id="sheet-partner">짝 ${esc(partner.id)}</button>` : "") +
+      (r.chain && r.cdrs.length ? `<button class="chip" type="button" id="sheet-ref" aria-pressed="${state.ref[r.chain] === index}" title="CDR 비교와 상세의 '기준 대비' 가 이 후보와 견줌">${state.ref[r.chain] === index ? "기준" : "기준으로"}</button>` : "");
     if (partner) $("sheet-partner").addEventListener("click", () => openSheet(partner.index));
+    on("sheet-ref", "click", () => {
+      state.ref[r.chain] = state.ref[r.chain] === index ? null : index;
+      const keep = $("view").scrollTop;
+      render(); $("view").scrollTop = keep;
+      openSheet(index);
+      $("sheet-ref").focus();
+    });
     $("sheet-pick").hidden = !r.inputOk;
     $("sheet-pick").setAttribute("aria-pressed", String(state.picked.has(index)));
     $("sheet-note").value = state.notes[index] || "";
@@ -4417,14 +4530,22 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         const d = ref && r !== ref ? ABUI.diffCdr(ref.cdrs.find((x) => x.name === n), c) : null;
         return `<td class="seqcell">${marked(c, r.hits, d && d.comparable ? d.text : undefined)}<small>${c.length}</small></td>`;
       };
+      // frameworks are compared only where both annotations are confident and the piece has the same length
+      const frDelta = (r) => {
+        if (r === ref) return "";
+        const d = ABUI.diffRegions(ref, r);
+        if (d.mode !== "regions") return "-";
+        const fr = d.regions.filter((g) => /^FR/.test(g.name));
+        return fr.some((g) => !g.comparable) ? "길이 다름" : String(fr.reduce((n, g) => n + g.count, 0));
+      };
       const delta = (r) => {
         if (r === ref) return `<span class="chip">기준</span>`;
         const ds = names.map((n) => ABUI.diffCdr(ref.cdrs.find((x) => x.name === n), r.cdrs.find((x) => x.name === n)));
         return ds.some((d) => !d.comparable) ? "길이 다름" : String(ds.reduce((a, d) => a + d.count, 0));
       };
-      h += `<section class="card"><div class="row" style="margin-bottom:8px">${pick}</div><div class="scroll"><table class="keep"><thead><tr><th>${title} ${group.length}</th><th>분류</th>${ref ? `<th class="num">차이</th>` : ""}${names.map((n) => `<th>${n}</th>`).join("")}</tr></thead><tbody>` +
+      h += `<section class="card"><div class="row" style="margin-bottom:8px">${pick}</div><div class="scroll"><table class="keep"><thead><tr><th>${title} ${group.length}</th><th>분류</th>${ref ? `<th class="num">CDR 차이</th><th class="num">FR 차이</th>` : ""}${names.map((n) => `<th>${n}</th>`).join("")}</tr></thead><tbody>` +
         group.slice(0, state.tableLimit).map((r) => `<tr class="click" data-i="${r.index}"><td class="nw"><button class="rowlink" type="button" data-open="${r.index}">${esc(r.id)}</button></td><td>${tag(r)}</td>` +
-          (ref ? `<td class="num nw">${delta(r)}</td>` : "") + names.map((n) => cell(r, n)).join("") + `</tr>`).join("") +
+          (ref ? `<td class="num nw">${delta(r)}</td><td class="num nw">${frDelta(r)}</td>` : "") + names.map((n) => cell(r, n)).join("") + `</tr>`).join("") +
         `</tbody></table></div></section>`;
       if (group.length > state.tableLimit) more = Math.max(more, group.length - state.tableLimit);
     });
@@ -4590,6 +4711,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>pH 바꾸기</dt><dd>물성 분포 화면의 pH 칸에 값을 넣고 Enter. net charge 만 다시 계산하고 고른 후보 · 메모 · 비교 기준은 그대로</dd>
         <dt>목록에서 빼기</dt><dd>후보 상세 맨 아래. 뺀 뒤에도 고른 후보와 비교 기준은 같은 후보를 가리키며, 알림의 '되돌리기' 로 복구</dd>
         <dt>비슷한 CDR3</dt><dd>CDR 비교에서 차이 1 · 2 · 3 을 고르면 같은 체인에서 CDR3 길이가 같고 그 수 이하로만 다른 후보를 한 묶음으로 표시. 가장 가까운 후보와 이어 묶으므로 (단일 연결) 묶음 안의 두 후보는 그보다 더 다를 수 있고, 표의 '차이' 는 묶음 첫 후보 대비 잔기 수. 길이가 다른 CDR3 은 묶지 않음 (정렬하지 않음)</dd>
+        <dt>기준 대비 전체 차이</dt><dd>기준은 CDR 비교의 '기준' 또는 후보 상세의 '기준으로' 로 정함. 기준이 있으면 같은 체인의 다른 후보 상세 맨 위에 다른 잔기를 전부 표시 (기준 잔기 · 이 후보의 서열 순번 · 이 후보 잔기, 예 N56Q). 두 서열을 CDR 경계에서 FR1 · CDR1 · FR2 · CDR2 · FR3 · CDR3 · FR4 로 잘라 조각끼리 겹쳐 보며, 길이가 다른 조각은 견주지 않음 (정렬하지 않음). 주석이 신뢰 불가이면 전체 길이가 같을 때만 자리별로 견줌. CDR 비교 표의 'FR 차이' 는 framework 조각의 다른 잔기 수</dd>
         <dt>기준 대비 비교</dt><dd>CDR 비교에서 '기준' 후보를 고르면 나머지 후보는 기준과 같은 잔기를 · 으로, 다른 잔기만 글자로 표시. 길이가 다른 CDR 은 겹쳐 볼 수 없어 서열 그대로 두고 '길이 다름' 으로 표시 (정렬하지 않음)</dd>
         <dt>규칙 공유</dt><dd>선별 규칙 화면의 '복사' 가 규칙 세트를 글 한 줄로 복사. 받은 사람은 같은 화면에 붙여넣고 '가져오기'. 이 화면에서 저장한 JSON 결과를 붙여넣어도 그 안의 규칙을 가져옴</dd>
         <dt>번호 섞인 복사</dt><dd>위치 번호 · 끝의 * 가 섞인 서열은 오류 아래 버튼으로 한 번에 지움. 서열 중간의 * 는 지우지 않음</dd>
