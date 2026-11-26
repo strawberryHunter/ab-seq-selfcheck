@@ -139,7 +139,19 @@ checks this), so sequences stay on the machine.
   list; places are 1-based places in the sequence as entered, not Kabat numbers), a note
   per candidate, a pI × GRAVY scatter, a one-page sheet for picked candidates, and
   exports (table for a spreadsheet, mail text, FASTA, CSV, JSON; picks and notes travel
-  with the mail text, the sheet and the tables).
+  with the mail text, the sheet and the tables). With a reference set, every residue in
+  which another candidate of that chain differs is listed over the whole domain, piece
+  by piece (FR1 · CDR1 · … · FR4, cut at the engine's CDR borders; a piece of another
+  length is named and left out, no alignment is made), and that line goes out with the
+  sheet, the mail text and the tables. The pH can be changed for the list on screen
+  (only net charge depends on it). One line per detected motif can be copied for a
+  spreadsheet. The JSON result carries the review (picks, notes, references under a
+  key `review`; without marks the file equals the CLI's `--json` output) and gives it
+  back when it is opened, so a review can be handed to a colleague or another PC.
+- **Shell.** The layout values are shared with two sibling tools and measured by one
+  script (`series-check.mjs`, kept outside this repository); the only addresses in the
+  page are two links to those tools and the link to `VALIDATION.md`, each followed only
+  when the viewer presses it.
 - **Build.** `python3 web/build.py` inlines `web/app.html`, `web/app-lib.js`, the engine
   and the bundled fonts into `web/abcheck.html`. `python3 web/build.py --check` fails when
   the committed page is stale; the test suite runs the same check.
