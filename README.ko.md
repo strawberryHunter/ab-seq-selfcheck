@@ -124,6 +124,26 @@ python3 -m abcheck.cli data/synthetic/sequences.json --json > result.json
 
 ---
 
+## 브라우저 앱
+
+`web/abcheck.html` 은 같은 분석을 파일 하나로 담은 페이지다. 브라우저로 열어 서열을 붙여넣거나
+파일을 끌어다 놓으면 된다. 페이지 안에 네트워크 호출이 없어서(테스트가 확인한다) 서열이 컴퓨터
+밖으로 나가지 않는다.
+
+- **같은 엔진.** `web/abcheck-engine.js` 는 `abcheck/` 를 JavaScript 로 옮긴 것이다.
+  `scripts/js_parity.py` 가 합성 코퍼스와 경계 사례에서 두 엔진의 출력을 항목마다 비교하고,
+  하나라도 다르면 `tests/test_js_parity.py` 가 실패한다 (`node` 가 필요하고, 없으면 건너뛴다).
+- **엔진 바깥** (`web/app-lib.js`, `tests/test_web_app.py` 가 `node` 로 검사): 엑셀에서 복사한 행
+  붙여넣기, 파일 여러 개 한 번에, 브라우저에 저장하는 선별 규칙 세트(기본 세트는 엔진의 선별과
+  같은 결과), VH·VL 짝을 항체 하나로 묶어 보기(분류는 체인별로 따로), CDR 비교, pI × GRAVY
+  산점도, 고른 후보 한 장, 내보내기(엑셀용 표 · 메일용 글 · FASTA · CSV · JSON).
+- **빌드.** `python3 web/build.py` 가 `web/app.html`, `web/app-lib.js`, 엔진, 글꼴을
+  `web/abcheck.html` 한 파일로 합친다. `python3 web/build.py --check` 는 커밋된 페이지가 낡았으면
+  실패하고, 테스트도 같은 검사를 한다.
+- 페이지의 버전별 변경과 업무 단계 수(전 → 후)는 [CHANGELOG.md](CHANGELOG.md) 에 있다.
+
+---
+
 ## 무엇을 보여주는가
 
 ### 0. CDR별 liability 집계 (리포트 맨 앞)
@@ -433,11 +453,18 @@ scripts/
 data/synthetic/   합성 서열 + 정답 CDR 좌표
 sample_output/    HTML 리포트 예시
 tests/
+web/
+  app.html          화면 (CSS + 구조 + UI 스크립트)
+  app-lib.js        엔진 바깥의 순수 함수 (규칙 세트 · 짝 찾기 · 내보내기 …)
+  abcheck-engine.js abcheck/ 의 JavaScript 이식본
+  build.py          위 셋과 글꼴을 abcheck.html 한 파일로 합친다
+  abcheck.html      빌드 결과 — 브라우저로 여는 파일
 docs/manual/      사용 설명서 PDF 와 그걸 만드는 스크립트
 README.md         English README
 TUTORIAL.md       단계별 사용 안내
 VALIDATION.md     검증 기록 (공개 데이터 7,000 서열)
 DECISIONS.md      설계 판단 기록
+CHANGELOG.md      브라우저 앱 버전별 변경 기록
 LICENSE           MIT
 ```
 

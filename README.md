@@ -116,6 +116,28 @@ python3 -m abcheck.cli data/synthetic/sequences.json --json > result.json
 Exit codes: `0` processed (sequences flagged *not confident* still count as
 processed), `1` some input failed validation, `2` input could not be read.
 
+## Browser app
+
+`web/abcheck.html` is the same analysis as one self-contained page. Open the file in a
+browser and paste sequences or drop files; the page contains no network call (a test
+checks this), so sequences stay on the machine.
+
+- **Same engine.** `web/abcheck-engine.js` is a JavaScript port of `abcheck/`.
+  `scripts/js_parity.py` runs both on the synthetic corpus and on edge cases and compares
+  every output field; `tests/test_js_parity.py` fails on any difference (it needs `node`
+  and is skipped without it).
+- **Around the engine** (`web/app-lib.js`, tested through `node` in `tests/test_web_app.py`):
+  rows pasted from a spreadsheet, several files at once, triage rule sets kept in the
+  browser (the default set reproduces the engine's triage), VH/VL partner chains shown as
+  one antibody with each chain's own result, CDR comparison, a pI × GRAVY scatter, a
+  one-page sheet for picked candidates, and exports (table for a spreadsheet, mail text,
+  FASTA, CSV, JSON).
+- **Build.** `python3 web/build.py` inlines `web/app.html`, `web/app-lib.js`, the engine
+  and the bundled fonts into `web/abcheck.html`. `python3 web/build.py --check` fails when
+  the committed page is stale; the test suite runs the same check.
+- [CHANGELOG.md](CHANGELOG.md) lists each version of the page with the steps a task took
+  before and after.
+
 ## What it reports
 
 ### CDR annotation
@@ -234,6 +256,8 @@ data/synthetic/   24 synthetic sequences with ground-truth CDR coordinates
 sample_output/    example HTML report
 docs/manual/      user manual PDF (Korean) and the script that builds it from live output
 tests/            test suite
+web/              browser app: app.html + app-lib.js + abcheck-engine.js → build.py → abcheck.html
+CHANGELOG.md      browser app versions: what changed, why, steps before → after
 VALIDATION.md     measurement method, results, known limitations
 DECISIONS.md      design decisions and their rationale
 README.ko.md      Korean README
