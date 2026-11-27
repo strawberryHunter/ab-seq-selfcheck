@@ -1047,6 +1047,39 @@ def test_a_candidate_against_the_reference_piece_by_piece():
 
 
 @needs_node
+def test_every_output_gives_the_counts_of_the_screen():
+    """Sidebar counts, list filters, mail text, table, motif lines and the sheet are built separately: they must agree."""
+    out = _node(EDGE + r"""
+      const list = all.concat([[entries[0][0], entries[3][1]]]);            // with a name used twice
+      const payload = ABCHECK.analyze(list, 7.4);
+      const team = {id: "team", name: "팀 규칙", motifs: ["NG", "D[STD]", "W", "M"], where: "all", minRisk: "낮음", cys: "any"};
+      const result = [ABUI.DEFAULT_RULESET, team].map(rs => {
+        const rows = ABUI.buildRows(payload, rs), t = ABUI.tally(rows);
+        const mail = ABUI.toMailText(rows, {ruleName: rs.name, when: "now"}).split("\n");
+        const section = (title) => { const i = mail.indexOf(title); let n = 0; for (let k = i + 1; i >= 0 && k < mail.length && mail[k].startsWith("- "); k++) n++; return n; };
+        const table = ABUI.toTsv(rows, rs.name).split("\n").map(l => l.split("\t"));
+        const col = table[0].indexOf("분류"), count = (v) => table.slice(1).filter(l => l[col] === v).length;
+        const n = (view) => ABUI.filterRows(rows, {view}).length;
+        return {
+          rule: rs.name, screen: [t.review, t.unknown, t.clear, t.errors], total: t.all,
+          filters: [n("review"), n("unknown"), n("clear"), n("errors")], listed: n("all"),
+          mailHead: mail[1].match(/\d+/g).map(Number), mailSections: [section("검토 필요"), section("판정 불가"), section("입력 오류")],
+          table: [count("검토 필요"), count("판정 불가"), count("기준 해당 없음"), count("입력 오류")], tableRows: table.length - 1,
+          reasonsSame: rows.every(r => table[r.index + 1][table[0].indexOf("규칙 해당")] === r.reasons.join(" / ")),
+          motifLines: ABUI.hitsTable(rows).length - 1, hitsAndFlags: rows.reduce((k, r) => k + (r.inputOk ? r.hits.length + r.flags.length : 0), 0),
+          motifTotals: ABUI.motifTable(rows).rows.every(x => x.total === rows.filter(r => r.inputOk && r.hits.some(h => h.label === x.label)).length),
+          sheetRows: (ABUI.onePageFragment(rows, {ruleName: rs.name, when: "now"}).match(/<td class="op-id">/g) || []).length};
+      });
+      console.log(JSON.stringify(result));""")
+    assert [r["rule"] for r in out] == ["기본", "팀 규칙"] and out[0]["screen"] != out[1]["screen"]      # the two sets do differ
+    for r in out:
+        assert sum(r["screen"]) == r["total"] == r["listed"] == r["tableRows"] == r["sheetRows"], r["rule"]
+        assert r["filters"] == r["screen"] == r["mailHead"] == r["table"], r
+        assert r["mailSections"] == [r["screen"][0], r["screen"][1], r["screen"][3]], r
+        assert r["reasonsSame"] and r["motifTotals"] and r["motifLines"] == r["hitsAndFlags"] > 0, r["rule"]
+
+
+@needs_node
 def test_outputs_agree_with_the_screen_on_input_errors_and_repeated_names():
     out = _node(r"""
       const named = [["Ab-2 HC", entries[0][1]], ["Ab-2 HC", entries[1][1]], ["solo", entries[2][1]], ["primer", "ATGGCCATTGTAATGGGCCGCTGAAAGGGTGCCCGATAG"]];
