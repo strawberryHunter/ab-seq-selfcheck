@@ -1047,6 +1047,34 @@ def test_a_candidate_against_the_reference_piece_by_piece():
 
 
 @needs_node
+def test_outputs_agree_with_the_screen_on_input_errors_and_repeated_names():
+    out = _node(r"""
+      const named = [["Ab-2 HC", entries[0][1]], ["Ab-2 HC", entries[1][1]], ["solo", entries[2][1]], ["primer", "ATGGCCATTGTAATGGGCCGCTGAAAGGGTGCCCGATAG"]];
+      const rows = ABUI.buildRows(ABCHECK.analyze(named, 7.4));
+      const t = ABUI.tally(rows);
+      const tsv = ABUI.toTsv(rows, "기본").split("\n").map(l => l.split("\t"));
+      const col = tsv[0].indexOf("분류");
+      const meta = {ruleName: "기본", when: "2026-11-27 10:00", picked: new Set([1, 2]), notes: {0: "메모"}};
+      const mail = ABUI.toMailText(rows, meta);
+      const name = ABUI.nameWriter(rows);
+      const sheet = (m) => (ABUI.onePageFragment([rows[1], rows[2]], Object.assign({}, meta, m)).match(/<td class="op-id"><b>[^<]*<\/b>/g) || []);
+      console.log(JSON.stringify({
+        tally: [t.review + t.clear, t.unknown, t.errors], engineStatus: rows[3].status,
+        tableStatus: tsv.slice(1).map(l => l[col]), names: rows.map(name),
+        mailNames: mail.split("\n").filter(l => l.startsWith("- ")).map(l => l.slice(2).split(":")[0]),
+        sheetAlone: sheet({}), sheetInList: sheet({all: rows}),
+        unique: ABUI.buildRows(ABCHECK.analyze(named.slice(1), 7.4)).map(ABUI.nameWriter(ABUI.buildRows(ABCHECK.analyze(named.slice(1), 7.4))))}));""")
+    assert out["engineStatus"] == "판정 불가" and out["tally"] == [3, 0, 1]      # the screen counts it as an input error, not as 판정 불가
+    assert out["tableStatus"][3] == "입력 오류" and "판정 불가" not in out["tableStatus"]
+    assert out["names"] == ["Ab-2 HC #1", "Ab-2 HC #2", "solo", "primer"]
+    assert out["mailNames"] == ["primer", "Ab-2 HC #2 (VH)", "solo (VL)", "Ab-2 HC #1 (VH)"]      # 입력 오류, 고른 후보 2, 메모 1
+    # on the sheet a name is marked when the whole list has it twice, even if only one of the two is on the sheet
+    assert out["sheetAlone"] == ['<td class="op-id"><b>Ab-2 HC</b>', '<td class="op-id"><b>solo</b>']
+    assert out["sheetInList"] == ['<td class="op-id"><b>Ab-2 HC #2</b>', '<td class="op-id"><b>solo</b>']
+    assert out["unique"] == ["Ab-2 HC", "solo", "primer"]                        # names used once are written as they are
+
+
+@needs_node
 def test_differences_from_the_reference_travel_with_the_exports():
     out = _node(r"""
       const s = Object.fromEntries(entries);
@@ -1081,7 +1109,7 @@ def test_differences_from_the_reference_travel_with_the_exports():
     assert out["lines"] == {
         "point": "parent|F10Y N56Q H80R", "twin": "parent|차이 없음", "longer3": "parent|F10Y · CDR-H3 길이 다름",
         "noAnchorLonger": "parent|길이 다름 · 견주지 않음", "<i>": "parent|K100G"}       # no line: the reference, the light chain, the input error
-    assert out["capped"] == "F10Y N56Q 외 1" and "limit must be a whole number" in out["refused"]
+    assert out["capped"] == "다른 잔기 3" and "limit must be a whole number" in out["refused"]      # never a list cut off somewhere
     assert out["noRef"] == [{}, {}, {}, {}] and out["lightRef"] == []
     assert out["unchanged"]                                                   # no reference: the table is what it was
     assert out["tsvHead"] == ["기준 대비", "메모"] and len(out["widths"]) == 1

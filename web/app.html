@@ -628,7 +628,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const rules = () => state.rules.sets.find((s) => s.id === state.rules.active) || ABUI.DEFAULT_RULESET;
   const saveRules = () => store.set(K.rules, state.rules);
   const retriage = () => { if (state.payload) { state.rows = ABUI.buildRows(state.payload, rules()); state.pairs = ABUI.pairMap(state.rows); } };
-  const meta = () => ({ ruleName: rules().name, when: when(state.at), pairs: state.pairs, picked: state.picked, notes: state.notes, refs: ABUI.refNotes(state.rows, state.ref) });
+  const meta = () => ({ ruleName: rules().name, when: when(state.at), pairs: state.pairs, picked: state.picked, notes: state.notes, refs: ABUI.refNotes(state.rows, state.ref), all: state.rows });
 
   /* ---------- analysis ---------- */
   function setBusy(msg) { $("busy").innerHTML = msg ? `<div class="busy" role="status"><div>${esc(msg)}</div></div>` : ""; }
@@ -932,8 +932,9 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const nPairs = units ? units.filter((u) => u.h).length : 0;
     const count = units ? `항체 ${nPairs}쌍${units.length > nPairs ? ` · 단독 ${units.length - nPairs}건` : ""}` : `${shown.length}건`;
     h += `<div class="titlebar"><h1>${LISTS[view]}</h1><span class="cnt num">${count}</span>
-        <div class="row xwrap"><button class="btn xmore" type="button" id="x-more" aria-expanded="false" aria-controls="x-list">${icon("share")}내보내기</button>
-          <div class="xlist pop" id="x-list"><button class="btn" type="button" id="x-tsv">${icon("copy")}Excel용 복사</button><button class="btn" type="button" id="x-mail">${icon("copy")}메일용 복사</button>
+        <div class="row xwrap"><button class="btn" type="button" id="x-tsv">${icon("copy")}Excel용 복사</button>
+          <button class="btn xmore" type="button" id="x-more" aria-expanded="false" aria-controls="x-list">${icon("share")}내보내기</button>
+          <div class="xlist pop" id="x-list"><button class="btn" type="button" id="x-mail">${icon("copy")}메일용 복사</button>
           <button class="btn" type="button" id="x-fasta" title="ANARCI · IMGT 에 붙여넣기용">${icon("copy")}FASTA 복사</button>
           <button class="btn" type="button" id="x-csv">${icon("download")}CSV</button><button class="btn" type="button" id="x-json" title="다시 열면 고른 후보 · 메모 · 기준 · pH 그대로">${icon("download")}JSON</button></div></div></div>
       <div class="stats">
@@ -1499,7 +1500,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>목록에서 빼기</dt><dd>후보 상세 맨 아래. 뺀 뒤에도 고른 후보와 비교 기준은 같은 후보를 가리키며, 알림의 '되돌리기' 로 복구</dd></dl></section>
       <section class="card guide"><h2>비교 · 분포</h2><dl>
         <dt>기준 대비 비교</dt><dd>CDR 비교에서 '기준' 후보를 고르면 나머지 후보는 기준과 같은 잔기를 · 으로, 다른 잔기만 글자로 표시. 길이가 다른 CDR 은 겹쳐 볼 수 없어 서열 그대로 두고 '길이 다름' 으로 표시 (정렬하지 않음)</dd>
-        <dt>기준 대비 전체 차이</dt><dd>기준은 CDR 비교의 '기준' 또는 후보 상세의 '기준으로' 로 정함. 기준이 있으면 같은 체인의 다른 후보 상세 맨 위에 다른 잔기를 전부 표시 (기준 잔기 · 이 후보의 서열 순번 · 이 후보 잔기, 예 N56Q). 두 서열을 CDR 경계에서 FR1 · CDR1 · FR2 · CDR2 · FR3 · CDR3 · FR4 로 잘라 조각끼리 겹쳐 보며, 길이가 다른 조각은 견주지 않음 (정렬하지 않음). 주석이 신뢰 불가이면 전체 길이가 같을 때만 자리별로 견줌. CDR 비교 표의 'FR 차이' 는 framework 조각의 다른 잔기 수. 기준이 있는 동안 한 장 · 메일용 글의 고른 후보 · Excel용 복사 · CSV 에 '기준 대비' 로 함께 실림 (치환은 30개까지 적고 나머지는 개수)</dd>
+        <dt>기준 대비 전체 차이</dt><dd>기준은 CDR 비교의 '기준' 또는 후보 상세의 '기준으로' 로 정함. 기준이 있으면 같은 체인의 다른 후보 상세 맨 위에 다른 잔기를 전부 표시 (기준 잔기 · 이 후보의 서열 순번 · 이 후보 잔기, 예 N56Q). 두 서열을 CDR 경계에서 FR1 · CDR1 · FR2 · CDR2 · FR3 · CDR3 · FR4 로 잘라 조각끼리 겹쳐 보며, 길이가 다른 조각은 견주지 않음 (정렬하지 않음). 주석이 신뢰 불가이면 전체 길이가 같을 때만 자리별로 견줌. CDR 비교 표의 'FR 차이' 는 framework 조각의 다른 잔기 수. 기준이 있는 동안 한 장 · 메일용 글의 고른 후보 · Excel용 복사 · CSV 에 '기준 대비' 로 함께 실림 (치환이 30개를 넘으면 목록 대신 개수만)</dd>
         <dt>비슷한 CDR3</dt><dd>CDR 비교에서 차이 1 · 2 · 3 을 고르면 같은 체인에서 CDR3 길이가 같고 그 수 이하로만 다른 후보를 한 묶음으로 표시. 가장 가까운 후보와 이어 묶으므로 (단일 연결) 묶음 안의 두 후보는 그보다 더 다를 수 있고, 표의 '차이' 는 묶음 첫 후보 대비 잔기 수. 길이가 다른 CDR3 은 묶지 않음 (정렬하지 않음)</dd>
         <dt>모티프 분포</dt><dd>항목과 구간마다 그 모티프가 한 번이라도 있는 후보 수 (모티프 개수가 아니며 순위도 아님). 숫자를 누르면 그 후보만 목록에 표시되고, 목록의 칩을 누르면 해제</dd>
         <dt>pH 바꾸기</dt><dd>물성 분포 화면의 pH 칸에 값을 넣고 Enter. net charge 만 다시 계산하고 고른 후보 · 메모 · 비교 기준은 그대로</dd></dl></section>

@@ -2984,8 +2984,10 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   /**
    * One line that says how a row differs from the reference: "F10Y N56Q"; pieces of another
    * length are named after it ("F10Y · CDR-H3 길이 다름"); "차이 없음" when nothing differs;
-   * "길이 다름 · 견주지 않음" when the two cannot be laid over each other. At most `limit`
-   * substitutions are written out (30 unless given), the rest are counted ("외 12").
+   * "길이 다름 · 견주지 않음" when the two cannot be laid over each other. Up to `limit`
+   * substitutions (30 unless given) are written out. More than that is two different antibodies
+   * rather than a variant of the reference, and a list cut off somewhere would say nothing: then
+   * only their number is given ("다른 잔기 41").
    */
   function refLine(ref, row, limit) {
     if (limit === undefined) limit = 30;
@@ -2994,7 +2996,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (d.mode === "none") return "길이 다름 · 견주지 않음";
     var parts = [];
     if (d.subs.length) {
-      parts.push(d.subs.slice(0, limit).map(subText).join(" ") + (d.subs.length > limit ? " 외 " + (d.subs.length - limit) : ""));
+      parts.push(d.subs.length > limit ? "다른 잔기 " + d.subs.length : d.subs.map(subText).join(" "));
     }
     d.regions.forEach(function (g) { if (!g.comparable) parts.push(g.name + " 길이 다름"); });
     return parts.length ? parts.join(" · ") : "차이 없음";
@@ -3656,7 +3658,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       var cdr = function (n) { return r.cdrs[n] ? r.cdrs[n].seq : ""; };
       return [
         r.index + 1, r.id, chainName(r),
-        r.status, r.inputOk ? (r.confident ? "신뢰 가능" : "신뢰 불가") : "",
+        r.inputOk ? r.status : "입력 오류", r.inputOk ? (r.confident ? "신뢰 가능" : "신뢰 불가") : "",
         cdr(0), cdr(1), cdr(2),
         r.inputOk && !r.regionsUnassigned ? countText(r.cdrCounts) : (r.inputOk ? "주석 실패" : ""),
         r.inputOk ? countText(r.fwCounts) : "",
@@ -3740,10 +3742,21 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     return i > 0 ? s.slice(0, i + 1) : s;
   }
 
+  /**
+   * How to write each row's name where names stand alone (mail text, one-page sheet): the name,
+   * and for a name that more than one row of `rows` has, its place in the list after it
+   * ("Ab-2 HC #7", the 순번 of the table). Returns a function row -> text.
+   */
+  function nameWriter(rows) {
+    var seen = {};
+    rows.forEach(function (r) { seen[r.id] = (seen[r.id] || 0) + 1; });
+    return function (r) { return seen[r.id] > 1 ? r.id + " #" + (r.index + 1) : r.id; };
+  }
+
   /** Plain text for an e-mail: counts, then each listed candidate with its rule hits.
       Facts only -- rule hits, not judgements. */
   function toMailText(rows, meta) {
-    var t = tally(rows);
+    var t = tally(rows), name = nameWriter(rows);
     var out = [
       "AbCheck · 후보 " + t.all + "건 · 규칙 " + meta.ruleName + " · " + meta.when,
       "검토 필요 " + t.review + " · 판정 불가 " + t.unknown + " · 기준 해당 없음 " + t.clear + " · 입력 오류 " + t.errors
@@ -3752,7 +3765,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       if (!list.length) return;
       if (meta.pairs) list = withPartnersAdjacent(list, meta.pairs);   // an antibody's two chains on adjacent lines
       out.push("", title);
-      list.forEach(function (r) { out.push("- " + r.id + (r.chain ? " (" + chainName(r) + ")" : "") + ": " + line(r)); });
+      list.forEach(function (r) { out.push("- " + name(r) + (r.chain ? " (" + chainName(r) + ")" : "") + ": " + line(r)); });
     };
     section("검토 필요", rows.filter(function (r) { return r.cats[0] === "review"; }), function (r) { return r.reasons.join("; "); });
     section("판정 불가", rows.filter(function (r) { return r.cats[0] === "unknown"; }), function (r) {
@@ -3766,7 +3779,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       if (meta.pairs) list = withPartnersAdjacent(list, meta.pairs);
       out.push("", title + " " + list.length);
       list.forEach(function (r) {
-        out.push("- " + r.id + (r.chain ? " (" + chainName(r) + ")" : "") + (notes[r.index] ? ": " + notes[r.index] : ""));
+        out.push("- " + name(r) + (r.chain ? " (" + chainName(r) + ")" : "") + (notes[r.index] ? ": " + notes[r.index] : ""));
         if (refs[r.index]) out.push("  기준 " + refs[r.index].id + " 대비: " + refs[r.index].text);
       });
     };
@@ -3805,6 +3818,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   function onePageFragment(rows, meta) {
     var head = '<header class="op-head"><b>AbCheck · 후보 ' + rows.length + "건</b><span>규칙 " + esc(meta.ruleName) +
       " · " + esc(meta.when) + "</span></header>";
+    var name = nameWriter(meta.all || rows);
     var body = rows.map(function (r) {
       var cdrCells = [0, 1, 2].map(function (n) {
         var c = r.cdrs[n];
@@ -3813,7 +3827,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       var hits = r.reasons.length ? r.reasons.map(esc).join("<br>") : "-";
       var anno = !r.inputOk ? "입력 오류" : !r.cdrs.length ? "CDR 주석 실패" : r.confident ? "신뢰 가능" : "신뢰 불가";
       var note = meta.notes && meta.notes[r.index], rf = meta.refs && meta.refs[r.index];
-      return "<tr" + (note || rf ? " class=\"op-noted\"" : "") + "><td class=\"op-id\"><b>" + esc(r.id) + "</b><small>" + esc(chainName(r) || "-") + " · " + (r.length || "-") +
+      return "<tr" + (note || rf ? " class=\"op-noted\"" : "") + "><td class=\"op-id\"><b>" + esc(name(r)) + "</b><small>" + esc(chainName(r) || "-") + " · " + (r.length || "-") +
         " aa</small></td>" + cdrCells + "<td>" + hits + "</td><td>" + anno + "</td><td class=\"op-num\">" +
         (r.pI === null ? "-" : r.pI.toFixed(2)) + "<br>" + (r.gravy === null ? "-" : r.gravy.toFixed(3)) + "</td></tr>" +
         (rf ? "<tr class=\"op-note" + (note ? " op-noted" : "") + "\"><td colspan=\"7\"><small>기준 " + esc(rf.id) + " 대비</small> " +
@@ -3860,7 +3874,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, refLine: refLine, refNotes: refNotes, refOfRows: refOfRows, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanNote: cleanNote, withReview: withReview, reviewFromJson: reviewFromJson, entriesFromResult: entriesFromResult, joinReviews: joinReviews, sameRules: sameRules, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
-    withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, hitsTable: hitsTable, toHitsTsv: toHitsTsv, toFasta: toFasta, toMailText: toMailText,
+    withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, hitsTable: hitsTable, toHitsTsv: toHitsTsv, toFasta: toFasta, toMailText: toMailText, nameWriter: nameWriter,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
 });
@@ -4063,7 +4077,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
   const rules = () => state.rules.sets.find((s) => s.id === state.rules.active) || ABUI.DEFAULT_RULESET;
   const saveRules = () => store.set(K.rules, state.rules);
   const retriage = () => { if (state.payload) { state.rows = ABUI.buildRows(state.payload, rules()); state.pairs = ABUI.pairMap(state.rows); } };
-  const meta = () => ({ ruleName: rules().name, when: when(state.at), pairs: state.pairs, picked: state.picked, notes: state.notes, refs: ABUI.refNotes(state.rows, state.ref) });
+  const meta = () => ({ ruleName: rules().name, when: when(state.at), pairs: state.pairs, picked: state.picked, notes: state.notes, refs: ABUI.refNotes(state.rows, state.ref), all: state.rows });
 
   /* ---------- analysis ---------- */
   function setBusy(msg) { $("busy").innerHTML = msg ? `<div class="busy" role="status"><div>${esc(msg)}</div></div>` : ""; }
@@ -4367,8 +4381,9 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     const nPairs = units ? units.filter((u) => u.h).length : 0;
     const count = units ? `항체 ${nPairs}쌍${units.length > nPairs ? ` · 단독 ${units.length - nPairs}건` : ""}` : `${shown.length}건`;
     h += `<div class="titlebar"><h1>${LISTS[view]}</h1><span class="cnt num">${count}</span>
-        <div class="row xwrap"><button class="btn xmore" type="button" id="x-more" aria-expanded="false" aria-controls="x-list">${icon("share")}내보내기</button>
-          <div class="xlist pop" id="x-list"><button class="btn" type="button" id="x-tsv">${icon("copy")}Excel용 복사</button><button class="btn" type="button" id="x-mail">${icon("copy")}메일용 복사</button>
+        <div class="row xwrap"><button class="btn" type="button" id="x-tsv">${icon("copy")}Excel용 복사</button>
+          <button class="btn xmore" type="button" id="x-more" aria-expanded="false" aria-controls="x-list">${icon("share")}내보내기</button>
+          <div class="xlist pop" id="x-list"><button class="btn" type="button" id="x-mail">${icon("copy")}메일용 복사</button>
           <button class="btn" type="button" id="x-fasta" title="ANARCI · IMGT 에 붙여넣기용">${icon("copy")}FASTA 복사</button>
           <button class="btn" type="button" id="x-csv">${icon("download")}CSV</button><button class="btn" type="button" id="x-json" title="다시 열면 고른 후보 · 메모 · 기준 · pH 그대로">${icon("download")}JSON</button></div></div></div>
       <div class="stats">
@@ -4934,7 +4949,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
         <dt>목록에서 빼기</dt><dd>후보 상세 맨 아래. 뺀 뒤에도 고른 후보와 비교 기준은 같은 후보를 가리키며, 알림의 '되돌리기' 로 복구</dd></dl></section>
       <section class="card guide"><h2>비교 · 분포</h2><dl>
         <dt>기준 대비 비교</dt><dd>CDR 비교에서 '기준' 후보를 고르면 나머지 후보는 기준과 같은 잔기를 · 으로, 다른 잔기만 글자로 표시. 길이가 다른 CDR 은 겹쳐 볼 수 없어 서열 그대로 두고 '길이 다름' 으로 표시 (정렬하지 않음)</dd>
-        <dt>기준 대비 전체 차이</dt><dd>기준은 CDR 비교의 '기준' 또는 후보 상세의 '기준으로' 로 정함. 기준이 있으면 같은 체인의 다른 후보 상세 맨 위에 다른 잔기를 전부 표시 (기준 잔기 · 이 후보의 서열 순번 · 이 후보 잔기, 예 N56Q). 두 서열을 CDR 경계에서 FR1 · CDR1 · FR2 · CDR2 · FR3 · CDR3 · FR4 로 잘라 조각끼리 겹쳐 보며, 길이가 다른 조각은 견주지 않음 (정렬하지 않음). 주석이 신뢰 불가이면 전체 길이가 같을 때만 자리별로 견줌. CDR 비교 표의 'FR 차이' 는 framework 조각의 다른 잔기 수. 기준이 있는 동안 한 장 · 메일용 글의 고른 후보 · Excel용 복사 · CSV 에 '기준 대비' 로 함께 실림 (치환은 30개까지 적고 나머지는 개수)</dd>
+        <dt>기준 대비 전체 차이</dt><dd>기준은 CDR 비교의 '기준' 또는 후보 상세의 '기준으로' 로 정함. 기준이 있으면 같은 체인의 다른 후보 상세 맨 위에 다른 잔기를 전부 표시 (기준 잔기 · 이 후보의 서열 순번 · 이 후보 잔기, 예 N56Q). 두 서열을 CDR 경계에서 FR1 · CDR1 · FR2 · CDR2 · FR3 · CDR3 · FR4 로 잘라 조각끼리 겹쳐 보며, 길이가 다른 조각은 견주지 않음 (정렬하지 않음). 주석이 신뢰 불가이면 전체 길이가 같을 때만 자리별로 견줌. CDR 비교 표의 'FR 차이' 는 framework 조각의 다른 잔기 수. 기준이 있는 동안 한 장 · 메일용 글의 고른 후보 · Excel용 복사 · CSV 에 '기준 대비' 로 함께 실림 (치환이 30개를 넘으면 목록 대신 개수만)</dd>
         <dt>비슷한 CDR3</dt><dd>CDR 비교에서 차이 1 · 2 · 3 을 고르면 같은 체인에서 CDR3 길이가 같고 그 수 이하로만 다른 후보를 한 묶음으로 표시. 가장 가까운 후보와 이어 묶으므로 (단일 연결) 묶음 안의 두 후보는 그보다 더 다를 수 있고, 표의 '차이' 는 묶음 첫 후보 대비 잔기 수. 길이가 다른 CDR3 은 묶지 않음 (정렬하지 않음)</dd>
         <dt>모티프 분포</dt><dd>항목과 구간마다 그 모티프가 한 번이라도 있는 후보 수 (모티프 개수가 아니며 순위도 아님). 숫자를 누르면 그 후보만 목록에 표시되고, 목록의 칩을 누르면 해제</dd>
         <dt>pH 바꾸기</dt><dd>물성 분포 화면의 pH 칸에 값을 넣고 Enter. net charge 만 다시 계산하고 고른 후보 · 메모 · 비교 기준은 그대로</dd></dl></section>

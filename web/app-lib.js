@@ -526,8 +526,10 @@
   /**
    * One line that says how a row differs from the reference: "F10Y N56Q"; pieces of another
    * length are named after it ("F10Y · CDR-H3 길이 다름"); "차이 없음" when nothing differs;
-   * "길이 다름 · 견주지 않음" when the two cannot be laid over each other. At most `limit`
-   * substitutions are written out (30 unless given), the rest are counted ("외 12").
+   * "길이 다름 · 견주지 않음" when the two cannot be laid over each other. Up to `limit`
+   * substitutions (30 unless given) are written out. More than that is two different antibodies
+   * rather than a variant of the reference, and a list cut off somewhere would say nothing: then
+   * only their number is given ("다른 잔기 41").
    */
   function refLine(ref, row, limit) {
     if (limit === undefined) limit = 30;
@@ -536,7 +538,7 @@
     if (d.mode === "none") return "길이 다름 · 견주지 않음";
     var parts = [];
     if (d.subs.length) {
-      parts.push(d.subs.slice(0, limit).map(subText).join(" ") + (d.subs.length > limit ? " 외 " + (d.subs.length - limit) : ""));
+      parts.push(d.subs.length > limit ? "다른 잔기 " + d.subs.length : d.subs.map(subText).join(" "));
     }
     d.regions.forEach(function (g) { if (!g.comparable) parts.push(g.name + " 길이 다름"); });
     return parts.length ? parts.join(" · ") : "차이 없음";
@@ -1198,7 +1200,7 @@
       var cdr = function (n) { return r.cdrs[n] ? r.cdrs[n].seq : ""; };
       return [
         r.index + 1, r.id, chainName(r),
-        r.status, r.inputOk ? (r.confident ? "신뢰 가능" : "신뢰 불가") : "",
+        r.inputOk ? r.status : "입력 오류", r.inputOk ? (r.confident ? "신뢰 가능" : "신뢰 불가") : "",
         cdr(0), cdr(1), cdr(2),
         r.inputOk && !r.regionsUnassigned ? countText(r.cdrCounts) : (r.inputOk ? "주석 실패" : ""),
         r.inputOk ? countText(r.fwCounts) : "",
@@ -1282,10 +1284,21 @@
     return i > 0 ? s.slice(0, i + 1) : s;
   }
 
+  /**
+   * How to write each row's name where names stand alone (mail text, one-page sheet): the name,
+   * and for a name that more than one row of `rows` has, its place in the list after it
+   * ("Ab-2 HC #7", the 순번 of the table). Returns a function row -> text.
+   */
+  function nameWriter(rows) {
+    var seen = {};
+    rows.forEach(function (r) { seen[r.id] = (seen[r.id] || 0) + 1; });
+    return function (r) { return seen[r.id] > 1 ? r.id + " #" + (r.index + 1) : r.id; };
+  }
+
   /** Plain text for an e-mail: counts, then each listed candidate with its rule hits.
       Facts only -- rule hits, not judgements. */
   function toMailText(rows, meta) {
-    var t = tally(rows);
+    var t = tally(rows), name = nameWriter(rows);
     var out = [
       "AbCheck · 후보 " + t.all + "건 · 규칙 " + meta.ruleName + " · " + meta.when,
       "검토 필요 " + t.review + " · 판정 불가 " + t.unknown + " · 기준 해당 없음 " + t.clear + " · 입력 오류 " + t.errors
@@ -1294,7 +1307,7 @@
       if (!list.length) return;
       if (meta.pairs) list = withPartnersAdjacent(list, meta.pairs);   // an antibody's two chains on adjacent lines
       out.push("", title);
-      list.forEach(function (r) { out.push("- " + r.id + (r.chain ? " (" + chainName(r) + ")" : "") + ": " + line(r)); });
+      list.forEach(function (r) { out.push("- " + name(r) + (r.chain ? " (" + chainName(r) + ")" : "") + ": " + line(r)); });
     };
     section("검토 필요", rows.filter(function (r) { return r.cats[0] === "review"; }), function (r) { return r.reasons.join("; "); });
     section("판정 불가", rows.filter(function (r) { return r.cats[0] === "unknown"; }), function (r) {
@@ -1308,7 +1321,7 @@
       if (meta.pairs) list = withPartnersAdjacent(list, meta.pairs);
       out.push("", title + " " + list.length);
       list.forEach(function (r) {
-        out.push("- " + r.id + (r.chain ? " (" + chainName(r) + ")" : "") + (notes[r.index] ? ": " + notes[r.index] : ""));
+        out.push("- " + name(r) + (r.chain ? " (" + chainName(r) + ")" : "") + (notes[r.index] ? ": " + notes[r.index] : ""));
         if (refs[r.index]) out.push("  기준 " + refs[r.index].id + " 대비: " + refs[r.index].text);
       });
     };
@@ -1347,6 +1360,7 @@
   function onePageFragment(rows, meta) {
     var head = '<header class="op-head"><b>AbCheck · 후보 ' + rows.length + "건</b><span>규칙 " + esc(meta.ruleName) +
       " · " + esc(meta.when) + "</span></header>";
+    var name = nameWriter(meta.all || rows);
     var body = rows.map(function (r) {
       var cdrCells = [0, 1, 2].map(function (n) {
         var c = r.cdrs[n];
@@ -1355,7 +1369,7 @@
       var hits = r.reasons.length ? r.reasons.map(esc).join("<br>") : "-";
       var anno = !r.inputOk ? "입력 오류" : !r.cdrs.length ? "CDR 주석 실패" : r.confident ? "신뢰 가능" : "신뢰 불가";
       var note = meta.notes && meta.notes[r.index], rf = meta.refs && meta.refs[r.index];
-      return "<tr" + (note || rf ? " class=\"op-noted\"" : "") + "><td class=\"op-id\"><b>" + esc(r.id) + "</b><small>" + esc(chainName(r) || "-") + " · " + (r.length || "-") +
+      return "<tr" + (note || rf ? " class=\"op-noted\"" : "") + "><td class=\"op-id\"><b>" + esc(name(r)) + "</b><small>" + esc(chainName(r) || "-") + " · " + (r.length || "-") +
         " aa</small></td>" + cdrCells + "<td>" + hits + "</td><td>" + anno + "</td><td class=\"op-num\">" +
         (r.pI === null ? "-" : r.pI.toFixed(2)) + "<br>" + (r.gravy === null ? "-" : r.gravy.toFixed(3)) + "</td></tr>" +
         (rf ? "<tr class=\"op-note" + (note ? " op-noted" : "") + "\"><td colspan=\"7\"><small>기준 " + esc(rf.id) + " 대비</small> " +
@@ -1402,7 +1416,7 @@
     variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, refLine: refLine, refNotes: refNotes, refOfRows: refOfRows, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
     cleanNote: cleanNote, withReview: withReview, reviewFromJson: reviewFromJson, entriesFromResult: entriesFromResult, joinReviews: joinReviews, sameRules: sameRules, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
-    withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, hitsTable: hitsTable, toHitsTsv: toHitsTsv, toFasta: toFasta, toMailText: toMailText,
+    withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, hitsTable: hitsTable, toHitsTsv: toHitsTsv, toFasta: toFasta, toMailText: toMailText, nameWriter: nameWriter,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
 });
