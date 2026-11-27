@@ -146,8 +146,10 @@ checks this), so sequences stay on the machine.
   sheet, the mail text and the tables. The pH can be changed for the list on screen
   (only net charge depends on it). One line per detected motif can be copied for a
   spreadsheet. The JSON result carries the review (picks, notes, references under a
-  key `review`; without marks the file equals the CLI's `--json` output) and gives it
-  back when it is opened, so a review can be handed to a colleague or another PC.
+  key `review`, which also keeps the text of an input that was rejected, so the file can
+  be opened again; without marks and rejected inputs the file equals the CLI's `--json`
+  output) and gives it back when it is opened, so a review can be handed to a colleague
+  or another PC.
 - **Shell.** The layout values are shared with two sibling tools and measured by one
   script (`series-check.mjs`, kept outside this repository); the only addresses in the
   page are two links to those tools and the link to `VALIDATION.md`, each followed only

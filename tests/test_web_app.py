@@ -302,6 +302,49 @@ def test_the_comparison_reference_is_kept_with_the_analysis():
 
 
 @needs_node
+def test_a_result_with_rejected_inputs_can_be_opened_again():
+    """The engine's JSON reader wants a sequence in every item; a result has none for a rejected input."""
+    out = _node(r"""
+      const named = entries.slice(0, 3).concat([["bad", "ACDEFGHIK"], ["empty", ""], ["dna", "atggcc attgta\nATGGGC"], ["dup", entries[0][1]], [entries[0][0], entries[1][1]]]);
+      const payload = ABCHECK.analyze(named, 6.0);
+      const before = ABCHECK.toJSON(payload);
+      let engineSays = null; try { ABCHECK.readInput(before, "result.json"); } catch (e) { engineSays = e.message; }
+      const saved = ABUI.withReview(payload, [3, 6], {4: "서열 다시 받기"}, {H: 0, L: null}, named);
+      const text = ABCHECK.toJSON(saved);
+      let stillRefused = null; try { ABCHECK.readInput(text, "result.json"); } catch (e) { stillRefused = e.message; }
+      const own = ABUI.entriesFromResult(text), old = ABUI.entriesFromResult(before);
+      const again = ABCHECK.analyze(own.entries, 6.0);
+      const rv = ABUI.reviewFromJson(text, own.entries.length);
+      const clean = entries.slice(0, 3), cleanPayload = ABCHECK.analyze(clean, 7.4);
+      let wrongCount = null; try { ABUI.withReview(payload, [], {}, null, named.slice(1)); } catch (e) { wrongCount = e.message; }
+      console.log(JSON.stringify({
+        engineSays, stillRefused,
+        payloadUntouched: ABCHECK.toJSON(payload) === before,
+        reviews: saved.sequences.map(q => q.review || null),
+        entriesBack: JSON.stringify(own.entries) === JSON.stringify(named.map(([id, x], i) => [id, payload.sequences[i].input_ok ? payload.sequences[i].sequence : x])),
+        lost: own.lost, sameAnalysis: ABCHECK.toJSON(again) === before,
+        marks: {picked: rv.picked, notes: rv.notes, refs: rv.refs, ph: rv.ph},
+        oldFile: {lost: old.lost, entries: old.entries.map(e => e[0] + ":" + e[1].length)},
+        noRejectedSameObject: ABUI.withReview(cleanPayload, [], {}, null, clean) === cleanPayload,
+        notAResult: [ABUI.entriesFromResult("{"), ABUI.entriesFromResult("[1, 2]"), ABUI.entriesFromResult('{"sequences": []}'),
+                     ABUI.entriesFromResult('{"sequences": [{"id": "a", "sequence": "ACD"}]}'), ABUI.entriesFromResult('{"sequences": ["ACD"]}')],
+        wrongCount}));""")
+    assert "'sequence' 키가 없다" in out["engineSays"] and out["stillRefused"] == out["engineSays"]      # the engine's reader is as it was
+    assert out["payloadUntouched"]
+    assert out["reviews"] == [
+        {"picked": False, "note": "", "reference": True}, None, None,
+        {"picked": True, "note": "", "input": "ACDEFGHIK"}, {"picked": False, "note": "서열 다시 받기", "input": ""},
+        {"picked": False, "note": "", "input": "atggcc attgta\nATGGGC"}, {"picked": True, "note": ""}, None]
+    assert out["entriesBack"] and out["lost"] == 0 and out["sameAnalysis"]       # same list, same result, same errors
+    assert out["marks"] == {"picked": [3, 6], "notes": {"4": "서열 다시 받기"}, "refs": [0], "ph": 6.0}
+    # a file saved before the text was kept: the entry stays in its place with an empty sequence, and is counted
+    assert out["oldFile"]["lost"] == 3 and out["oldFile"]["entries"][3:6] == ["bad:0", "empty:0", "dna:0"]
+    assert out["noRejectedSameObject"]                                          # no rejected input, no mark: the file as it was
+    assert out["notAResult"] == [None] * 5                                      # a corpus is the engine reader's business
+    assert "8 sequences" in out["wrongCount"]
+
+
+@needs_node
 def test_marks_of_files_opened_together_are_renumbered():
     out = _node(r"""
       const a = {picked: [0, 2], notes: {1: "가"}, refs: [3], ph: 6.0, ruleSet: {name: "팀"}, ruleProblem: "", unread: ""};

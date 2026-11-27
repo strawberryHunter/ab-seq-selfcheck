@@ -570,12 +570,26 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       else toast(filename + " 저장");
     });
   }
+  /**
+   * A JSON input: the engine's reader first. It refuses a result of this tool that holds a rejected
+   * input (no "sequence" there); such a file is read here instead. Returns [entries, source, lost]:
+   * lost = rejected inputs whose text was not kept in the file (saved before v36).
+   */
+  function readJson(text, fileName) {
+    try { return ABCHECK.readInput(text, fileName).concat([0]); }
+    catch (e) {
+      const own = ABUI.entriesFromResult(text);
+      if (!own) throw e;
+      return [own.entries, `JSON 결과 (${fileName})`, own.lost];
+    }
+  }
   /** Read pasted or loaded text. Pasted tables and JSON go through the engine's own readers. */
   function readText(text, fileName) {
-    if (fileName) return ABCHECK.readInput(text, fileName);
+    if (fileName) return /\.json$/i.test(fileName) ? readJson(text, fileName) : ABCHECK.readInput(text, fileName);
     const kind = ABUI.pastedKind(text);
     if (!kind) return ABCHECK.readInput(text, "");
-    return [ABCHECK.readInput(text, "pasted" + kind)[0], kind === ".json" ? "붙여넣은 JSON" : "붙여넣은 표"];
+    if (kind === ".json") { const got = readJson(text, "pasted.json"); return [got[0], "붙여넣은 JSON", got[2]]; }
+    return [ABCHECK.readInput(text, "pasted" + kind)[0], "붙여넣은 표"];
   }
   const pad = (n) => String(n).padStart(2, "0");
   const stamp = () => { const d = state.at || new Date(); return d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + "-" + pad(d.getHours()) + pad(d.getMinutes()); };
@@ -654,7 +668,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       if (rv && rv.ruleProblem) console.warn("abcheck: rule set in the JSON not usable:", rv.ruleProblem);
       const refs = (state.ref.H !== null) + (state.ref.L !== null);
       const back = !rv ? "" : (state.picked.size ? ` · 고른 후보 ${state.picked.size}` : "") + (notes ? ` · 메모 ${notes}` : "") + (refs ? ` · 기준 ${refs}` : "") +
-        (rv.phUsed ? ` · pH ${rv.ph}` : "") + (rv.unread ? " · 고른 후보 · 메모 못 읽음" : "") + (rv.ruleProblem ? " · 파일의 규칙 못 읽음" : "");
+        (rv.phUsed ? ` · pH ${rv.ph}` : "") + (rv.lost ? ` · 원문 없는 입력 오류 ${rv.lost}` : "") + (rv.unread ? " · 고른 후보 · 메모 못 읽음" : "") + (rv.ruleProblem ? " · 파일의 규칙 못 읽음" : "");
       const msg = `후보 ${t.all}건 분석${t.errors ? ` · 입력 오류 ${t.errors}` : ""}${back}${unkept() ? " · 저장 안 됨" : ""}`;
       if (state.view === "all") render(); else go("all");
       if (rv && rv.ruleSet && !ABUI.sameRules(rv.ruleSet, rules())) toast(msg, "파일의 규칙 적용", () => adoptRuleSet(rv.ruleSet));
@@ -680,14 +694,15 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (!(opts && opts.example)) { state.input = text; state.fileName = fileName || ""; }
     if (!String(text).trim()) return fail("입력이 비어 있음", "서열 · FASTA 붙여넣기 또는 파일 열기");
     if (!(ph >= 0 && ph <= 14)) return fail("pH 값이 범위를 벗어남", "0–14 사이 숫자 입력");
-    let entries, source;
-    try { [entries, source] = readText(text, fileName); }
+    let entries, source, lost;
+    try { [entries, source, lost] = readText(text, fileName); }
     catch (e) { return fail(e.message, "형식을 고친 뒤 다시 분석"); }
     if (!entries.length) return fail("읽은 서열이 없음", "FASTA 는 '>' 줄 아래에 서열 필요");
     // a JSON result brings its marks and its pH along
     const isJson = fileName ? /\.json$/i.test(fileName) : ABUI.pastedKind(text) === ".json";
     const rv = isJson ? ABUI.joinReviews([{ count: entries.length, review: ABUI.reviewFromJson(text, entries.length) }]) : null;
     if (rv && rv.ph !== null && rv.ph !== ph) { ph = rv.ph; rv.phUsed = true; }
+    if (rv) rv.lost = lost || 0;
     run(() => finish(analyzeEntries(entries, source, ph, Object.assign({ text }, opts || {}, rv ? { picked: rv.picked, notes: rv.notes, ref: rv.refs, fileRules: rv.ruleSet } : {})), rv), entries.length);
   }
   function decode(buf) {
@@ -708,11 +723,12 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     if (xlsx) return fail(`${xlsx.name}: 엑셀 파일은 바로 읽지 않음`, "엑셀에서 'CSV UTF-8' 로 저장한 파일 열기");
     Promise.all(files.map((f) => f.arrayBuffer().then((buf) => ({ name: f.name, buf })))).then((loaded) => {
       const parts = [];
-      let text = "";
+      let text = "", lost = 0;
       for (const f of loaded) {
         try {
           const t = decode(f.buf);
-          const [entries, source] = ABCHECK.readInput(t, f.name);
+          const [entries, source, gone] = readText(t, f.name);
+          lost += gone || 0;
           parts.push({ name: f.name, entries, source, count: entries.length, review: /\.json$/i.test(f.name) ? ABUI.reviewFromJson(t, entries.length) : null });
           if (loaded.length === 1) text = t;
         } catch (e) { return fail(`${f.name}: ${e.message}`, "파일을 고치거나 빼고 다시 열기"); }
@@ -722,6 +738,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       if (loaded.length === 1) { state.input = text; state.fileName = loaded[0].name; }
       const rv = ABUI.joinReviews(parts);
       if (rv && rv.ph !== null && rv.ph !== ph) { ph = rv.ph; rv.phUsed = true; }
+      if (rv) rv.lost = lost;
       run(() => finish(analyzeEntries(all.entries, all.source, ph, rv ? { text, picked: rv.picked, notes: rv.notes, ref: rv.refs, fileRules: rv.ruleSet } : { text }), rv), all.entries.length);
     }, (e) => { console.error("abcheck: reading the dropped files failed", e); fail("파일을 읽지 못함", "다시 끌어다 놓기"); });
   }
@@ -1464,34 +1481,36 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
       <section class="card guide"><h2>입력</h2><dl>
         <dt>붙여넣기</dt><dd>서열 하나 · FASTA 여러 개 · 엑셀 표(이름, 서열 두 열)</dd>
         <dt>파일</dt><dd>FASTA · CSV · TSV · JSON 여러 개를 한 번에 끌어다 놓기. .xlsx 는 'CSV UTF-8' 로 저장 후 열기</dd>
-        <dt>모티프 분포</dt><dd>항목과 구간마다 그 모티프가 한 번이라도 있는 후보 수 (모티프 개수가 아니며 순위도 아님). 숫자를 누르면 그 후보만 목록에 표시되고, 목록의 칩을 누르면 해제</dd>
-        <dt>치환 시험</dt><dd>후보 상세에서 치환을 적으면 (N56Q, 여러 개는 띄어쓰기) 바뀐 서열을 같은 엔진 · 같은 규칙으로 다시 계산해 원본과 나란히 표시. 번호는 입력한 서열의 순번이며 Kabat 번호가 아님. 원래 잔기가 그 자리와 다르면 고치지 않고 거절. '후보로 추가' 는 변이체를 목록 끝에 넣음</dd>
-        <dt>메모</dt><dd>후보 상세 위쪽의 한 줄 (200자). 카드에 보이고 메일용 글의 '고른 후보' · '메모' 단락, 한 장, Excel용 복사 · CSV 의 마지막 열, JSON 에 함께 실림</dd>
-        <dt>이어서 하기</dt><dd>JSON 으로 저장한 파일을 다른 PC 나 다른 사람이 열면 (파일 열기 · 끌어다 놓기 · 붙여넣기) 고른 후보 · 메모 · 비교 기준 · pH 가 그대로 돌아옴. 기본이 아닌 규칙 세트로 저장한 파일은 알림이나 후보 전체 위쪽의 '파일의 규칙 적용' 을 눌러야 그 규칙으로 바뀜. 파일 여러 개를 함께 열면 고른 후보와 메모만 합치고 pH 와 규칙은 지금 값을 씀</dd>
-        <dt>pH 바꾸기</dt><dd>물성 분포 화면의 pH 칸에 값을 넣고 Enter. net charge 만 다시 계산하고 고른 후보 · 메모 · 비교 기준은 그대로</dd>
-        <dt>목록에서 빼기</dt><dd>후보 상세 맨 아래. 뺀 뒤에도 고른 후보와 비교 기준은 같은 후보를 가리키며, 알림의 '되돌리기' 로 복구</dd>
-        <dt>비슷한 CDR3</dt><dd>CDR 비교에서 차이 1 · 2 · 3 을 고르면 같은 체인에서 CDR3 길이가 같고 그 수 이하로만 다른 후보를 한 묶음으로 표시. 가장 가까운 후보와 이어 묶으므로 (단일 연결) 묶음 안의 두 후보는 그보다 더 다를 수 있고, 표의 '차이' 는 묶음 첫 후보 대비 잔기 수. 길이가 다른 CDR3 은 묶지 않음 (정렬하지 않음)</dd>
-        <dt>기준 대비 전체 차이</dt><dd>기준은 CDR 비교의 '기준' 또는 후보 상세의 '기준으로' 로 정함. 기준이 있으면 같은 체인의 다른 후보 상세 맨 위에 다른 잔기를 전부 표시 (기준 잔기 · 이 후보의 서열 순번 · 이 후보 잔기, 예 N56Q). 두 서열을 CDR 경계에서 FR1 · CDR1 · FR2 · CDR2 · FR3 · CDR3 · FR4 로 잘라 조각끼리 겹쳐 보며, 길이가 다른 조각은 견주지 않음 (정렬하지 않음). 주석이 신뢰 불가이면 전체 길이가 같을 때만 자리별로 견줌. CDR 비교 표의 'FR 차이' 는 framework 조각의 다른 잔기 수. 기준이 있는 동안 한 장 · 메일용 글의 고른 후보 · Excel용 복사 · CSV 에 '기준 대비' 로 함께 실림 (치환은 30개까지 적고 나머지는 개수)</dd>
-        <dt>기준 대비 비교</dt><dd>CDR 비교에서 '기준' 후보를 고르면 나머지 후보는 기준과 같은 잔기를 · 으로, 다른 잔기만 글자로 표시. 길이가 다른 CDR 은 겹쳐 볼 수 없어 서열 그대로 두고 '길이 다름' 으로 표시 (정렬하지 않음)</dd>
-        <dt>규칙 공유</dt><dd>선별 규칙 화면의 '복사' 가 규칙 세트를 글 한 줄로 복사. 받은 사람은 같은 화면에 붙여넣고 '가져오기'. 이 화면에서 저장한 JSON 결과를 붙여넣어도 그 안의 규칙을 가져옴</dd>
         <dt>번호 섞인 복사</dt><dd>위치 번호 · 끝의 * 가 섞인 서열은 오류 아래 버튼으로 한 번에 지움. 서열 중간의 * 는 지우지 않음</dd>
         <dt>자동 정리</dt><dd>공백 · 줄바꿈 · 소문자 · 정렬 갭(. -)</dd>
-        <dt>서열 단위</dt><dd>VH 또는 VL 도메인 하나, 70–200 잔기. scFv · Fab 는 VH 와 VL 로 나눠서</dd></dl></section>
+        <dt>서열 단위</dt><dd>VH 또는 VL 도메인 하나, 70–200 잔기. scFv · Fab 는 VH 와 VL 로 나눠서</dd>
+        <dt>짝 체인</dt><dd>이름이 체인 표시만 다른 두 서열 (mAb01_VH · mAb01_VL). 표시로 읽는 것: VH · VL · VK · HC · LC · H · L · heavy · light · IGH · IGK · IGL · 중쇄 · 경쇄, 구분 기호 없이 붙인 mAb01H · mAb01L 포함. 엔진이 한쪽을 VH, 다른 쪽을 VL 로 판정한 정확히 두 서열만 묶음</dd>
+        <dt>항체 단위</dt><dd>짝 체인을 한 카드에 묶어 표시. 분류는 체인별로 따로 두고 합치지 않음. 짝이 있는 체인이 절반을 넘으면 처음부터 항체로 열림. 서열 · 항체를 한 번 고르면 그 뒤로는 고른 대로</dd></dl></section>
       <section class="card guide"><h2>분류</h2><dl>
         <dt>검토 필요</dt><dd>선별 규칙에 하나 이상 해당. 먼저 볼 후보라는 뜻이며 판정이 아님</dd>
         <dt>기준 해당 없음</dt><dd>규칙에 해당하지 않음. 안전하다는 뜻이 아님</dd>
         <dt>판정 불가</dt><dd>CDR 주석 실패 또는 주석 신뢰 불가. 추측하지 않고 이유를 상세에 표시</dd>
         <dt>위험도</dt><dd>글자로만 표시. CDR 안은 한 단계 올리고 framework 는 한 단계 내림</dd>
-        <dt>규칙 세트</dt><dd>선별 규칙 화면에서 복제해 수정. 이 브라우저에 저장되고 다음 분석에 그대로 적용</dd></dl></section>
+        <dt>규칙 세트</dt><dd>선별 규칙 화면에서 복제해 수정. 이 브라우저에 저장되고 다음 분석에 그대로 적용</dd>
+        <dt>규칙 공유</dt><dd>선별 규칙 화면의 '복사' 가 규칙 세트를 글 한 줄로 복사. 받은 사람은 같은 화면에 붙여넣고 '가져오기'. 이 화면에서 저장한 JSON 결과를 붙여넣어도 그 안의 규칙을 가져옴</dd></dl></section>
+      <section class="card guide"><h2>후보 상세</h2><dl>
+        <dt>치환 시험</dt><dd>후보 상세에서 치환을 적으면 (N56Q, 여러 개는 띄어쓰기) 바뀐 서열을 같은 엔진 · 같은 규칙으로 다시 계산해 원본과 나란히 표시. 번호는 입력한 서열의 순번이며 Kabat 번호가 아님. 원래 잔기가 그 자리와 다르면 고치지 않고 거절. '후보로 추가' 는 변이체를 목록 끝에 넣음</dd>
+        <dt>메모</dt><dd>후보 상세 위쪽의 한 줄 (200자). 카드에 보이고 메일용 글의 '고른 후보' · '메모' 단락, 한 장, Excel용 복사 · CSV 의 마지막 열, JSON 에 함께 실림</dd>
+        <dt>목록에서 빼기</dt><dd>후보 상세 맨 아래. 뺀 뒤에도 고른 후보와 비교 기준은 같은 후보를 가리키며, 알림의 '되돌리기' 로 복구</dd></dl></section>
+      <section class="card guide"><h2>비교 · 분포</h2><dl>
+        <dt>기준 대비 비교</dt><dd>CDR 비교에서 '기준' 후보를 고르면 나머지 후보는 기준과 같은 잔기를 · 으로, 다른 잔기만 글자로 표시. 길이가 다른 CDR 은 겹쳐 볼 수 없어 서열 그대로 두고 '길이 다름' 으로 표시 (정렬하지 않음)</dd>
+        <dt>기준 대비 전체 차이</dt><dd>기준은 CDR 비교의 '기준' 또는 후보 상세의 '기준으로' 로 정함. 기준이 있으면 같은 체인의 다른 후보 상세 맨 위에 다른 잔기를 전부 표시 (기준 잔기 · 이 후보의 서열 순번 · 이 후보 잔기, 예 N56Q). 두 서열을 CDR 경계에서 FR1 · CDR1 · FR2 · CDR2 · FR3 · CDR3 · FR4 로 잘라 조각끼리 겹쳐 보며, 길이가 다른 조각은 견주지 않음 (정렬하지 않음). 주석이 신뢰 불가이면 전체 길이가 같을 때만 자리별로 견줌. CDR 비교 표의 'FR 차이' 는 framework 조각의 다른 잔기 수. 기준이 있는 동안 한 장 · 메일용 글의 고른 후보 · Excel용 복사 · CSV 에 '기준 대비' 로 함께 실림 (치환은 30개까지 적고 나머지는 개수)</dd>
+        <dt>비슷한 CDR3</dt><dd>CDR 비교에서 차이 1 · 2 · 3 을 고르면 같은 체인에서 CDR3 길이가 같고 그 수 이하로만 다른 후보를 한 묶음으로 표시. 가장 가까운 후보와 이어 묶으므로 (단일 연결) 묶음 안의 두 후보는 그보다 더 다를 수 있고, 표의 '차이' 는 묶음 첫 후보 대비 잔기 수. 길이가 다른 CDR3 은 묶지 않음 (정렬하지 않음)</dd>
+        <dt>모티프 분포</dt><dd>항목과 구간마다 그 모티프가 한 번이라도 있는 후보 수 (모티프 개수가 아니며 순위도 아님). 숫자를 누르면 그 후보만 목록에 표시되고, 목록의 칩을 누르면 해제</dd>
+        <dt>pH 바꾸기</dt><dd>물성 분포 화면의 pH 칸에 값을 넣고 Enter. net charge 만 다시 계산하고 고른 후보 · 메모 · 비교 기준은 그대로</dd></dl></section>
       <section class="card guide"><h2>내보내기</h2><dl>
         <dt>Excel용 복사</dt><dd>지금 보이는 목록을 표로 복사</dd>
         <dt>모티프별 표</dt><dd>모티프 분포 화면의 Excel용 복사. 검출된 모티프를 한 줄에 하나씩 (서열 이름 · 체인 · 분류 · 항목 · 모티프 · 시작 · 끝 · 구간 · 위험도 · 기본 위험도). 비결합 Cys 가능성은 구간 '도메인 전체' 로, 검색으로 좁힌 후보만</dd>
         <dt>메일용 복사</dt><dd>건수와 규칙 해당 내용을 글로 복사</dd>
         <dt>FASTA 복사</dt><dd>지금 보이는 목록의 서열. 판정 불가 목록을 ANARCI · IMGT 에 붙여넣을 때</dd>
-        <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준. JSON 은 엔진 원본 출력이고, 기본이 아닌 규칙 세트를 쓰는 중이면 rule_set · rule_result 항목이, 고르거나 메모하거나 기준으로 둔 서열에는 review 항목이 더 붙음</dd>
+        <dt>CSV · JSON</dt><dd>CSV 는 지금 규칙 세트 기준. JSON 은 엔진 원본 출력이고, 기본이 아닌 규칙 세트를 쓰는 중이면 rule_set · rule_result 항목이, 고르거나 메모하거나 기준으로 둔 서열, 입력 오류인 서열 (다시 열 수 있게 넣은 글 그대로) 에는 review 항목이 더 붙음</dd>
         <dt>한 장</dt><dd>북마크로 고른 후보만 A4 한 장 HTML 로 저장. 브라우저에서 열어 인쇄</dd>
-        <dt>짝 체인</dt><dd>이름이 체인 표시만 다른 두 서열 (mAb01_VH · mAb01_VL). 표시로 읽는 것: VH · VL · VK · HC · LC · H · L · heavy · light · IGH · IGK · IGL · 중쇄 · 경쇄, 구분 기호 없이 붙인 mAb01H · mAb01L 포함. 엔진이 한쪽을 VH, 다른 쪽을 VL 로 판정한 정확히 두 서열만 묶음</dd>
-        <dt>항체 단위</dt><dd>짝 체인을 한 카드에 묶어 표시. 분류는 체인별로 따로 두고 합치지 않음. 짝이 있는 체인이 절반을 넘으면 처음부터 항체로 열림. 서열 · 항체를 한 번 고르면 그 뒤로는 고른 대로</dd></dl></section>
+        <dt>이어서 하기</dt><dd>JSON 으로 저장한 파일을 다른 PC 나 다른 사람이 열면 (파일 열기 · 끌어다 놓기 · 붙여넣기) 고른 후보 · 메모 · 비교 기준 · pH 가 그대로 돌아옴. 기본이 아닌 규칙 세트로 저장한 파일은 알림이나 후보 전체 위쪽의 '파일의 규칙 적용' 을 눌러야 그 규칙으로 바뀜. 파일 여러 개를 함께 열면 고른 후보와 메모만 합치고 pH 와 규칙은 지금 값을 씀</dd></dl></section>
       <section class="card guide"><h2>단축키</h2><dl>
         <dt><kbd>/</kbd></dt><dd>검색</dd><dt><kbd>Enter</kbd> <kbd>↓</kbd></dt><dd>검색 칸에서 첫 결과로</dd><dt><kbd>Esc</kbd></dt><dd>상세 · 메뉴 닫기</dd>
         <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>상세에서 이전 · 다음 후보</dd><dt><kbd>Ctrl</kbd> <kbd>Enter</kbd></dt><dd>분석</dd></dl></section>
@@ -1625,7 +1644,7 @@ kbd { font-family: var(--fm); font-size: 13px; border: 1px solid var(--line); bo
     on("x-mail", "click", () => copy(ABUI.toMailText(state.rows, meta()), "메일용 글 복사"));
     on("x-fasta", "click", () => { const n = state.openList.filter((r) => r.inputOk).length; copy(ABUI.toFasta(state.openList), `FASTA ${n}건 복사`); });
     on("x-csv", "click", () => save(`abcheck-${stamp()}.csv`, ABUI.toCsv(state.openList, rules().name, state.notes, meta().refs), "text/csv"));
-    on("x-json", "click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(ABUI.withReview(ABUI.withRuleResults(state.payload, rules()), state.picked, state.notes, state.ref)), "application/json"));
+    on("x-json", "click", () => save(`abcheck-${stamp()}.json`, ABCHECK.toJSON(ABUI.withReview(ABUI.withRuleResults(state.payload, rules()), state.picked, state.notes, state.ref, state.entries)), "application/json"));
     const slideCount = () => heroSlides(ABUI.tally(state.rows)).length;
     on("hero-prev", "click", () => { const n = slideCount(); state.hero = (Math.min(state.hero, n - 1) + n - 1) % n; render(); $("hero-prev").focus(); });
     on("hero-next", "click", () => { const n = slideCount(); state.hero = (Math.min(state.hero, n - 1) + 1) % n; render(); $("hero-next").focus(); });

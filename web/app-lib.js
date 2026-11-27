@@ -803,15 +803,23 @@
    * The object to save as JSON, with the user's marks. A sequence that is picked or has a note
    * gets a last key "review": {"picked": true | false, "note": "..."}; every other sequence is
    * the same object as before. A comparison reference gets "reference": true in it as well.
-   * Without any mark the object itself comes back, so the file stays what withRuleResults()
-   * gives (with the default rule set: the Python CLI's --json output).
-   * picked: a Set or a list of places in the list; notes: {place: text}; ref: {H, L} places.
+   * An input that was rejected has no "sequence" in a result, so the file could not be opened
+   * again (the engine's reader wants one in every item): with `entries` given, such a sequence
+   * gets "input": the text as it was entered, in its "review".
+   * Without any mark and any rejected input the object itself comes back, so the file stays
+   * what withRuleResults() gives (with the default rule set: the Python CLI's --json output).
+   * picked: a Set or a list of places in the list; notes: {place: text}; ref: {H, L} places;
+   * entries: [[name, text]] in list order.
    */
-  function withReview(obj, picked, notes, ref) {
+  function withReview(obj, picked, notes, ref, entries) {
     var set = picked instanceof Set ? picked : new Set(picked || []);
     notes = notes || {};
     var refs = ref ? [ref.H, ref.L].filter(function (i) { return Number.isInteger(i); }) : [];
-    var marked = function (i) { return set.has(i) || !!notes[i] || refs.indexOf(i) >= 0; };
+    if (entries && entries.length !== obj.sequences.length) {
+      throw new Error("withReview: " + entries.length + " entries for " + obj.sequences.length + " sequences");
+    }
+    var rejected = function (i) { return !!entries && obj.sequences[i].input_ok === false; };
+    var marked = function (i) { return set.has(i) || !!notes[i] || refs.indexOf(i) >= 0 || rejected(i); };
     if (!obj.sequences.some(function (_, i) { return marked(i); })) return obj;
     var out = {};
     Object.keys(obj).forEach(function (k) {
@@ -821,6 +829,7 @@
         Object.keys(s).forEach(function (key) { copy[key] = s[key]; });
         copy.review = { picked: set.has(i), note: notes[i] || "" };
         if (refs.indexOf(i) >= 0) copy.review.reference = true;
+        if (rejected(i)) copy.review.input = String(entries[i][1]);
         return copy;
       });
     });
@@ -867,6 +876,32 @@
       catch (e) { out.ruleProblem = e.message; }
     }
     return out;
+  }
+
+  /**
+   * The entries of a JSON result of this tool, for results the engine's reader refuses: it wants
+   * a "sequence" in every item, and a result has none for an input that was rejected. Such an
+   * item comes back with the text withReview() kept for it ("review.input"). A result saved
+   * without that text gives an empty sequence for it, counted in `lost`: the entry keeps its
+   * place in the list (as an input error), so the marks of the others stay where they belong.
+   * Returns {entries, lost}, or null when the text is not such a result.
+   */
+  function entriesFromResult(text) {
+    var value;
+    try { value = JSON.parse(String(text).replace(/^﻿/, "")); }
+    catch (e) { return null; }
+    if (!value || typeof value !== "object" || !Array.isArray(value.sequences) || !value.sequences.length) return null;
+    var items = value.sequences;
+    if (!items.every(function (s) { return s && typeof s === "object" && !Array.isArray(s) && typeof s.input_ok === "boolean"; })) return null;
+    var lost = 0;
+    var entries = items.map(function (s, i) {
+      var id = s.id === undefined || s.id === null ? "seq" + (i + 1) : String(s.id);
+      if (typeof s.sequence === "string") return [id, s.sequence];
+      var kept = s.review && typeof s.review === "object" && typeof s.review.input === "string" ? s.review.input : null;
+      if (kept === null) lost += 1;
+      return [id, kept === null ? "" : kept];
+    });
+    return { entries: entries, lost: lost };
   }
 
   /**
@@ -1366,7 +1401,7 @@
     filterRows: filterRows, sortRows: sortRows, sharedCdrs: sharedCdrs, similarCdr3: similarCdr3, diffCdr: diffCdr, parseSubstitutions: parseSubstitutions, applySubstitutions: applySubstitutions,
     variantName: variantName, regionAt: regionAt, regionsOf: regionsOf, diffRegions: diffRegions, refLine: refLine, refNotes: refNotes, refOfRows: refOfRows, diffHits: diffHits, motifTable: motifTable, withoutEntry: withoutEntry, niceTicks: niceTicks, placeLabels: placeLabels, nearestPoint: nearestPoint,
     combineEntries: combineEntries, pastedKind: pastedKind, stripNumbering: stripNumbering, pairKey: pairKey, pairName: pairName, pairMap: pairMap, antibodyUnits: antibodyUnits, preferredUnit: preferredUnit,
-    cleanNote: cleanNote, withReview: withReview, reviewFromJson: reviewFromJson, joinReviews: joinReviews, sameRules: sameRules, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
+    cleanNote: cleanNote, withReview: withReview, reviewFromJson: reviewFromJson, entriesFromResult: entriesFromResult, joinReviews: joinReviews, sameRules: sameRules, cleanRecent: cleanRecent, cleanUi: cleanUi, cleanRules: cleanRules, ruleSetToText: ruleSetToText, ruleSetFromText: ruleSetFromText,
     withPartnersAdjacent: withPartnersAdjacent, toCsv: toCsv, toTsv: toTsv, hitsTable: hitsTable, toHitsTsv: toHitsTsv, toFasta: toFasta, toMailText: toMailText,
     markedCdr: markedCdr, onePageFragment: onePageFragment, onePageDoc: onePageDoc
   };
